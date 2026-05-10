@@ -1,0 +1,53 @@
+import Database from 'better-sqlite3';
+import fs from 'fs';
+import path from 'path';
+
+// Path to DB stored on USB stick
+const dbPath = process.env.DB_PATH || '../data/go.db';
+
+// Ensure directory exists
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+// Open database
+const db = new Database(dbPath);
+
+// Enable WAL mode (best for Raspberry Pi)
+db.pragma('journal_mode = WAL');
+
+// Recommended for Pi: good balance of safety + speed
+db.pragma('synchronous = NORMAL');
+
+// Optional: reduce fragmentation
+db.pragma('auto_vacuum = FULL');
+
+// Create tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id TEXT NOT NULL,
+    move_number INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS snapshots (
+    game_id TEXT NOT NULL,
+    move_number INTEGER NOT NULL,
+    state TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (game_id, move_number)
+  );
+
+  CREATE TABLE IF NOT EXISTS games (
+    id TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    status TEXT NOT NULL
+  );
+`);
+
+export default db;
