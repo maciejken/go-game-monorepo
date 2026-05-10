@@ -2,8 +2,7 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 
-// Path to DB stored on USB stick
-const dbPath = process.env.DB_PATH || '../data/go.db';
+import { dbPath } from './config';
 
 // Ensure directory exists
 const dbDir = path.dirname(dbPath);

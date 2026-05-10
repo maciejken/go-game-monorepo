@@ -1,10 +1,7 @@
 import express from 'express';
-import dotenv from 'dotenv';
 import db from './db';
 
-const dbPath = process.env.DB_PATH || '../data/go.db'
-
-dotenv.config();
+import { dbPath, port } from './config';
 
 const app = express();
 app.use(express.json());
@@ -32,8 +29,6 @@ app.get('/db-test', (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}; db path: ${dbPath}`);
+app.listen(port, () => {
+  console.log(`Server running on port ${port}; db path: ${dbPath}`);
 });
