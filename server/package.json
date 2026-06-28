@@ -14,16 +14,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "better-sqlite3": "^12.9.0",
+    "express": "^5.2.1",
+    "shared": "*"
+  },
+  "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
     "@types/node": "^25.6.2",
-    "better-sqlite3": "^12.9.0",
-    "express": "^5.2.1",
-    "shared": "*",
-    "typescript": "^6.0.3"
-  },
-  "devDependencies": {
     "nodemon": "^3.1.14",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
   }
 }
