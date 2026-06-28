@@ -1,19 +1,14 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
-const fs_1 = __importDefault(require("fs"));
-const path_1 = __importDefault(require("path"));
-const config_1 = require("./config");
+import Database from 'better-sqlite3';
+import fs from 'fs';
+import path from 'path';
+import { dbPath } from './config.js';
 // Ensure directory exists
-const dbDir = path_1.default.dirname(config_1.dbPath);
-if (!fs_1.default.existsSync(dbDir)) {
-    fs_1.default.mkdirSync(dbDir, { recursive: true });
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
 }
 // Open database
-const db = new better_sqlite3_1.default(config_1.dbPath);
+const db = new Database(dbPath);
 // Enable WAL mode (best for Raspberry Pi)
 db.pragma('journal_mode = WAL');
 // Recommended for Pi: good balance of safety + speed
@@ -46,4 +41,4 @@ db.exec(`
     status TEXT NOT NULL
   );
 `);
-exports.default = db;
+export default db;

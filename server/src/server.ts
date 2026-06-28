@@ -1,8 +1,8 @@
 import express from 'express';
-import db from './db';
+import db from './db.js';
 import path from 'path';
 
-import { dbPath, port } from './config';
+import { dbPath, port } from './config.js';
 
 const app = express();
 app.use(express.json());

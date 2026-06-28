@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 
-import { dbPath } from './config';
+import { dbPath } from './config.js';
 
 // Ensure directory exists
 const dbDir = path.dirname(dbPath);
