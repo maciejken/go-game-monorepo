@@ -3,11 +3,13 @@
   "version": "0.1.2",
   "description": "Go game server",
   "main": "dist/server.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon --exec ts-node src/server.ts",
     "pre:build": "rm -rf dist",
     "build": "tsc",
+    "lint": "eslint src/",
     "start": "node dist/server.js"
   },
   "keywords": [],
@@ -19,11 +21,14 @@
     "shared": "*"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
     "@types/node": "^25.6.2",
+    "eslint": "^10.6.0",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.0"
   }
 }
