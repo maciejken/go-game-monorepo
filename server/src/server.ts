@@ -1,10 +1,13 @@
 import express from 'express';
 import db from './db';
+import path from 'path';
 
 import { dbPath, port } from './config';
 
 const app = express();
 app.use(express.json());
+
+app.use(express.static(path.resolve(__dirname, '../../client/dist')));
 
 app.get('/', (req, res) => {
   res.json({ message: 'Go server is running!' });
@@ -27,6 +30,11 @@ app.get('/db-test', (req, res) => {
   } catch (error) {
     res.json({ error });
   }
+});
+
+// For React Router — serve index.html for all non-API routes
+app.get('/{*path}', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../../client/dist/index.html'));
 });
 
 app.listen(port, () => {

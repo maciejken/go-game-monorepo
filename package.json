@@ -1,28 +1,9 @@
 {
-  "name": "go-server",
-  "version": "0.1.2",
-  "description": "Go game server",
-  "main": "dist/server.js",
+  "workspaces": ["client", "server", "shared"],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon --exec ts-node src/server.ts",
-    "pre:build": "rm -rf dist",
-    "build": "tsc",
-    "start": "node dist/server.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/express": "^5.0.6",
-    "@types/node": "^25.6.2",
-    "better-sqlite3": "^12.9.0",
-    "express": "^5.2.1",
-    "typescript": "^6.0.3"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.14",
-    "ts-node": "^10.9.2"
+    "dev": "npm run dev --workspace=server & npm run dev --workspace=client",
+    "build": "npm run build --workspace=server && npm run build --workspace=client",
+    "start": "npm start --workspace=server"
   }
 }
