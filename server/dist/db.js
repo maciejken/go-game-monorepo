@@ -41,4 +41,9 @@ db.exec(`
     status TEXT NOT NULL
   );
 `);
+// Migrate older `games` tables that predate the `size` column
+const gamesColumns = db.prepare('PRAGMA table_info(games)').all();
+if (!gamesColumns.some((column) => column.name === 'size')) {
+    db.exec('ALTER TABLE games ADD COLUMN size INTEGER NOT NULL DEFAULT 19');
+}
 export default db;

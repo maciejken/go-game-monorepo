@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon --exec ts-node src/server.ts",
+    "dev": "nodemon --exec tsx src/server.ts",
     "pre:build": "rm -rf dist",
     "build": "tsc",
     "lint": "eslint src/",
@@ -27,7 +27,7 @@
     "@types/node": "^25.6.2",
     "eslint": "^10.6.0",
     "nodemon": "^3.1.14",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.62.0"
   }

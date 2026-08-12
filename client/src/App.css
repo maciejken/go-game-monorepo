@@ -1,184 +1,183 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
-
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-}
-
-.hero {
-  position: relative;
-
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
-
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
-}
-
-#center {
+.go-board-wrap {
   display: flex;
   flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
+  align-items: center;
+  gap: 16px;
+  padding: 32px 20px;
 }
 
-#next-steps {
+.game-list-wrap {
   display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 20px;
 }
 
-#docs {
-  border-right: 1px solid var(--border);
-
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
+.new-game-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
 }
 
-#next-steps ul {
+.new-game-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.game-list {
   list-style: none;
   padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.game-list li {
+  display: flex;
+  gap: 6px;
+}
+
+.game-list-entry {
+  flex: 1;
+}
+
+.delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  padding: 0;
+  color: #d1242f;
+  cursor: pointer;
+}
+
+.error {
+  color: #d1242f;
+}
+
+.go-actions {
   display: flex;
   gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
 }
 
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
+.go-board-frame {
+  --cell: 28px;
+  --pad: calc((var(--cell) - 4px) / 2);
+
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
 }
 
-.ticks {
+.go-coords {
+  display: flex;
+  color: var(--text);
+  font-size: 12px;
+  user-select: none;
+}
+
+.go-coords--top {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 0 var(--pad);
+}
+
+.go-coords--top span {
+  width: var(--cell);
+  text-align: center;
+}
+
+.go-coords--left {
+  grid-column: 1;
+  grid-row: 2;
+  flex-direction: column;
+  padding: var(--pad) 0;
+}
+
+.go-coords--left span {
+  height: var(--cell);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 6px;
+}
+
+.go-board {
+  --line: rgba(58, 34, 12, 0.6);
+
+  grid-column: 2;
+  grid-row: 2;
   position: relative;
-  width: 100%;
+  z-index: 0;
+  display: inline-flex;
+  flex-direction: column;
+  padding: var(--pad);
+  background-color: #dcb772;
+}
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
+/* Sized to span exactly from the first to the last intersection —
+   lines stop there instead of overhanging into the padding. */
+.go-board-lines {
+  position: absolute;
+  z-index: -1;
+  top: calc(var(--pad) + var(--cell) / 2);
+  left: calc(var(--pad) + var(--cell) / 2);
+  width: calc((var(--size) - 1) * var(--cell) + 1px);
+  height: calc((var(--size) - 1) * var(--cell) + 1px);
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(to right, var(--line) 0, var(--line) 1px, transparent 1px, transparent var(--cell)),
+    repeating-linear-gradient(to bottom, var(--line) 0, var(--line) 1px, transparent 1px, transparent var(--cell));
+}
 
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
+.go-hoshi {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(40, 24, 8, 0.85);
+  transform: translate(-50%, -50%);
+}
+
+.go-row {
+  display: flex;
+}
+
+.go-point {
+  width: var(--cell);
+  height: var(--cell);
+  padding: 0;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
   }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
+}
+
+.go-stone {
+  width: calc(var(--cell) - 4px);
+  height: calc(var(--cell) - 4px);
+  border-radius: 50%;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.go-stone--black {
+  background: radial-gradient(circle at 35% 30%, #5c5c5c, #0a0a0a 70%);
+}
+
+.go-stone--white {
+  background: radial-gradient(circle at 35% 30%, #ffffff, #dcdcdc 70%);
+  border: 1px solid rgba(0, 0, 0, 0.3);
 }

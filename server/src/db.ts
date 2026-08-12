@@ -49,4 +49,18 @@ db.exec(`
   );
 `);
 
+// Migrate older `games` tables that predate the `size`/`result` columns
+const gamesColumns = new Set(
+  (db.prepare('PRAGMA table_info(games)').all() as { name: string }[]).map((column) => column.name),
+);
+if (!gamesColumns.has('size')) {
+  db.exec('ALTER TABLE games ADD COLUMN size INTEGER NOT NULL DEFAULT 19');
+}
+if (!gamesColumns.has('result')) {
+  db.exec('ALTER TABLE games ADD COLUMN result TEXT');
+}
+if (!gamesColumns.has('handicap')) {
+  db.exec('ALTER TABLE games ADD COLUMN handicap INTEGER NOT NULL DEFAULT 0');
+}
+
 export default db;
