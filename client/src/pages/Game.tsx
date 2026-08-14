@@ -145,43 +145,34 @@ function GameView({ gameId }: GameViewProps) {
           </button>
         </div>
       )}
-      <div className="review-controls">
-        {isReviewing ? (
-          <>
-            <button type="button" onClick={() => goToMove(0)} disabled={navDisabled || reviewMoveNumber === 0}>
-              ⏮ First
-            </button>
-            <button
-              type="button"
-              onClick={() => goToMove((reviewMoveNumber ?? 0) - 1)}
-              disabled={navDisabled || reviewMoveNumber === 0}
-            >
-              ◀ Prev
-            </button>
-            <button
-              type="button"
-              onClick={() => goToMove((reviewMoveNumber ?? 0) + 1)}
-              disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
-            >
-              Next ▶
-            </button>
-            <button
-              type="button"
-              onClick={() => goToMove(latestMoveNumber ?? 0)}
-              disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
-            >
-              Last ⏭
-            </button>
-            <button type="button" onClick={exitReview}>
-              Live
-            </button>
-          </>
-        ) : (
-          <button type="button" onClick={enterReview}>
-            Review
+      {isReviewing && (
+        <div className="review-controls">
+          <button type="button" onClick={() => goToMove(0)} disabled={navDisabled || reviewMoveNumber === 0}>
+            ⏮ First
           </button>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={() => goToMove((reviewMoveNumber ?? 0) - 1)}
+            disabled={navDisabled || reviewMoveNumber === 0}
+          >
+            ◀ Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => goToMove((reviewMoveNumber ?? 0) + 1)}
+            disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
+          >
+            Next ▶
+          </button>
+          <button
+            type="button"
+            onClick={() => goToMove(latestMoveNumber ?? 0)}
+            disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
+          >
+            Last ⏭
+          </button>
+        </div>
+      )}
       <div className="go-board-frame" style={{ '--size': size } as React.CSSProperties}>
         <div className="go-coords go-coords--top">
           {Array.from({ length: size }, (_, x) => (
@@ -226,6 +217,9 @@ function GameView({ gameId }: GameViewProps) {
             </div>
           ))}
         </div>
+        <button type="button" className="review-toggle" onClick={isReviewing ? exitReview : enterReview}>
+          {isReviewing ? 'Live' : 'Review'}
+        </button>
       </div>
     </div>
   );

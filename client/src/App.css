@@ -84,9 +84,17 @@
   --cell: 28px;
   --pad: calc((var(--cell) - 4px) / 2);
 
+  position: relative;
   display: inline-grid;
   grid-template-columns: auto auto;
   grid-template-rows: auto auto;
+}
+
+.review-toggle {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
 }
 
 .go-coords {
