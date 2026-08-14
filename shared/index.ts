@@ -82,6 +82,60 @@ function boardsEqual(a: Board, b: Board): boolean {
   return true;
 }
 
+// splitmix64 — a small, fast, deterministic 64-bit PRNG. Used to build the
+// Zobrist table so hashes are reproducible across process restarts.
+function splitmix64(seed: bigint): () => bigint {
+  const mask = 0xffffffffffffffffn;
+  let state = seed & mask;
+
+  return () => {
+    state = (state + 0x9e3779b97f4a7c15n) & mask;
+    let z = state;
+    z = ((z ^ (z >> 30n)) * 0xbf58476d1ce4e5b9n) & mask;
+    z = ((z ^ (z >> 27n)) * 0x94d049bb133111ebn) & mask;
+    return z ^ (z >> 31n);
+  };
+}
+
+// table[y][x][0|1] = a random 64-bit value for (black|white) occupying (x, y).
+// Cached per board size, since a game's size never changes mid-game.
+const zobristTables = new Map<number, bigint[][][]>();
+
+function getZobristTable(size: number): bigint[][][] {
+  const cached = zobristTables.get(size);
+  if (cached) {
+    return cached;
+  }
+
+  const next = splitmix64(0x9e3779b97f4a7c15n + BigInt(size));
+  const table = Array.from({ length: size }, () =>
+    Array.from({ length: size }, () => [next(), next()]),
+  );
+  zobristTables.set(size, table);
+  return table;
+}
+
+// Zobrist hash of a board: XOR together the random value for every occupied
+// point. XOR is its own inverse, so this could be updated incrementally as
+// stones are added/removed rather than recomputed from scratch — the usual
+// reason to use this scheme — but here it's simply used as a cheap,
+// collision-resistant fingerprint for comparing positions.
+export function hashBoard(board: Board): bigint {
+  const table = getZobristTable(board.length);
+  let hash = 0n;
+
+  for (let y = 0; y < board.length; y++) {
+    for (let x = 0; x < board[y].length; x++) {
+      const stone = board[y][x];
+      if (stone) {
+        hash ^= table[y][x][stone === 'black' ? 0 : 1];
+      }
+    }
+  }
+
+  return hash;
+}
+
 // Places `color` at `point` and removes any now-liberty-less enemy groups.
 // Must run before the suicide check, since capturing first can open up
 // liberties for the just-placed stone.
@@ -108,22 +162,36 @@ function applyMove(board: Board, point: Point, color: Color): { board: Board; ca
   return { board: next, capturedPoints };
 }
 
+// A position that has occurred earlier in the game, paired with whichever
+// color was to move immediately afterward. `hash` is expected to be
+// pre-computed (e.g. stored alongside the snapshot it came from) so this
+// module never has to re-hash the whole history on every move check.
+export interface PositionRecord {
+  hash: string;
+  nextColor: Color;
+  board: Board;
+}
+
 export interface MoveValidationResult {
   valid: boolean;
   error?: string;
   board?: Board;
   capturedPoints?: Point[];
+  hash?: string;
 }
 
-// `previousBoard`, if given, is the board as it existed before the
-// opponent's last stone placement — used to enforce the simple ko rule
-// (a move may not recreate that exact position).
+// `history`, if given, is every position the game has passed through so
+// far (including the empty/handicap starting position). Situational
+// superko: a move is illegal if the position it produces — board plus whose
+// turn is next — has occurred before. This subsumes the classic "simple ko"
+// rule (recreating the position from just before the opponent's last move
+// is one specific case of this) while also catching longer cycles.
 export function validateMove(
   board: Board,
   point: Point,
   color: Color,
   moveNumber: number,
-  previousBoard?: Board,
+  history: PositionRecord[] = [],
 ): MoveValidationResult {
   if (!isPointOnBoard(board, point)) {
     return { valid: false, error: 'Point is outside the board' };
@@ -144,9 +212,15 @@ export function validateMove(
     return { valid: false, error: 'Move is suicide' };
   }
 
-  if (previousBoard && boardsEqual(resultBoard, previousBoard)) {
-    return { valid: false, error: 'Move violates the ko rule' };
+  const resultHash = hashBoard(resultBoard).toString();
+  const nextColor = oppositeColor(color);
+  const violatesSuperko = history.some(
+    (entry) =>
+      entry.nextColor === nextColor && entry.hash === resultHash && boardsEqual(entry.board, resultBoard),
+  );
+  if (violatesSuperko) {
+    return { valid: false, error: 'Move violates the superko rule (position already occurred)' };
   }
 
-  return { valid: true, board: resultBoard, capturedPoints };
+  return { valid: true, board: resultBoard, capturedPoints, hash: resultHash };
 }

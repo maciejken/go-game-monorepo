@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import { hashBoard, type Board } from 'shared';
 
 import { dbPath } from './config.js';
 
@@ -61,6 +62,25 @@ if (!gamesColumns.has('result')) {
 }
 if (!gamesColumns.has('handicap')) {
   db.exec('ALTER TABLE games ADD COLUMN handicap INTEGER NOT NULL DEFAULT 0');
+}
+
+// Migrate older `snapshots` tables that predate the `hash` column (used for
+// situational superko checks), backfilling it for any existing rows.
+const snapshotsColumns = new Set(
+  (db.prepare('PRAGMA table_info(snapshots)').all() as { name: string }[]).map((column) => column.name),
+);
+if (!snapshotsColumns.has('hash')) {
+  db.exec("ALTER TABLE snapshots ADD COLUMN hash TEXT NOT NULL DEFAULT ''");
+
+  const existingSnapshots = db.prepare('SELECT rowid, state FROM snapshots').all() as {
+    rowid: number;
+    state: string;
+  }[];
+  const updateHash = db.prepare('UPDATE snapshots SET hash = ? WHERE rowid = ?');
+  for (const snapshot of existingSnapshots) {
+    const board = JSON.parse(snapshot.state) as Board;
+    updateHash.run(hashBoard(board).toString(), snapshot.rowid);
+  }
 }
 
 export default db;

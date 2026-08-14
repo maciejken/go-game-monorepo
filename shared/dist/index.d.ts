@@ -8,10 +8,17 @@ export declare function createEmptyBoard(size: number): Board;
 export declare function getCurrentColor(moveNumber: number): Color;
 export declare function isPointOnBoard(board: Board, point: Point): boolean;
 export declare function isPointEmpty(board: Board, point: Point): boolean;
+export declare function hashBoard(board: Board): bigint;
+export interface PositionRecord {
+    hash: string;
+    nextColor: Color;
+    board: Board;
+}
 export interface MoveValidationResult {
     valid: boolean;
     error?: string;
     board?: Board;
     capturedPoints?: Point[];
+    hash?: string;
 }
-export declare function validateMove(board: Board, point: Point, color: Color, moveNumber: number, previousBoard?: Board): MoveValidationResult;
+export declare function validateMove(board: Board, point: Point, color: Color, moveNumber: number, history?: PositionRecord[]): MoveValidationResult;

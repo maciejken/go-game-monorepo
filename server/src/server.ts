@@ -6,8 +6,10 @@ import { randomUUID } from 'crypto';
 import {
   createEmptyBoard,
   getCurrentColor,
+  hashBoard,
   validateMove,
   type Board,
+  type PositionRecord,
 } from 'shared';
 
 import { dbPath, port } from './config.js';
@@ -144,17 +146,38 @@ function getCurrentBoard(gameId: string, size: number): Board {
   return row ? (JSON.parse(row.state) as Board) : createEmptyBoard(size);
 }
 
-// The board as it existed before the opponent's last stone placement —
-// used to enforce the ko rule (a move may not recreate that position).
-function getPreviousBoard(gameId: string): Board | undefined {
-  const row = db.prepare(`
-    SELECT state FROM snapshots
+// Every position the game has passed through so far, for the situational
+// superko check. Hashes come straight from the `snapshots.hash` column
+// (computed once at write time) rather than being recomputed here.
+function getGameHistory(gameId: string, size: number, handicap: number): PositionRecord[] {
+  const rows = db.prepare(`
+    SELECT move_number, state, hash FROM snapshots
     WHERE game_id = ?
-    ORDER BY move_number DESC
-    LIMIT 1 OFFSET 1
-  `).get(gameId) as { state: string } | undefined;
+    ORDER BY move_number ASC
+  `).all(gameId) as { move_number: number; state: string; hash: string }[];
 
-  return row ? (JSON.parse(row.state) as Board) : undefined;
+  const history: PositionRecord[] = [];
+
+  // Handicap games already have a move_number = 0 snapshot; plain games
+  // start from an empty board that was never itself written to a row.
+  if (rows.length === 0 || rows[0].move_number !== 0) {
+    const emptyBoard = createEmptyBoard(size);
+    history.push({
+      board: emptyBoard,
+      hash: hashBoard(emptyBoard).toString(),
+      nextColor: getCurrentColor(turnMoveNumber(1, handicap)),
+    });
+  }
+
+  for (const row of rows) {
+    history.push({
+      board: JSON.parse(row.state) as Board,
+      hash: row.hash,
+      nextColor: getCurrentColor(turnMoveNumber(row.move_number + 1, handicap)),
+    });
+  }
+
+  return history;
 }
 
 function getLastEventType(gameId: string, moveNumber: number): string | undefined {
@@ -212,9 +235,9 @@ app.post('/api/games', (req, res) => {
 
   if (handicapPoints.length > 0) {
     db.prepare(`
-      INSERT INTO snapshots (game_id, move_number, state, created_at)
-      VALUES (?, ?, ?, ?)
-    `).run(id, 0, JSON.stringify(board), now);
+      INSERT INTO snapshots (game_id, move_number, state, hash, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, 0, JSON.stringify(board), hashBoard(board).toString(), now);
 
     db.prepare(`
       INSERT INTO events (game_id, move_number, event_type, payload, created_at)
@@ -279,14 +302,14 @@ app.post('/api/games/:id/moves', (req, res) => {
   }
 
   const board = getCurrentBoard(game.id, game.size);
-  const previousBoard = getPreviousBoard(game.id);
+  const history = getGameHistory(game.id, game.size, game.handicap);
   const moveNumber = getNextMoveNumber(game.id);
   const result = validateMove(
     board,
     { x, y },
     color,
     turnMoveNumber(moveNumber, game.handicap),
-    previousBoard,
+    history,
   );
   if (!result.valid) {
     res.status(400).json({ error: result.error });
@@ -298,9 +321,9 @@ app.post('/api/games/:id/moves', (req, res) => {
   const now = Date.now();
 
   db.prepare(`
-    INSERT INTO snapshots (game_id, move_number, state, created_at)
-    VALUES (?, ?, ?, ?)
-  `).run(game.id, moveNumber, JSON.stringify(newBoard), now);
+    INSERT INTO snapshots (game_id, move_number, state, hash, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(game.id, moveNumber, JSON.stringify(newBoard), result.hash!, now);
 
   db.prepare(`
     INSERT INTO events (game_id, move_number, event_type, payload, created_at)
