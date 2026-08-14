@@ -26,7 +26,15 @@ app.get('/db-test', (req, res) => {
     }
 });
 function getGameRow(id) {
-    return db.prepare('SELECT id, size, status, result, handicap FROM games WHERE id = ?').get(id);
+    return db.prepare('SELECT id, size, status, result, handicap, title FROM games WHERE id = ?').get(id);
+}
+const MAX_TITLE_LENGTH = 100;
+function sanitizeTitle(rawTitle) {
+    if (typeof rawTitle !== 'string') {
+        return null;
+    }
+    const trimmed = rawTitle.trim().slice(0, MAX_TITLE_LENGTH);
+    return trimmed.length > 0 ? trimmed : null;
 }
 const STAR_POINTS = {
     9: {
@@ -170,7 +178,7 @@ function getMoveHistory(gameId, size) {
 }
 app.get('/api/games', (req, res) => {
     const rows = db.prepare(`
-    SELECT id, size, status, result, handicap, created_at, updated_at FROM games
+    SELECT id, size, status, result, handicap, title, created_at, updated_at FROM games
     ORDER BY updated_at DESC
   `).all();
     res.json(rows.map((row) => ({
@@ -179,6 +187,7 @@ app.get('/api/games', (req, res) => {
         status: row.status,
         result: row.result,
         handicap: row.handicap,
+        title: row.title,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
     })));
@@ -187,12 +196,13 @@ app.post('/api/games', (req, res) => {
     const size = Number(req.body?.size) || 19;
     // Handicap placement is only defined for boards with a known star-point layout
     const handicap = STAR_POINTS[size] ? Math.max(0, Number(req.body?.handicap) || 0) : 0;
+    const title = sanitizeTitle(req.body?.title);
     const id = randomUUID();
     const now = Date.now();
     db.prepare(`
-    INSERT INTO games (id, size, handicap, created_at, updated_at, status)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, size, handicap, now, now, 'in_progress');
+    INSERT INTO games (id, size, handicap, title, created_at, updated_at, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, size, handicap, title, now, now, 'in_progress');
     const board = createEmptyBoard(size);
     const handicapPoints = getHandicapPoints(size, handicap);
     for (const [x, y] of handicapPoints) {
@@ -208,7 +218,7 @@ app.post('/api/games', (req, res) => {
       VALUES (?, ?, ?, ?, ?)
     `).run(id, 0, 'HANDICAP', JSON.stringify({ handicap, points: handicapPoints }), now);
     }
-    res.status(201).json({ id, size, handicap, status: 'in_progress', board });
+    res.status(201).json({ id, size, handicap, title, status: 'in_progress', board });
 });
 app.get('/api/games/:id', (req, res) => {
     const game = getGameRow(req.params.id);
@@ -224,6 +234,7 @@ app.get('/api/games/:id', (req, res) => {
         status: game.status,
         result: game.result,
         handicap: game.handicap,
+        title: game.title,
         board,
         currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
     });

@@ -8,12 +8,17 @@ function getMaxHandicap(size: number): number {
   return size === 19 ? 9 : 5;
 }
 
+function formatDate(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+}
+
 function Home() {
   const navigate = useNavigate();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState(19);
   const [handicap, setHandicap] = useState(0);
+  const [title, setTitle] = useState('');
 
   const refresh = useCallback(() => {
     listGames()
@@ -33,9 +38,10 @@ function Home() {
     setHandicap((h) => Math.min(h, getMaxHandicap(newSize)));
   };
 
-  const startNewGame = () => {
+  const startNewGame = (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
-    createGame(size, handicap)
+    createGame(size, handicap, title.trim() || undefined)
       .then((game) => navigate(`/games/${game.id}`))
       .catch((err: Error) => setError(err.message));
   };
@@ -52,7 +58,15 @@ function Home() {
 
   return (
     <div className="game-list-wrap">
-      <div className="new-game-form">
+      <form className="new-game-form" onSubmit={startNewGame}>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Title (optional)"
+          aria-label="Title (optional)"
+          maxLength={100}
+        />
         <label>
           Board size
           <select value={size} onChange={(e) => handleSizeChange(Number(e.target.value))}>
@@ -73,10 +87,8 @@ function Home() {
             ))}
           </select>
         </label>
-        <button type="button" onClick={startNewGame}>
-          Start a new game
-        </button>
-      </div>
+        <button type="submit">Start a new game</button>
+      </form>
       {error && <p className="error">{error}</p>}
       {!games ? (
         <p>Loading games...</p>
@@ -86,9 +98,14 @@ function Home() {
         <ul className="game-list">
           {games.map((game) => (
             <li key={game.id}>
-              <Link to={`/games/${game.id}`} className="game-list-entry">
-                {game.size}x{game.size}
-                {game.handicap > 0 ? ` H${game.handicap}` : ''} — {game.result ?? game.status}
+              <Link to={`/games/${game.id}`} className="game-card">
+                {game.title && <div className="game-card-title">{game.title}</div>}
+                <div className="game-card-row">
+                  {game.size}x{game.size}
+                  {game.handicap > 0 ? ` · Handicap ${game.handicap}` : ''} — {game.result ?? game.status}
+                </div>
+                <div className="game-card-row">Created: {formatDate(game.createdAt)}</div>
+                <div className="game-card-row">Updated: {formatDate(game.updatedAt)}</div>
               </Link>
               <button
                 type="button"

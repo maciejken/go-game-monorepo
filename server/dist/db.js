@@ -53,6 +53,9 @@ if (!gamesColumns.has('result')) {
 if (!gamesColumns.has('handicap')) {
     db.exec('ALTER TABLE games ADD COLUMN handicap INTEGER NOT NULL DEFAULT 0');
 }
+if (!gamesColumns.has('title')) {
+    db.exec('ALTER TABLE games ADD COLUMN title TEXT');
+}
 // Migrate older `snapshots` tables that predate the `hash` column (used for
 // situational superko checks), backfilling it for any existing rows.
 const snapshotsColumns = new Set(db.prepare('PRAGMA table_info(snapshots)').all().map((column) => column.name));

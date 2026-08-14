@@ -64,7 +64,7 @@ interface GameViewProps {
 }
 
 function GameView({ gameId }: GameViewProps) {
-  const { board: liveBoard, currentColor, status, result, handicap, error, play, pass, resign, clearError } =
+  const { board: liveBoard, currentColor, status, result, handicap, title, error, play, pass, resign, clearError } =
     useGame(gameId);
   const { history, error: historyError, load: loadHistory } = useGameHistory(gameId);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -135,6 +135,7 @@ function GameView({ gameId }: GameViewProps) {
             {isReviewing ? 'Live' : 'Review'}
           </button>
         </div>
+        {title && <h2 className="game-title">{title}</h2>}
         <div className="go-coords go-coords--top">
           {Array.from({ length: size }, (_, x) => (
             <span key={x}>{COLUMN_LABELS[x]}</span>

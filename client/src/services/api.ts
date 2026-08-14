@@ -6,6 +6,7 @@ export interface GameResponse {
   id: string;
   size: number;
   handicap: number;
+  title: string | null;
   status: string;
   board: Board;
 }
@@ -19,6 +20,7 @@ export interface GameSummary {
   id: string;
   size: number;
   handicap: number;
+  title: string | null;
   status: string;
   result: string | null;
   createdAt: number;
@@ -77,11 +79,11 @@ export async function deleteGame(id: string): Promise<void> {
   }
 }
 
-export function createGame(size = 19, handicap = 0): Promise<GameResponse> {
+export function createGame(size = 19, handicap = 0, title?: string): Promise<GameResponse> {
   return fetch(`${API_BASE}/games`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ size, handicap }),
+    body: JSON.stringify({ size, handicap, title }),
   }).then((res) => handle<GameResponse>(res));
 }
 

@@ -8,6 +8,7 @@ export function useGame(gameId: string) {
   const [status, setStatus] = useState<string>('in_progress');
   const [result, setResult] = useState<string | null>(null);
   const [handicap, setHandicap] = useState(0);
+  const [title, setTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -18,6 +19,7 @@ export function useGame(gameId: string) {
         setStatus(game.status);
         setResult(game.result);
         setHandicap(game.handicap);
+        setTitle(game.title);
       })
       .catch((err: Error) => setError(err.message));
   }, [gameId]);
@@ -58,5 +60,5 @@ export function useGame(gameId: string) {
 
   const clearError = useCallback(() => setError(null), []);
 
-  return { board, currentColor, status, result, handicap, error, play, pass, resign, clearError };
+  return { board, currentColor, status, result, handicap, title, error, play, pass, resign, clearError };
 }

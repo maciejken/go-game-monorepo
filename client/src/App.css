@@ -36,31 +36,48 @@
   flex-direction: column;
   gap: 8px;
   width: 100%;
-  max-width: 320px;
+  max-width: 380px;
 }
 
 .game-list li {
   display: flex;
+  align-items: center;
   gap: 6px;
 }
 
-.game-list-entry {
-  display: inline-block;
+.game-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
-  padding: 4px 8px;
+  min-width: 0;
+  padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   color: inherit;
   text-decoration: none;
-  text-align: center;
+  text-align: left;
+  overflow-wrap: anywhere;
   cursor: pointer;
+}
+
+.game-card-title {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.game-card-row {
+  font-size: 13px;
+  color: var(--text);
 }
 
 .delete-button {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: 32px;
+  height: 32px;
   padding: 0;
   color: #d1242f;
   cursor: pointer;
@@ -82,7 +99,7 @@
 
   display: inline-grid;
   grid-template-columns: auto auto;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto auto auto;
 }
 
 .go-board-toolbar {
@@ -91,6 +108,15 @@
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
+}
+
+.game-title {
+  grid-column: 2;
+  grid-row: 2;
+  max-width: 100%;
+  margin: 0 0 8px;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .go-coords {
@@ -102,7 +128,7 @@
 
 .go-coords--top {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 3;
   padding: 0 var(--pad);
 }
 
@@ -113,7 +139,7 @@
 
 .go-coords--left {
   grid-column: 1;
-  grid-row: 3;
+  grid-row: 4;
   flex-direction: column;
   padding: var(--pad) 0;
 }
@@ -130,7 +156,7 @@
   --line: rgba(58, 34, 12, 0.6);
 
   grid-column: 2;
-  grid-row: 3;
+  grid-row: 4;
   position: relative;
   z-index: 0;
   display: inline-flex;

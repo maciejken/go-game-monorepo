@@ -53,12 +53,23 @@ interface GameRow {
   status: string;
   result: string | null;
   handicap: number;
+  title: string | null;
 }
 
 function getGameRow(id: string): GameRow | undefined {
-  return db.prepare('SELECT id, size, status, result, handicap FROM games WHERE id = ?').get(id) as
+  return db.prepare('SELECT id, size, status, result, handicap, title FROM games WHERE id = ?').get(id) as
     | GameRow
     | undefined;
+}
+
+const MAX_TITLE_LENGTH = 100;
+
+function sanitizeTitle(rawTitle: unknown): string | null {
+  if (typeof rawTitle !== 'string') {
+    return null;
+  }
+  const trimmed = rawTitle.trim().slice(0, MAX_TITLE_LENGTH);
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 // Standard handicap star points, verified against the canonical 19x19 table
@@ -262,13 +273,14 @@ interface GameListRow {
   status: string;
   result: string | null;
   handicap: number;
+  title: string | null;
   created_at: number;
   updated_at: number;
 }
 
 app.get('/api/games', (req, res) => {
   const rows = db.prepare(`
-    SELECT id, size, status, result, handicap, created_at, updated_at FROM games
+    SELECT id, size, status, result, handicap, title, created_at, updated_at FROM games
     ORDER BY updated_at DESC
   `).all() as GameListRow[];
 
@@ -278,6 +290,7 @@ app.get('/api/games', (req, res) => {
     status: row.status,
     result: row.result,
     handicap: row.handicap,
+    title: row.title,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   })));
@@ -287,13 +300,14 @@ app.post('/api/games', (req, res) => {
   const size = Number(req.body?.size) || 19;
   // Handicap placement is only defined for boards with a known star-point layout
   const handicap = STAR_POINTS[size] ? Math.max(0, Number(req.body?.handicap) || 0) : 0;
+  const title = sanitizeTitle(req.body?.title);
   const id = randomUUID();
   const now = Date.now();
 
   db.prepare(`
-    INSERT INTO games (id, size, handicap, created_at, updated_at, status)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, size, handicap, now, now, 'in_progress');
+    INSERT INTO games (id, size, handicap, title, created_at, updated_at, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, size, handicap, title, now, now, 'in_progress');
 
   const board = createEmptyBoard(size);
   const handicapPoints = getHandicapPoints(size, handicap);
@@ -313,7 +327,7 @@ app.post('/api/games', (req, res) => {
     `).run(id, 0, 'HANDICAP', JSON.stringify({ handicap, points: handicapPoints }), now);
   }
 
-  res.status(201).json({ id, size, handicap, status: 'in_progress', board });
+  res.status(201).json({ id, size, handicap, title, status: 'in_progress', board });
 });
 
 app.get('/api/games/:id', (req, res) => {
@@ -332,6 +346,7 @@ app.get('/api/games/:id', (req, res) => {
     status: game.status,
     result: game.result,
     handicap: game.handicap,
+    title: game.title,
     board,
     currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
   });
