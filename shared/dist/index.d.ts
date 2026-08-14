@@ -11,5 +11,7 @@ export declare function isPointEmpty(board: Board, point: Point): boolean;
 export interface MoveValidationResult {
     valid: boolean;
     error?: string;
+    board?: Board;
+    capturedPoints?: Point[];
 }
-export declare function validateMove(board: Board, point: Point, color: Color, moveNumber: number): MoveValidationResult;
+export declare function validateMove(board: Board, point: Point, color: Color, moveNumber: number, previousBoard?: Board): MoveValidationResult;

@@ -144,6 +144,19 @@ function getCurrentBoard(gameId: string, size: number): Board {
   return row ? (JSON.parse(row.state) as Board) : createEmptyBoard(size);
 }
 
+// The board as it existed before the opponent's last stone placement —
+// used to enforce the ko rule (a move may not recreate that position).
+function getPreviousBoard(gameId: string): Board | undefined {
+  const row = db.prepare(`
+    SELECT state FROM snapshots
+    WHERE game_id = ?
+    ORDER BY move_number DESC
+    LIMIT 1 OFFSET 1
+  `).get(gameId) as { state: string } | undefined;
+
+  return row ? (JSON.parse(row.state) as Board) : undefined;
+}
+
 function getLastEventType(gameId: string, moveNumber: number): string | undefined {
   const row = db.prepare(`
     SELECT event_type FROM events WHERE game_id = ? AND move_number = ?
@@ -266,31 +279,40 @@ app.post('/api/games/:id/moves', (req, res) => {
   }
 
   const board = getCurrentBoard(game.id, game.size);
+  const previousBoard = getPreviousBoard(game.id);
   const moveNumber = getNextMoveNumber(game.id);
-  const result = validateMove(board, { x, y }, color, turnMoveNumber(moveNumber, game.handicap));
+  const result = validateMove(
+    board,
+    { x, y },
+    color,
+    turnMoveNumber(moveNumber, game.handicap),
+    previousBoard,
+  );
   if (!result.valid) {
     res.status(400).json({ error: result.error });
     return;
   }
 
-  board[y][x] = color;
+  const newBoard = result.board!;
+  const capturedPoints = result.capturedPoints!;
   const now = Date.now();
 
   db.prepare(`
     INSERT INTO snapshots (game_id, move_number, state, created_at)
     VALUES (?, ?, ?, ?)
-  `).run(game.id, moveNumber, JSON.stringify(board), now);
+  `).run(game.id, moveNumber, JSON.stringify(newBoard), now);
 
   db.prepare(`
     INSERT INTO events (game_id, move_number, event_type, payload, created_at)
     VALUES (?, ?, ?, ?, ?)
-  `).run(game.id, moveNumber, 'MOVE', JSON.stringify({ x, y, color }), now);
+  `).run(game.id, moveNumber, 'MOVE', JSON.stringify({ x, y, color, capturedPoints }), now);
 
   db.prepare('UPDATE games SET updated_at = ? WHERE id = ?').run(now, game.id);
 
   res.json({
-    board,
+    board: newBoard,
     moveNumber,
+    capturedPoints,
     nextColor: getCurrentColor(turnMoveNumber(moveNumber + 1, game.handicap)),
   });
 });

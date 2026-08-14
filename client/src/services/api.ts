@@ -1,4 +1,4 @@
-import type { Board, Color } from 'shared';
+import type { Board, Color, Point } from 'shared';
 
 const API_BASE = '/api';
 
@@ -28,6 +28,7 @@ export interface GameSummary {
 export interface MoveResponse {
   board: Board;
   moveNumber: number;
+  capturedPoints: Point[];
   nextColor: Color;
 }
 
