@@ -74,7 +74,8 @@
   color: #d1242f;
 }
 
-.go-actions {
+.go-actions,
+.review-controls {
   display: flex;
   gap: 8px;
 }
@@ -192,4 +193,9 @@
 .go-stone--white {
   background: radial-gradient(circle at 35% 30%, #ffffff, #dcdcdc 70%);
   border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.go-stone--last {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }

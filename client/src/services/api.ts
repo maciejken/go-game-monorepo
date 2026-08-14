@@ -43,6 +43,20 @@ export interface ResignResponse {
   result: string | null;
 }
 
+export interface HistoryEntry {
+  moveNumber: number;
+  board: Board;
+  eventType: string;
+  color: Color | null;
+  point: Point | null;
+  capturedPoints: Point[];
+}
+
+export interface GameHistoryResponse {
+  size: number;
+  moves: HistoryEntry[];
+}
+
 async function handle<T>(res: Response): Promise<T> {
   const data = await res.json();
   if (!res.ok) {
@@ -73,6 +87,10 @@ export function createGame(size = 19, handicap = 0): Promise<GameResponse> {
 
 export function getGame(id: string): Promise<GameStateResponse> {
   return fetch(`${API_BASE}/games/${id}`).then((res) => handle<GameStateResponse>(res));
+}
+
+export function getGameHistory(id: string): Promise<GameHistoryResponse> {
+  return fetch(`${API_BASE}/games/${id}/history`).then((res) => handle<GameHistoryResponse>(res));
 }
 
 export function makeMove(id: string, x: number, y: number, color: Color): Promise<MoveResponse> {

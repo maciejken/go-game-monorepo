@@ -9,6 +9,8 @@ import {
   hashBoard,
   validateMove,
   type Board,
+  type Color,
+  type Point,
   type PositionRecord,
 } from 'shared';
 
@@ -188,6 +190,72 @@ function getLastEventType(gameId: string, moveNumber: number): string | undefine
   return row?.event_type;
 }
 
+interface MoveHistoryEntry {
+  moveNumber: number;
+  board: Board;
+  eventType: string;
+  color: Color | null;
+  point: Point | null;
+  capturedPoints: Point[];
+}
+
+// The full move-by-move record for the "review" feature: every event the
+// game has logged, paired with the board as it stood right after. Passes
+// and resigns don't have their own snapshot, so their board is carried
+// forward from the last actual placement.
+function getMoveHistory(gameId: string, size: number): MoveHistoryEntry[] {
+  const events = db.prepare(`
+    SELECT move_number, event_type, payload FROM events
+    WHERE game_id = ?
+    ORDER BY move_number ASC
+  `).all(gameId) as { move_number: number; event_type: string; payload: string }[];
+
+  const snapshotRows = db.prepare(`
+    SELECT move_number, state FROM snapshots
+    WHERE game_id = ?
+    ORDER BY move_number ASC
+  `).all(gameId) as { move_number: number; state: string }[];
+
+  const boardByMove = new Map<number, Board>();
+  for (const row of snapshotRows) {
+    boardByMove.set(row.move_number, JSON.parse(row.state) as Board);
+  }
+
+  const history: MoveHistoryEntry[] = [];
+  let lastBoard = createEmptyBoard(size);
+
+  // Handicap games log their setup as move 0; plain games start from an
+  // empty board that was never itself written to a row.
+  if (events.length === 0 || events[0].move_number !== 0) {
+    history.push({ moveNumber: 0, board: lastBoard, eventType: 'START', color: null, point: null, capturedPoints: [] });
+  }
+
+  for (const event of events) {
+    const payload = JSON.parse(event.payload) as {
+      color?: Color;
+      x?: number;
+      y?: number;
+      capturedPoints?: Point[];
+    };
+    const board = boardByMove.get(event.move_number) ?? lastBoard;
+    lastBoard = board;
+
+    history.push({
+      moveNumber: event.move_number,
+      board,
+      eventType: event.event_type,
+      color: payload.color ?? null,
+      point:
+        event.event_type === 'MOVE' && payload.x !== undefined && payload.y !== undefined
+          ? { x: payload.x, y: payload.y }
+          : null,
+      capturedPoints: payload.capturedPoints ?? [],
+    });
+  }
+
+  return history;
+}
+
 interface GameListRow {
   id: string;
   size: number;
@@ -267,6 +335,16 @@ app.get('/api/games/:id', (req, res) => {
     board,
     currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
   });
+});
+
+app.get('/api/games/:id/history', (req, res) => {
+  const game = getGameRow(req.params.id);
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  res.json({ size: game.size, moves: getMoveHistory(game.id, game.size) });
 });
 
 app.delete('/api/games/:id', (req, res) => {

@@ -1,5 +1,8 @@
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useGame } from '../hooks/useGame';
+import { useGameHistory } from '../hooks/useGameHistory';
+import type { HistoryEntry } from '../services/api';
 
 // Go board columns skip the letter "I" to avoid confusion with the numeral 1
 const COLUMN_LABELS = 'ABCDEFGHJKLMNOPQRST';
@@ -19,6 +22,33 @@ function getHoshiPoints(size: number): [number, number][] {
   return HOSHI_POINTS[size] ?? [];
 }
 
+function colorLabel(color: string | null): string {
+  return color === 'black' ? 'Black' : color === 'white' ? 'White' : '';
+}
+
+function describeEntry(entry: HistoryEntry, size: number): string {
+  switch (entry.eventType) {
+    case 'START':
+      return 'Start of game';
+    case 'HANDICAP':
+      return 'Handicap stones placed';
+    case 'PASS':
+      return `${colorLabel(entry.color)} passed`;
+    case 'RESIGN':
+      return `${colorLabel(entry.color)} resigned`;
+    case 'MOVE': {
+      if (!entry.point) {
+        return `${colorLabel(entry.color)} played`;
+      }
+      const label = `${COLUMN_LABELS[entry.point.x]}${size - entry.point.y}`;
+      const captureNote = entry.capturedPoints.length > 0 ? ` (captured ${entry.capturedPoints.length})` : '';
+      return `${colorLabel(entry.color)} played ${label}${captureNote}`;
+    }
+    default:
+      return '';
+  }
+}
+
 function Game() {
   const { id: gameId } = useParams<{ id: string }>();
 
@@ -34,22 +64,75 @@ interface GameViewProps {
 }
 
 function GameView({ gameId }: GameViewProps) {
-  const { board, currentColor, status, result, handicap, error, play, pass, resign } = useGame(gameId);
+  const { board: liveBoard, currentColor, status, result, handicap, error, play, pass, resign } = useGame(gameId);
+  const { history, error: historyError, load: loadHistory } = useGameHistory(gameId);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wasReviewing = useRef(false);
 
-  if (!board) {
+  const moveParam = searchParams.get('move');
+  const isReviewing = moveParam !== null;
+
+  // Fetch history fresh each time review is entered (including landing
+  // directly on a bookmarked ?move= URL), so it can't go stale between
+  // separate review sessions.
+  useEffect(() => {
+    if (isReviewing && !wasReviewing.current) {
+      loadHistory().catch(() => {});
+    }
+    wasReviewing.current = isReviewing;
+  }, [isReviewing, loadHistory]);
+
+  if (!liveBoard) {
     return <p>Loading game...</p>;
   }
 
-  const size = board.length;
+  const size = liveBoard.length;
   const finished = status !== 'in_progress';
+
+  const latestMoveNumber = history ? history.length - 1 : null;
+  const requestedMove = moveParam !== null ? Number(moveParam) : null;
+  const reviewMoveNumber =
+    requestedMove !== null && latestMoveNumber !== null
+      ? Math.min(Math.max(requestedMove, 0), latestMoveNumber)
+      : requestedMove;
+  const reviewEntry = history && reviewMoveNumber !== null ? history[reviewMoveNumber] : null;
+
+  const displayedBoard = isReviewing && reviewEntry ? reviewEntry.board : liveBoard;
+  const canInteract = !isReviewing && !finished;
+  const navDisabled = latestMoveNumber === null || reviewMoveNumber === null;
+
+  const goToMove = (n: number) => {
+    setSearchParams({ move: String(n) }, { replace: true });
+  };
+
+  const enterReview = () => {
+    loadHistory()
+      .then((moves) => setSearchParams({ move: String(moves.length - 1) }, { replace: true }))
+      .catch(() => {});
+  };
+
+  const exitReview = () => {
+    searchParams.delete('move');
+    setSearchParams(searchParams, { replace: true });
+  };
 
   return (
     <div className="go-board-wrap">
       <Link to="/" className="back-link">Back to games</Link>
       {handicap > 0 && <p>Handicap: {handicap}</p>}
-      {finished ? <p>{result}</p> : <p>Current turn: {currentColor}</p>}
+      {isReviewing ? (
+        <p>
+          {reviewEntry ? describeEntry(reviewEntry, size) : 'Loading history...'}
+          {!navDisabled && <> — move {reviewMoveNumber} of {latestMoveNumber}</>}
+        </p>
+      ) : finished ? (
+        <p>{result}</p>
+      ) : (
+        <p>Current turn: {currentColor}</p>
+      )}
       {error && <p className="error">{error}</p>}
-      {!finished && (
+      {historyError && <p className="error">{historyError}</p>}
+      {!finished && !isReviewing && (
         <div className="go-actions">
           <button type="button" onClick={pass}>
             Pass
@@ -59,6 +142,43 @@ function GameView({ gameId }: GameViewProps) {
           </button>
         </div>
       )}
+      <div className="review-controls">
+        {isReviewing ? (
+          <>
+            <button type="button" onClick={() => goToMove(0)} disabled={navDisabled || reviewMoveNumber === 0}>
+              ⏮ First
+            </button>
+            <button
+              type="button"
+              onClick={() => goToMove((reviewMoveNumber ?? 0) - 1)}
+              disabled={navDisabled || reviewMoveNumber === 0}
+            >
+              ◀ Prev
+            </button>
+            <button
+              type="button"
+              onClick={() => goToMove((reviewMoveNumber ?? 0) + 1)}
+              disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
+            >
+              Next ▶
+            </button>
+            <button
+              type="button"
+              onClick={() => goToMove(latestMoveNumber ?? 0)}
+              disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
+            >
+              Last ⏭
+            </button>
+            <button type="button" onClick={exitReview}>
+              Live
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={enterReview}>
+            Review
+          </button>
+        )}
+      </div>
       <div className="go-board-frame" style={{ '--size': size } as React.CSSProperties}>
         <div className="go-coords go-coords--top">
           {Array.from({ length: size }, (_, x) => (
@@ -80,7 +200,7 @@ function GameView({ gameId }: GameViewProps) {
               />
             ))}
           </div>
-          {board.map((row, y) => (
+          {displayedBoard.map((row, y) => (
             <div className="go-row" key={y}>
               {row.map((stone, x) => (
                 <button
@@ -88,10 +208,16 @@ function GameView({ gameId }: GameViewProps) {
                   type="button"
                   className="go-point"
                   onClick={() => play(x, y)}
-                  disabled={stone !== null || finished}
+                  disabled={stone !== null || !canInteract}
                   aria-label={`Point ${COLUMN_LABELS[x]}${size - y}`}
                 >
-                  {stone && <span className={`go-stone go-stone--${stone}`} />}
+                  {stone && (
+                    <span
+                      className={`go-stone go-stone--${stone}${
+                        reviewEntry?.point?.x === x && reviewEntry?.point?.y === y ? ' go-stone--last' : ''
+                      }`}
+                    />
+                  )}
                 </button>
               ))}
             </div>
