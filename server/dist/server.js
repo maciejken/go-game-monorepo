@@ -239,6 +239,16 @@ app.get('/api/games/:id', (req, res) => {
         currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
     });
 });
+app.patch('/api/games/:id', (req, res) => {
+    const game = getGameRow(req.params.id);
+    if (!game) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+    }
+    const title = sanitizeTitle(req.body?.title);
+    db.prepare('UPDATE games SET title = ? WHERE id = ?').run(title, game.id);
+    res.json({ title });
+});
 app.get('/api/games/:id/history', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {

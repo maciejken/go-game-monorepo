@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createGame, deleteGame, listGames, type GameSummary } from '../services/api';
+import { createGame, deleteGame, listGames, updateGameTitle, type GameSummary } from '../services/api';
 
 const BOARD_SIZES = [9, 13, 19];
 
@@ -97,34 +97,103 @@ function Home() {
       ) : (
         <ul className="game-list">
           {games.map((game) => (
-            <li key={game.id}>
-              <Link to={`/games/${game.id}`} className="game-card">
-                {game.title && <div className="game-card-title">{game.title}</div>}
-                <div className="game-card-row">
-                  {game.size}x{game.size}
-                  {game.handicap > 0 ? ` · Handicap ${game.handicap}` : ''} — {game.result ?? game.status}
-                </div>
-                <div className="game-card-row">Created: {formatDate(game.createdAt)}</div>
-                <div className="game-card-row">Updated: {formatDate(game.updatedAt)}</div>
-              </Link>
-              <button
-                type="button"
-                className="delete-button"
-                aria-label="Delete game"
-                onClick={() => handleDelete(game.id)}
-              >
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M9 3a1 1 0 0 0-1 1v1H4v2h16V5h-4V4a1 1 0 0 0-1-1H9zM5 9l1 11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-11H5z"
-                  />
-                </svg>
-              </button>
-            </li>
+            <GameListItem key={game.id} game={game} onDelete={handleDelete} onRename={refresh} />
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+interface GameListItemProps {
+  game: GameSummary;
+  onDelete: (id: string) => void;
+  onRename: () => void;
+}
+
+function GameListItem({ game, onDelete, onRename }: GameListItemProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [titleInput, setTitleInput] = useState(game.title ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  const startEdit = () => {
+    setError(null);
+    setTitleInput(game.title ?? '');
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => setIsEditing(false);
+
+  const saveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    updateGameTitle(game.id, titleInput.trim())
+      .then(() => {
+        setIsEditing(false);
+        onRename();
+      })
+      .catch((err: Error) => setError(err.message));
+  };
+
+  const metaRows = (
+    <>
+      <div className="game-card-row">
+        {game.size}x{game.size}
+        {game.handicap > 0 ? ` · Handicap ${game.handicap}` : ''} — {game.result ?? game.status}
+      </div>
+      <div className="game-card-row">Created: {formatDate(game.createdAt)}</div>
+      <div className="game-card-row">Updated: {formatDate(game.updatedAt)}</div>
+    </>
+  );
+
+  return (
+    <li>
+      <div className="game-list-row">
+        {isEditing ? (
+          <div className="game-card">
+            <form onSubmit={saveEdit}>
+              <input
+                type="text"
+                className="game-card-title-input"
+                value={titleInput}
+                onChange={(e) => setTitleInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') cancelEdit();
+                }}
+                onBlur={cancelEdit}
+                placeholder="Title (optional)"
+                aria-label="Game title"
+                maxLength={100}
+                autoFocus
+              />
+            </form>
+            {metaRows}
+          </div>
+        ) : (
+          <Link to={`/games/${game.id}`} className="game-card">
+            {game.title && <div className="game-card-title">{game.title}</div>}
+            {metaRows}
+          </Link>
+        )}
+        <button type="button" className="edit-button" aria-label="Edit game title" onClick={startEdit}>
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+            />
+          </svg>
+        </button>
+        <button type="button" className="delete-button" aria-label="Delete game" onClick={() => onDelete(game.id)}>
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M9 3a1 1 0 0 0-1 1v1H4v2h16V5h-4V4a1 1 0 0 0-1-1H9zM5 9l1 11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-11H5z"
+            />
+          </svg>
+        </button>
+      </div>
+      {error && <p className="error">{error}</p>}
+    </li>
   );
 }
 

@@ -91,6 +91,14 @@ export function getGame(id: string): Promise<GameStateResponse> {
   return fetch(`${API_BASE}/games/${id}`).then((res) => handle<GameStateResponse>(res));
 }
 
+export function updateGameTitle(id: string, title: string): Promise<{ title: string | null }> {
+  return fetch(`${API_BASE}/games/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  }).then((res) => handle<{ title: string | null }>(res));
+}
+
 export function getGameHistory(id: string): Promise<GameHistoryResponse> {
   return fetch(`${API_BASE}/games/${id}/history`).then((res) => handle<GameHistoryResponse>(res));
 }

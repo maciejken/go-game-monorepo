@@ -41,6 +41,12 @@
 
 .game-list li {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.game-list-row {
+  display: flex;
   align-items: center;
   gap: 6px;
 }
@@ -66,11 +72,22 @@
   color: var(--text-h);
 }
 
+.game-card-title-input {
+  font: inherit;
+  font-weight: 600;
+  color: var(--text-h);
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
 .game-card-row {
   font-size: 13px;
   color: var(--text);
 }
 
+.edit-button,
 .delete-button {
   display: flex;
   align-items: center;
@@ -79,8 +96,15 @@
   width: 32px;
   height: 32px;
   padding: 0;
-  color: #d1242f;
   cursor: pointer;
+}
+
+.edit-button {
+  color: var(--text);
+}
+
+.delete-button {
+  color: #d1242f;
 }
 
 .error {
