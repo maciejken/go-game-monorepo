@@ -44,20 +44,16 @@
   gap: 6px;
 }
 
-.game-list-entry,
-.back-link {
+.game-list-entry {
   display: inline-block;
+  flex: 1;
   padding: 4px 8px;
   border: 1px solid var(--border);
   border-radius: 4px;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
-}
-
-.game-list-entry {
-  flex: 1;
   text-align: center;
+  cursor: pointer;
 }
 
 .delete-button {
@@ -84,17 +80,17 @@
   --cell: 28px;
   --pad: calc((var(--cell) - 4px) / 2);
 
-  position: relative;
   display: inline-grid;
   grid-template-columns: auto auto;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto auto auto;
 }
 
-.review-toggle {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 8px;
+.go-board-toolbar {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
 .go-coords {
@@ -106,7 +102,7 @@
 
 .go-coords--top {
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 2;
   padding: 0 var(--pad);
 }
 
@@ -117,7 +113,7 @@
 
 .go-coords--left {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 3;
   flex-direction: column;
   padding: var(--pad) 0;
 }
@@ -134,7 +130,7 @@
   --line: rgba(58, 34, 12, 0.6);
 
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 3;
   position: relative;
   z-index: 0;
   display: inline-flex;

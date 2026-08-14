@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
 import type { HistoryEntry } from '../services/api';
@@ -64,9 +64,11 @@ interface GameViewProps {
 }
 
 function GameView({ gameId }: GameViewProps) {
-  const { board: liveBoard, currentColor, status, result, handicap, error, play, pass, resign } = useGame(gameId);
+  const { board: liveBoard, currentColor, status, result, handicap, error, play, pass, resign, clearError } =
+    useGame(gameId);
   const { history, error: historyError, load: loadHistory } = useGameHistory(gameId);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const wasReviewing = useRef(false);
 
   const moveParam = searchParams.get('move');
@@ -106,6 +108,7 @@ function GameView({ gameId }: GameViewProps) {
   };
 
   const enterReview = () => {
+    clearError();
     // Mark review as already "entered" so the effect below doesn't also
     // fire a second fetch once isReviewing flips true as a result of this.
     wasReviewing.current = true;
@@ -121,59 +124,17 @@ function GameView({ gameId }: GameViewProps) {
 
   return (
     <div className="go-board-wrap">
-      <Link to="/" className="back-link">Back to games</Link>
       {handicap > 0 && <p>Handicap: {handicap}</p>}
-      {isReviewing ? (
-        <p>
-          {reviewEntry ? describeEntry(reviewEntry, size) : 'Loading history...'}
-          {!navDisabled && <> — move {reviewMoveNumber} of {latestMoveNumber}</>}
-        </p>
-      ) : finished ? (
-        <p>{result}</p>
-      ) : (
-        <p>Current turn: {currentColor}</p>
-      )}
-      {error && <p className="error">{error}</p>}
-      {historyError && <p className="error">{historyError}</p>}
-      {!finished && !isReviewing && (
-        <div className="go-actions">
-          <button type="button" onClick={pass}>
-            Pass
-          </button>
-          <button type="button" onClick={resign}>
-            Resign
-          </button>
-        </div>
-      )}
-      {isReviewing && (
-        <div className="review-controls">
-          <button type="button" onClick={() => goToMove(0)} disabled={navDisabled || reviewMoveNumber === 0}>
-            ⏮ First
-          </button>
-          <button
-            type="button"
-            onClick={() => goToMove((reviewMoveNumber ?? 0) - 1)}
-            disabled={navDisabled || reviewMoveNumber === 0}
-          >
-            ◀ Prev
-          </button>
-          <button
-            type="button"
-            onClick={() => goToMove((reviewMoveNumber ?? 0) + 1)}
-            disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
-          >
-            Next ▶
-          </button>
-          <button
-            type="button"
-            onClick={() => goToMove(latestMoveNumber ?? 0)}
-            disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
-          >
-            Last ⏭
-          </button>
-        </div>
-      )}
+      {!isReviewing && finished && <p>{result}</p>}
       <div className="go-board-frame" style={{ '--size': size } as React.CSSProperties}>
+        <div className="go-board-toolbar">
+          <button type="button" className="back-toggle" onClick={() => navigate(-1)}>
+            Back to games
+          </button>
+          <button type="button" className="review-toggle" onClick={isReviewing ? exitReview : enterReview}>
+            {isReviewing ? 'Live' : 'Review'}
+          </button>
+        </div>
         <div className="go-coords go-coords--top">
           {Array.from({ length: size }, (_, x) => (
             <span key={x}>{COLUMN_LABELS[x]}</span>
@@ -217,10 +178,54 @@ function GameView({ gameId }: GameViewProps) {
             </div>
           ))}
         </div>
-        <button type="button" className="review-toggle" onClick={isReviewing ? exitReview : enterReview}>
-          {isReviewing ? 'Live' : 'Review'}
-        </button>
       </div>
+      {!finished && !isReviewing && <p>Current turn: {currentColor}</p>}
+      {!finished && !isReviewing && (
+        <div className="go-actions">
+          <button type="button" onClick={pass}>
+            Pass
+          </button>
+          <button type="button" onClick={resign}>
+            Resign
+          </button>
+        </div>
+      )}
+      {!isReviewing && error && <p className="error">{error}</p>}
+      {isReviewing && (
+        <p>
+          {reviewEntry ? describeEntry(reviewEntry, size) : 'Loading history...'}
+          {!navDisabled && <> — move {reviewMoveNumber} of {latestMoveNumber}</>}
+        </p>
+      )}
+      {isReviewing && (
+        <div className="review-controls">
+          <button type="button" onClick={() => goToMove(0)} disabled={navDisabled || reviewMoveNumber === 0}>
+            ⏮ First
+          </button>
+          <button
+            type="button"
+            onClick={() => goToMove((reviewMoveNumber ?? 0) - 1)}
+            disabled={navDisabled || reviewMoveNumber === 0}
+          >
+            ◀ Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => goToMove((reviewMoveNumber ?? 0) + 1)}
+            disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
+          >
+            Next ▶
+          </button>
+          <button
+            type="button"
+            onClick={() => goToMove(latestMoveNumber ?? 0)}
+            disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
+          >
+            Last ⏭
+          </button>
+        </div>
+      )}
+      {isReviewing && historyError && <p className="error">{historyError}</p>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "src",
     "outDir": "./dist",
     "target": "ES2020",
     "module": "NodeNext",
@@ -11,5 +11,5 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["index.ts"]
+  "include": ["src/index.ts"]
 }

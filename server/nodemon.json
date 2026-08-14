@@ -3,7 +3,7 @@
   "ext": "ts,json",
   "ignore": ["node_modules"],
   "env": {
-    "PORT": "4000",
-    "DB_PATH": "./data/go.db"
+    "DB_PATH": "./data/go.db",
+    "PORT": "3000"
   }
 }

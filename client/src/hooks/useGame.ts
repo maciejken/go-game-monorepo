@@ -56,5 +56,7 @@ export function useGame(gameId: string) {
       .catch((err: Error) => setError(err.message));
   }, [gameId, currentColor]);
 
-  return { board, currentColor, status, result, handicap, error, play, pass, resign };
+  const clearError = useCallback(() => setError(null), []);
+
+  return { board, currentColor, status, result, handicap, error, play, pass, resign, clearError };
 }

@@ -1,21 +1,13 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createEmptyBoard = createEmptyBoard;
-exports.getCurrentColor = getCurrentColor;
-exports.isPointOnBoard = isPointOnBoard;
-exports.isPointEmpty = isPointEmpty;
-exports.hashBoard = hashBoard;
-exports.validateMove = validateMove;
-function createEmptyBoard(size) {
+export function createEmptyBoard(size) {
     return Array.from({ length: size }, () => Array(size).fill(null));
 }
-function getCurrentColor(moveNumber) {
+export function getCurrentColor(moveNumber) {
     return moveNumber % 2 === 1 ? 'black' : 'white';
 }
-function isPointOnBoard(board, point) {
+export function isPointOnBoard(board, point) {
     return point.y >= 0 && point.y < board.length && point.x >= 0 && point.x < board[point.y].length;
 }
-function isPointEmpty(board, point) {
+export function isPointEmpty(board, point) {
     return isPointOnBoard(board, point) && board[point.y][point.x] === null;
 }
 function oppositeColor(color) {
@@ -100,7 +92,7 @@ function getZobristTable(size) {
 // stones are added/removed rather than recomputed from scratch — the usual
 // reason to use this scheme — but here it's simply used as a cheap,
 // collision-resistant fingerprint for comparing positions.
-function hashBoard(board) {
+export function hashBoard(board) {
     const table = getZobristTable(board.length);
     let hash = 0n;
     for (let y = 0; y < board.length; y++) {
@@ -141,7 +133,7 @@ function applyMove(board, point, color) {
 // turn is next — has occurred before. This subsumes the classic "simple ko"
 // rule (recreating the position from just before the opponent's last move
 // is one specific case of this) while also catching longer cycles.
-function validateMove(board, point, color, moveNumber, history = []) {
+export function validateMove(board, point, color, moveNumber, history = []) {
     if (!isPointOnBoard(board, point)) {
         return { valid: false, error: 'Point is outside the board' };
     }
