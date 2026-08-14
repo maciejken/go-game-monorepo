@@ -22,3 +22,13 @@ export interface MoveValidationResult {
     hash?: string;
 }
 export declare function validateMove(board: Board, point: Point, color: Color, moveNumber: number, history?: PositionRecord[]): MoveValidationResult;
+export interface ScoreResult {
+    black: number;
+    white: number;
+    winner: Color;
+    margin: number;
+}
+export declare function scoreBoard(board: Board, captures: {
+    black: number;
+    white: number;
+}, komi: number): ScoreResult;

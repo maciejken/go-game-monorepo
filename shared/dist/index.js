@@ -156,3 +156,67 @@ export function validateMove(board, point, color, moveNumber, history = []) {
     }
     return { valid: true, board: resultBoard, capturedPoints, hash: resultHash };
 }
+// Japanese-style territory scoring: surrounded empty territory (an empty
+// region counts for a color only if every stone bordering it is that color;
+// regions touching both, or neither, are neutral) plus prisoners — stones
+// each color has captured over the course of the game. This scores the
+// board exactly as it stands — it does not know which stones are "dead", so
+// it's only correct if the position has no stones left on it that both
+// players would agree are already captured in substance but not yet
+// removed.
+export function scoreBoard(board, captures, komi) {
+    let blackTerritory = 0;
+    let whiteTerritory = 0;
+    const visited = new Set();
+    for (let y = 0; y < board.length; y++) {
+        for (let x = 0; x < board[y].length; x++) {
+            const stone = board[y][x];
+            if (stone === 'black' || stone === 'white') {
+                continue;
+            }
+            const key = `${x},${y}`;
+            if (visited.has(key)) {
+                continue;
+            }
+            // Flood-fill this empty region, tracking which color(s) border it.
+            let regionSize = 0;
+            const borders = new Set();
+            const stack = [{ x, y }];
+            visited.add(key);
+            while (stack.length > 0) {
+                const point = stack.pop();
+                regionSize += 1;
+                for (const neighbor of getNeighbors(board, point)) {
+                    const neighborStone = board[neighbor.y][neighbor.x];
+                    if (neighborStone === null) {
+                        const neighborKey = `${neighbor.x},${neighbor.y}`;
+                        if (!visited.has(neighborKey)) {
+                            visited.add(neighborKey);
+                            stack.push(neighbor);
+                        }
+                    }
+                    else {
+                        borders.add(neighborStone);
+                    }
+                }
+            }
+            if (borders.size === 1) {
+                if (borders.has('black')) {
+                    blackTerritory += regionSize;
+                }
+                else {
+                    whiteTerritory += regionSize;
+                }
+            }
+            // borders.size === 0 (empty board) or 2 (touches both colors): neutral
+        }
+    }
+    const black = blackTerritory + captures.black;
+    const white = whiteTerritory + captures.white + komi;
+    return {
+        black,
+        white,
+        winner: black > white ? 'black' : 'white',
+        margin: Math.abs(black - white),
+    };
+}

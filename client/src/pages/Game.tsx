@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
-import type { HistoryEntry } from '../services/api';
+import type { Captures, HistoryEntry } from '../services/api';
 
 // Go board columns skip the letter "I" to avoid confusion with the numeral 1
 const COLUMN_LABELS = 'ABCDEFGHJKLMNOPQRST';
@@ -49,6 +49,23 @@ function describeEntry(entry: HistoryEntry, size: number): string {
   }
 }
 
+// Cumulative captures as of `upToMoveNumber`, derived from the history log
+// (which is densely indexed by moveNumber) for use in review mode.
+function sumCaptures(entries: HistoryEntry[], upToMoveNumber: number): Captures {
+  const captures: Captures = { black: 0, white: 0 };
+  for (const entry of entries) {
+    if (entry.moveNumber > upToMoveNumber || entry.eventType !== 'MOVE' || entry.capturedPoints.length === 0) {
+      continue;
+    }
+    if (entry.color === 'black') {
+      captures.black += entry.capturedPoints.length;
+    } else if (entry.color === 'white') {
+      captures.white += entry.capturedPoints.length;
+    }
+  }
+  return captures;
+}
+
 function Game() {
   const { id: gameId } = useParams<{ id: string }>();
 
@@ -64,8 +81,20 @@ interface GameViewProps {
 }
 
 function GameView({ gameId }: GameViewProps) {
-  const { board: liveBoard, currentColor, status, result, handicap, title, error, play, pass, resign, clearError } =
-    useGame(gameId);
+  const {
+    board: liveBoard,
+    currentColor,
+    status,
+    result,
+    handicap,
+    title,
+    captures,
+    error,
+    play,
+    pass,
+    resign,
+    clearError,
+  } = useGame(gameId);
   const { history, error: historyError, load: loadHistory } = useGameHistory(gameId);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -100,6 +129,8 @@ function GameView({ gameId }: GameViewProps) {
   const reviewEntry = history && reviewMoveNumber !== null ? history[reviewMoveNumber] : null;
 
   const displayedBoard = isReviewing && reviewEntry ? reviewEntry.board : liveBoard;
+  const displayedCaptures =
+    isReviewing && history && reviewMoveNumber !== null ? sumCaptures(history, reviewMoveNumber) : captures;
   const canInteract = !isReviewing && !finished;
   const navDisabled = latestMoveNumber === null || reviewMoveNumber === null;
 
@@ -125,7 +156,6 @@ function GameView({ gameId }: GameViewProps) {
   return (
     <div className="go-board-wrap">
       {handicap > 0 && <p>Handicap: {handicap}</p>}
-      {!isReviewing && finished && <p>{result}</p>}
       <div className="go-board-frame" style={{ '--size': size } as React.CSSProperties}>
         <div className="go-board-toolbar">
           <button type="button" className="back-toggle" onClick={() => navigate(-1)}>
@@ -180,6 +210,10 @@ function GameView({ gameId }: GameViewProps) {
           ))}
         </div>
       </div>
+      <p>
+        Captures - B: {displayedCaptures.black}, W: {displayedCaptures.white}
+      </p>
+      {!isReviewing && finished && <p>{result}</p>}
       {!finished && !isReviewing && <p>Current turn: {currentColor}</p>}
       {!finished && !isReviewing && (
         <div className="go-actions">

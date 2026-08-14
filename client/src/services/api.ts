@@ -11,9 +11,15 @@ export interface GameResponse {
   board: Board;
 }
 
+export interface Captures {
+  black: number;
+  white: number;
+}
+
 export interface GameStateResponse extends GameResponse {
   currentColor: Color;
   result: string | null;
+  captures: Captures;
 }
 
 export interface GameSummary {
@@ -32,6 +38,7 @@ export interface MoveResponse {
   moveNumber: number;
   capturedPoints: Point[];
   nextColor: Color;
+  captures: Captures;
 }
 
 export interface PassResponse {

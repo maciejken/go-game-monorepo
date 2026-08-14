@@ -7,6 +7,7 @@ import {
   createEmptyBoard,
   getCurrentColor,
   hashBoard,
+  scoreBoard,
   validateMove,
   type Board,
   type Color,
@@ -193,12 +194,46 @@ function getGameHistory(gameId: string, size: number, handicap: number): Positio
   return history;
 }
 
+// Standard Japanese-rules komi: 6.5 for an even game, 0.5 for a handicap
+// game (just enough to avoid a tie — Black's handicap stones are the real
+// compensation there).
+function getKomi(handicap: number): number {
+  return handicap >= 2 ? 0.5 : 6.5;
+}
+
 function getLastEventType(gameId: string, moveNumber: number): string | undefined {
   const row = db.prepare(`
     SELECT event_type FROM events WHERE game_id = ? AND move_number = ?
   `).get(gameId, moveNumber) as { event_type: string } | undefined;
 
   return row?.event_type;
+}
+
+interface Captures {
+  black: number;
+  white: number;
+}
+
+// Cumulative stones each color has captured over the whole game so far,
+// derived fresh from the event log rather than tracked separately — the
+// event log is already the source of truth for what each move captured.
+function getCumulativeCaptures(gameId: string): Captures {
+  const rows = db.prepare(`
+    SELECT payload FROM events WHERE game_id = ? AND event_type = 'MOVE'
+  `).all(gameId) as { payload: string }[];
+
+  const captures: Captures = { black: 0, white: 0 };
+  for (const row of rows) {
+    const payload = JSON.parse(row.payload) as { color?: Color; capturedPoints?: Point[] };
+    const count = payload.capturedPoints?.length ?? 0;
+    if (payload.color === 'black') {
+      captures.black += count;
+    } else if (payload.color === 'white') {
+      captures.white += count;
+    }
+  }
+
+  return captures;
 }
 
 interface MoveHistoryEntry {
@@ -349,6 +384,7 @@ app.get('/api/games/:id', (req, res) => {
     title: game.title,
     board,
     currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
+    captures: getCumulativeCaptures(game.id),
   });
 });
 
@@ -443,6 +479,7 @@ app.post('/api/games/:id/moves', (req, res) => {
     moveNumber,
     capturedPoints,
     nextColor: getCurrentColor(turnMoveNumber(moveNumber + 1, game.handicap)),
+    captures: getCumulativeCaptures(game.id),
   });
 });
 
@@ -477,10 +514,17 @@ app.post('/api/games/:id/pass', (req, res) => {
     VALUES (?, ?, ?, ?, ?)
   `).run(game.id, moveNumber, 'PASS', JSON.stringify({ color }), now);
 
-  // Two consecutive passes end the game
+  // Two consecutive passes end the game — score the final position
   const previousEventType = getLastEventType(game.id, moveNumber - 1);
   const status = previousEventType === 'PASS' ? 'finished' : 'in_progress';
-  const gameResult = status === 'finished' ? 'Both players passed' : null;
+
+  let gameResult: string | null = null;
+  if (status === 'finished') {
+    const board = getCurrentBoard(game.id, game.size);
+    const score = scoreBoard(board, getCumulativeCaptures(game.id), getKomi(game.handicap));
+    const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
+    gameResult = `${winnerLabel} wins by ${score.margin.toFixed(1)} (B: ${score.black}, W: ${score.white})`;
+  }
 
   db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
     .run(status, gameResult, now, game.id);

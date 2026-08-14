@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Board, Color } from 'shared';
-import { getGame, makeMove, passTurn, resignGame } from '../services/api';
+import { getGame, makeMove, passTurn, resignGame, type Captures } from '../services/api';
 
 export function useGame(gameId: string) {
   const [board, setBoard] = useState<Board | null>(null);
@@ -9,6 +9,7 @@ export function useGame(gameId: string) {
   const [result, setResult] = useState<string | null>(null);
   const [handicap, setHandicap] = useState(0);
   const [title, setTitle] = useState<string | null>(null);
+  const [captures, setCaptures] = useState<Captures>({ black: 0, white: 0 });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -20,6 +21,7 @@ export function useGame(gameId: string) {
         setResult(game.result);
         setHandicap(game.handicap);
         setTitle(game.title);
+        setCaptures(game.captures);
       })
       .catch((err: Error) => setError(err.message));
   }, [gameId]);
@@ -31,6 +33,7 @@ export function useGame(gameId: string) {
         .then((res) => {
           setBoard(res.board);
           setCurrentColor(res.nextColor);
+          setCaptures(res.captures);
         })
         .catch((err: Error) => setError(err.message));
     },
@@ -60,5 +63,5 @@ export function useGame(gameId: string) {
 
   const clearError = useCallback(() => setError(null), []);
 
-  return { board, currentColor, status, result, handicap, title, error, play, pass, resign, clearError };
+  return { board, currentColor, status, result, handicap, title, captures, error, play, pass, resign, clearError };
 }
