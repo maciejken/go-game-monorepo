@@ -1,23 +1,16 @@
-import { useState } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import Home from './pages/Home'
 import Game from './pages/Game'
 import './App.css'
 
 function App() {
-  const [selectedGameId, setSelectedGameId] = useState<string | null>(null)
-
-  if (selectedGameId) {
-    return (
-      <div>
-        <button type="button" onClick={() => setSelectedGameId(null)}>
-          Back to games
-        </button>
-        <Game gameId={selectedGameId} />
-      </div>
-    )
-  }
-
-  return <Home onSelectGame={setSelectedGameId} />
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/games/:id" element={<Game />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
 }
 
 export default App

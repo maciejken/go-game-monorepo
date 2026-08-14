@@ -1,5 +1,9 @@
 {
-  "workspaces": ["client", "server", "shared"],
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "npm run build --workspace=shared && (npm run dev --workspace=server & npm run dev --workspace=client)",

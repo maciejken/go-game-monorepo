@@ -1,8 +1,5 @@
+import { Link, useParams } from 'react-router-dom';
 import { useGame } from '../hooks/useGame';
-
-interface GameProps {
-  gameId: string;
-}
 
 // Go board columns skip the letter "I" to avoid confusion with the numeral 1
 const COLUMN_LABELS = 'ABCDEFGHJKLMNOPQRST';
@@ -22,7 +19,21 @@ function getHoshiPoints(size: number): [number, number][] {
   return HOSHI_POINTS[size] ?? [];
 }
 
-function Game({ gameId }: GameProps) {
+function Game() {
+  const { id: gameId } = useParams<{ id: string }>();
+
+  if (!gameId) {
+    return <p>Game not found.</p>;
+  }
+
+  return <GameView gameId={gameId} />;
+}
+
+interface GameViewProps {
+  gameId: string;
+}
+
+function GameView({ gameId }: GameViewProps) {
   const { board, currentColor, status, result, handicap, error, play, pass, resign } = useGame(gameId);
 
   if (!board) {
@@ -34,6 +45,7 @@ function Game({ gameId }: GameProps) {
 
   return (
     <div className="go-board-wrap">
+      <Link to="/" className="back-link">Back to games</Link>
       {handicap > 0 && <p>Handicap: {handicap}</p>}
       {finished ? <p>{result}</p> : <p>Current turn: {currentColor}</p>}
       {error && <p className="error">{error}</p>}

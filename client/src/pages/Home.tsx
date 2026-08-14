@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { createGame, deleteGame, listGames, type GameSummary } from '../services/api';
-
-interface HomeProps {
-  onSelectGame: (id: string) => void;
-}
 
 const BOARD_SIZES = [9, 13, 19];
 
@@ -11,7 +8,8 @@ function getMaxHandicap(size: number): number {
   return size === 19 ? 9 : 5;
 }
 
-function Home({ onSelectGame }: HomeProps) {
+function Home() {
+  const navigate = useNavigate();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState(19);
@@ -38,7 +36,7 @@ function Home({ onSelectGame }: HomeProps) {
   const startNewGame = () => {
     setError(null);
     createGame(size, handicap)
-      .then((game) => onSelectGame(game.id))
+      .then((game) => navigate(`/games/${game.id}`))
       .catch((err: Error) => setError(err.message));
   };
 
@@ -88,10 +86,10 @@ function Home({ onSelectGame }: HomeProps) {
         <ul className="game-list">
           {games.map((game) => (
             <li key={game.id}>
-              <button type="button" className="game-list-entry" onClick={() => onSelectGame(game.id)}>
+              <Link to={`/games/${game.id}`} className="game-list-entry">
                 {game.size}x{game.size}
                 {game.handicap > 0 ? ` H${game.handicap}` : ''} — {game.result ?? game.status}
-              </button>
+              </Link>
               <button
                 type="button"
                 className="delete-button"
