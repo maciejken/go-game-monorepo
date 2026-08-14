@@ -106,6 +106,9 @@ function GameView({ gameId }: GameViewProps) {
   };
 
   const enterReview = () => {
+    // Mark review as already "entered" so the effect below doesn't also
+    // fire a second fetch once isReviewing flips true as a result of this.
+    wasReviewing.current = true;
     loadHistory()
       .then((moves) => setSearchParams({ move: String(moves.length - 1) }, { replace: true }))
       .catch(() => {});
