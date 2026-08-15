@@ -52,6 +52,14 @@ export interface ResignResponse {
   result: string | null;
 }
 
+export interface UndoResponse {
+  board: Board;
+  status: string;
+  result: string | null;
+  currentColor: Color;
+  captures: Captures;
+}
+
 export interface HistoryEntry {
   moveNumber: number;
   board: Board;
@@ -132,4 +140,8 @@ export function resignGame(id: string, color: Color): Promise<ResignResponse> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ color }),
   }).then((res) => handle<ResignResponse>(res));
+}
+
+export function undoMove(id: string): Promise<UndoResponse> {
+  return fetch(`${API_BASE}/games/${id}/undo`, { method: 'POST' }).then((res) => handle<UndoResponse>(res));
 }

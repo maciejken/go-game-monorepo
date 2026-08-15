@@ -536,6 +536,42 @@ app.post('/api/games/:id/pass', (req, res) => {
   });
 });
 
+app.post('/api/games/:id/undo', (req, res) => {
+  const game = getGameRow(req.params.id);
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  const lastEvent = db.prepare(`
+    SELECT move_number, event_type FROM events WHERE game_id = ?
+    ORDER BY move_number DESC LIMIT 1
+  `).get(game.id) as { move_number: number; event_type: string } | undefined;
+
+  // move_number 0 is the handicap setup, not a player action — nothing to undo past it.
+  if (!lastEvent || lastEvent.event_type === 'HANDICAP') {
+    res.status(400).json({ error: 'Nothing to undo' });
+    return;
+  }
+
+  const now = Date.now();
+  db.prepare('DELETE FROM events WHERE game_id = ? AND move_number = ?').run(game.id, lastEvent.move_number);
+  db.prepare('DELETE FROM snapshots WHERE game_id = ? AND move_number = ?').run(game.id, lastEvent.move_number);
+  db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
+    .run('in_progress', null, now, game.id);
+
+  const board = getCurrentBoard(game.id, game.size);
+  const nextMoveNumber = getNextMoveNumber(game.id);
+
+  res.json({
+    board,
+    status: 'in_progress',
+    result: null,
+    currentColor: getCurrentColor(turnMoveNumber(nextMoveNumber, game.handicap)),
+    captures: getCumulativeCaptures(game.id),
+  });
+});
+
 app.post('/api/games/:id/resign', (req, res) => {
   const game = getGameRow(req.params.id);
   if (!game) {

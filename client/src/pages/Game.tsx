@@ -93,6 +93,7 @@ function GameView({ gameId }: GameViewProps) {
     play,
     pass,
     resign,
+    undo,
     clearError,
   } = useGame(gameId);
   const { history, error: historyError, load: loadHistory } = useGameHistory(gameId);
@@ -154,114 +155,128 @@ function GameView({ gameId }: GameViewProps) {
   };
 
   return (
-    <div className="go-board-wrap">
-      {handicap > 0 && <p>Handicap: {handicap}</p>}
-      <div className="go-board-frame" style={{ '--size': size } as React.CSSProperties}>
-        <div className="go-board-toolbar">
-          <button type="button" className="back-toggle" onClick={() => navigate(-1)}>
-            Back to games
-          </button>
-          <button type="button" className="review-toggle" onClick={isReviewing ? exitReview : enterReview}>
-            {isReviewing ? 'Live' : 'Review'}
-          </button>
-        </div>
-        {title && <h2 className="game-title">{title}</h2>}
-        <div className="go-coords go-coords--top">
-          {Array.from({ length: size }, (_, x) => (
-            <span key={x}>{COLUMN_LABELS[x]}</span>
-          ))}
-        </div>
-        <div className="go-coords go-coords--left">
-          {Array.from({ length: size }, (_, y) => (
-            <span key={y}>{size - y}</span>
-          ))}
-        </div>
-        <div className="go-board">
-          <div className="go-board-lines">
-            {getHoshiPoints(size).map(([gx, gy]) => (
-              <span
-                key={`${gx}-${gy}`}
-                className="go-hoshi"
-                style={{ left: `${(gx / (size - 1)) * 100}%`, top: `${(gy / (size - 1)) * 100}%` }}
-              />
+    <>
+      <header className="go-header">
+        <button type="button" className="back-toggle" onClick={() => navigate(-1)}>
+          Back to games
+        </button>
+        <button type="button" className="review-toggle" onClick={isReviewing ? exitReview : enterReview}>
+          {isReviewing ? 'Live' : 'Review'}
+        </button>
+      </header>
+      <div className="go-board-wrap">
+        {handicap > 0 && <p>Handicap: {handicap}</p>}
+        <div className="go-board-frame" style={{ '--size': size } as React.CSSProperties}>
+          {title && <h2 className="game-title">{title}</h2>}
+          <div className="go-coords go-coords--top">
+            {Array.from({ length: size }, (_, x) => (
+              <span key={x}>{COLUMN_LABELS[x]}</span>
             ))}
           </div>
-          {displayedBoard.map((row, y) => (
-            <div className="go-row" key={y}>
-              {row.map((stone, x) => (
-                <button
-                  key={x}
-                  type="button"
-                  className="go-point"
-                  onClick={() => play(x, y)}
-                  disabled={stone !== null || !canInteract}
-                  aria-label={`Point ${COLUMN_LABELS[x]}${size - y}`}
-                >
-                  {stone && (
-                    <span
-                      className={`go-stone go-stone--${stone}${
-                        reviewEntry?.point?.x === x && reviewEntry?.point?.y === y ? ' go-stone--last' : ''
-                      }`}
-                    />
-                  )}
-                </button>
+          <div className="go-coords go-coords--left">
+            {Array.from({ length: size }, (_, y) => (
+              <span key={y}>{size - y}</span>
+            ))}
+          </div>
+          <div className="go-board">
+            <div className="go-board-lines">
+              {getHoshiPoints(size).map(([gx, gy]) => (
+                <span
+                  key={`${gx}-${gy}`}
+                  className="go-hoshi"
+                  style={{ left: `${(gx / (size - 1)) * 100}%`, top: `${(gy / (size - 1)) * 100}%` }}
+                />
               ))}
             </div>
-          ))}
+            {displayedBoard.map((row, y) => (
+              <div className="go-row" key={y}>
+                {row.map((stone, x) => (
+                  <button
+                    key={x}
+                    type="button"
+                    className="go-point"
+                    onClick={() => play(x, y)}
+                    disabled={stone !== null || !canInteract}
+                    aria-label={`Point ${COLUMN_LABELS[x]}${size - y}`}
+                  >
+                    {stone && (
+                      <span
+                        className={`go-stone go-stone--${stone}${
+                          reviewEntry?.point?.x === x && reviewEntry?.point?.y === y ? ' go-stone--last' : ''
+                        }`}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
+        {!isReviewing && error && <p className="error">{error}</p>}
+        {isReviewing && (
+          <p>
+            {reviewEntry ? describeEntry(reviewEntry, size) : 'Loading history...'}
+            {!navDisabled && <> — move {reviewMoveNumber} of {latestMoveNumber}</>}
+          </p>
+        )}
       </div>
-      <p>
-        Captures - B: {displayedCaptures.black}, W: {displayedCaptures.white}
-      </p>
-      {!isReviewing && finished && <p>{result}</p>}
-      {!finished && !isReviewing && <p>Current turn: {currentColor}</p>}
-      {!finished && !isReviewing && (
-        <div className="go-actions">
-          <button type="button" onClick={pass}>
-            Pass
-          </button>
-          <button type="button" onClick={resign}>
-            Resign
-          </button>
+      <footer className="go-footer">
+        {!isReviewing && finished && <p>{result}</p>}
+        <div className="footer-row">
+          <span className="capture-label">
+            B: <span className="capture-count capture-count--white">{displayedCaptures.black}</span>
+          </span>
+          <div className="footer-buttons">
+            {!finished && !isReviewing && (
+              <div className="go-actions" style={{ '--cell': '24px' } as React.CSSProperties}>
+                <span className={`go-stone go-stone--${currentColor}`} />
+                <button type="button" onClick={undo}>
+                  Undo
+                </button>
+                <button type="button" onClick={pass}>
+                  Pass
+                </button>
+                <button type="button" onClick={resign}>
+                  Resign
+                </button>
+              </div>
+            )}
+            {isReviewing && (
+              <div className="review-controls">
+                <button type="button" onClick={() => goToMove(0)} disabled={navDisabled || reviewMoveNumber === 0}>
+                  ⏮ First
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goToMove((reviewMoveNumber ?? 0) - 1)}
+                  disabled={navDisabled || reviewMoveNumber === 0}
+                >
+                  ◀ Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goToMove((reviewMoveNumber ?? 0) + 1)}
+                  disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
+                >
+                  Next ▶
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goToMove(latestMoveNumber ?? 0)}
+                  disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
+                >
+                  Last ⏭
+                </button>
+              </div>
+            )}
+          </div>
+          <span className="capture-label">
+            W: <span className="capture-count capture-count--black">{displayedCaptures.white}</span>
+          </span>
         </div>
-      )}
-      {!isReviewing && error && <p className="error">{error}</p>}
-      {isReviewing && (
-        <p>
-          {reviewEntry ? describeEntry(reviewEntry, size) : 'Loading history...'}
-          {!navDisabled && <> — move {reviewMoveNumber} of {latestMoveNumber}</>}
-        </p>
-      )}
-      {isReviewing && (
-        <div className="review-controls">
-          <button type="button" onClick={() => goToMove(0)} disabled={navDisabled || reviewMoveNumber === 0}>
-            ⏮ First
-          </button>
-          <button
-            type="button"
-            onClick={() => goToMove((reviewMoveNumber ?? 0) - 1)}
-            disabled={navDisabled || reviewMoveNumber === 0}
-          >
-            ◀ Prev
-          </button>
-          <button
-            type="button"
-            onClick={() => goToMove((reviewMoveNumber ?? 0) + 1)}
-            disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
-          >
-            Next ▶
-          </button>
-          <button
-            type="button"
-            onClick={() => goToMove(latestMoveNumber ?? 0)}
-            disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
-          >
-            Last ⏭
-          </button>
-        </div>
-      )}
-      {isReviewing && historyError && <p className="error">{historyError}</p>}
-    </div>
+        {isReviewing && historyError && <p className="error">{historyError}</p>}
+      </footer>
+    </>
   );
 }
 

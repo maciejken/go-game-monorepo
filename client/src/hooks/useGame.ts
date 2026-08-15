@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Board, Color } from 'shared';
-import { getGame, makeMove, passTurn, resignGame, type Captures } from '../services/api';
+import { getGame, makeMove, passTurn, resignGame, undoMove, type Captures } from '../services/api';
 
 export function useGame(gameId: string) {
   const [board, setBoard] = useState<Board | null>(null);
@@ -61,7 +61,34 @@ export function useGame(gameId: string) {
       .catch((err: Error) => setError(err.message));
   }, [gameId, currentColor]);
 
+  const undo = useCallback(() => {
+    setError(null);
+    undoMove(gameId)
+      .then((res) => {
+        setBoard(res.board);
+        setCurrentColor(res.currentColor);
+        setStatus(res.status);
+        setResult(res.result);
+        setCaptures(res.captures);
+      })
+      .catch((err: Error) => setError(err.message));
+  }, [gameId]);
+
   const clearError = useCallback(() => setError(null), []);
 
-  return { board, currentColor, status, result, handicap, title, captures, error, play, pass, resign, clearError };
+  return {
+    board,
+    currentColor,
+    status,
+    result,
+    handicap,
+    title,
+    captures,
+    error,
+    play,
+    pass,
+    resign,
+    undo,
+    clearError,
+  };
 }
