@@ -23,7 +23,7 @@ function getNeighbors(board, point) {
     return candidates.filter((p) => isPointOnBoard(board, p));
 }
 // Flood-fills the connected group of same-color stones starting at `point`.
-function getGroup(board, point) {
+export function getGroup(board, point) {
     const color = board[point.y][point.x];
     if (color === null) {
         return [];
@@ -155,6 +155,32 @@ export function validateMove(board, point, color, moveNumber, history = []) {
         return { valid: false, error: 'Move violates the superko rule (position already occurred)' };
     }
     return { valid: true, board: resultBoard, capturedPoints, hash: resultHash };
+}
+// Standard Japanese-rules komi: 6.5 for an even game, 0.5 for a handicap
+// game (just enough to avoid a tie — Black's handicap stones are the real
+// compensation there).
+export function getKomi(handicap) {
+    return handicap >= 2 ? 0.5 : 6.5;
+}
+// Removes stones marked dead from the board (so they no longer block
+// territory for their color) and credits each one to the opposing color as
+// a prisoner — the standard pre-scoring cleanup step once both sides agree
+// on which groups didn't survive. Leaves the inputs untouched.
+export function applyDeadStones(board, captures, deadPoints) {
+    const nextBoard = board.map((row) => row.slice());
+    const nextCaptures = { ...captures };
+    for (const { x, y } of deadPoints) {
+        if (!isPointOnBoard(nextBoard, { x, y })) {
+            continue;
+        }
+        const stone = nextBoard[y][x];
+        if (!stone) {
+            continue;
+        }
+        nextBoard[y][x] = null;
+        nextCaptures[oppositeColor(stone)] += 1;
+    }
+    return { board: nextBoard, captures: nextCaptures };
 }
 // Japanese-style territory scoring: surrounded empty territory (an empty
 // region counts for a color only if every stone bordering it is that color;

@@ -73,6 +73,51 @@
   background: var(--code-bg);
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 30;
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 240px;
+  padding: 20px 24px;
+  background: var(--bg);
+  color: var(--text-h);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal h3 {
+  margin: 0;
+}
+
+.modal-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.modal-close {
+  align-self: flex-end;
+  appearance: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
 .go-footer {
   bottom: 0;
   height: 61px;
@@ -392,4 +437,8 @@
 .go-stone--last {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+.go-stone--dead {
+  opacity: 0.35;
 }

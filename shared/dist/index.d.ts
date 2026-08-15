@@ -8,6 +8,7 @@ export declare function createEmptyBoard(size: number): Board;
 export declare function getCurrentColor(moveNumber: number): Color;
 export declare function isPointOnBoard(board: Board, point: Point): boolean;
 export declare function isPointEmpty(board: Board, point: Point): boolean;
+export declare function getGroup(board: Board, point: Point): Point[];
 export declare function hashBoard(board: Board): bigint;
 export interface PositionRecord {
     hash: string;
@@ -22,13 +23,19 @@ export interface MoveValidationResult {
     hash?: string;
 }
 export declare function validateMove(board: Board, point: Point, color: Color, moveNumber: number, history?: PositionRecord[]): MoveValidationResult;
+export interface Captures {
+    black: number;
+    white: number;
+}
+export declare function getKomi(handicap: number): number;
+export declare function applyDeadStones(board: Board, captures: Captures, deadPoints: Point[]): {
+    board: Board;
+    captures: Captures;
+};
 export interface ScoreResult {
     black: number;
     white: number;
     winner: Color;
     margin: number;
 }
-export declare function scoreBoard(board: Board, captures: {
-    black: number;
-    white: number;
-}, komi: number): ScoreResult;
+export declare function scoreBoard(board: Board, captures: Captures, komi: number): ScoreResult;

@@ -38,7 +38,7 @@ function getNeighbors(board: Board, point: Point): Point[] {
 }
 
 // Flood-fills the connected group of same-color stones starting at `point`.
-function getGroup(board: Board, point: Point): Point[] {
+export function getGroup(board: Board, point: Point): Point[] {
   const color = board[point.y][point.x];
   if (color === null) {
     return [];
@@ -225,6 +225,45 @@ export function validateMove(
   return { valid: true, board: resultBoard, capturedPoints, hash: resultHash };
 }
 
+export interface Captures {
+  black: number;
+  white: number;
+}
+
+// Standard Japanese-rules komi: 6.5 for an even game, 0.5 for a handicap
+// game (just enough to avoid a tie — Black's handicap stones are the real
+// compensation there).
+export function getKomi(handicap: number): number {
+  return handicap >= 2 ? 0.5 : 6.5;
+}
+
+// Removes stones marked dead from the board (so they no longer block
+// territory for their color) and credits each one to the opposing color as
+// a prisoner — the standard pre-scoring cleanup step once both sides agree
+// on which groups didn't survive. Leaves the inputs untouched.
+export function applyDeadStones(
+  board: Board,
+  captures: Captures,
+  deadPoints: Point[],
+): { board: Board; captures: Captures } {
+  const nextBoard = board.map((row) => row.slice());
+  const nextCaptures = { ...captures };
+
+  for (const { x, y } of deadPoints) {
+    if (!isPointOnBoard(nextBoard, { x, y })) {
+      continue;
+    }
+    const stone = nextBoard[y][x];
+    if (!stone) {
+      continue;
+    }
+    nextBoard[y][x] = null;
+    nextCaptures[oppositeColor(stone)] += 1;
+  }
+
+  return { board: nextBoard, captures: nextCaptures };
+}
+
 export interface ScoreResult {
   black: number;
   white: number;
@@ -240,7 +279,7 @@ export interface ScoreResult {
 // it's only correct if the position has no stones left on it that both
 // players would agree are already captured in substance but not yet
 // removed.
-export function scoreBoard(board: Board, captures: { black: number; white: number }, komi: number): ScoreResult {
+export function scoreBoard(board: Board, captures: Captures, komi: number): ScoreResult {
   let blackTerritory = 0;
   let whiteTerritory = 0;
   const visited = new Set<string>();

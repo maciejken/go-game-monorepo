@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { applyDeadStones, getGroup, getKomi, scoreBoard, type Point } from 'shared';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
 import type { Captures, HistoryEntry } from '../services/api';
@@ -67,6 +68,16 @@ function sumCaptures(entries: HistoryEntry[], upToMoveNumber: number): Captures 
 }
 
 const SHOW_COORDS_KEY = 'go-show-coordinates';
+const SHOW_UNDO_KEY = 'go-show-undo';
+
+function pointKey(point: Point): string {
+  return `${point.x},${point.y}`;
+}
+
+function parsePointKey(key: string): Point {
+  const [x, y] = key.split(',').map(Number);
+  return { x, y };
+}
 
 function Game() {
   const { id: gameId } = useParams<{ id: string }>();
@@ -96,6 +107,7 @@ function GameView({ gameId }: GameViewProps) {
     pass,
     resign,
     undo,
+    finalizeScoring,
     clearError,
   } = useGame(gameId);
   const { history, error: historyError, load: loadHistory } = useGameHistory(gameId);
@@ -103,7 +115,10 @@ function GameView({ gameId }: GameViewProps) {
   const navigate = useNavigate();
   const wasReviewing = useRef(false);
   const [showCoords, setShowCoords] = useState(() => localStorage.getItem(SHOW_COORDS_KEY) !== 'false');
+  const [showUndo, setShowUndo] = useState(() => localStorage.getItem(SHOW_UNDO_KEY) !== 'false');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pendingDead, setPendingDead] = useState<Set<string>>(new Set());
   const menuRef = useRef<HTMLDivElement>(null);
 
   const moveParam = searchParams.get('move');
@@ -123,6 +138,20 @@ function GameView({ gameId }: GameViewProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
+  // Close the settings modal on Escape.
+  useEffect(() => {
+    if (!settingsOpen) {
+      return;
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [settingsOpen]);
+
   // Fetch history fresh each time review is entered (including landing
   // directly on a bookmarked ?move= URL), so it can't go stale between
   // separate review sessions.
@@ -133,12 +162,14 @@ function GameView({ gameId }: GameViewProps) {
     wasReviewing.current = isReviewing;
   }, [isReviewing, loadHistory]);
 
+
   if (!liveBoard) {
     return <p>Loading game...</p>;
   }
 
   const size = liveBoard.length;
-  const finished = status !== 'in_progress';
+  const scoring = status === 'scoring';
+  const finished = status === 'finished';
 
   const latestMoveNumber = history ? history.length - 1 : null;
   const requestedMove = moveParam !== null ? Number(moveParam) : null;
@@ -151,8 +182,21 @@ function GameView({ gameId }: GameViewProps) {
   const displayedBoard = isReviewing && reviewEntry ? reviewEntry.board : liveBoard;
   const displayedCaptures =
     isReviewing && history && reviewMoveNumber !== null ? sumCaptures(history, reviewMoveNumber) : captures;
-  const canInteract = !isReviewing && !finished;
+  const canInteract = !isReviewing && status === 'in_progress';
+  const canToggleDead = !isReviewing && scoring;
   const navDisabled = latestMoveNumber === null || reviewMoveNumber === null;
+
+  // Live preview of the final result as dead stones are marked, computed
+  // client-side with the same shared scoring logic the server uses at
+  // finalize time — so what's previewed here is exactly what gets confirmed.
+  let provisionalResult: string | null = null;
+  if (scoring && !isReviewing) {
+    const deadPointsArray = Array.from(pendingDead, parsePointKey);
+    const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(liveBoard, captures, deadPointsArray);
+    const score = scoreBoard(effectiveBoard, adjustedCaptures, getKomi(handicap));
+    const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
+    provisionalResult = `${winnerLabel} wins by ${score.margin.toFixed(1)} (B: ${score.black}, W: ${score.white})`;
+  }
 
   const goToMove = (n: number) => {
     setSearchParams({ move: String(n) }, { replace: true });
@@ -173,13 +217,54 @@ function GameView({ gameId }: GameViewProps) {
     setSearchParams(searchParams, { replace: true });
   };
 
+  // Marking any stone in a group toggles the whole group together, since a
+  // group lives or dies as a unit — clicking a second stone in an
+  // already-marked group un-marks the whole group rather than adding to it.
+  const toggleDeadGroup = (x: number, y: number) => {
+    const group = getGroup(liveBoard, { x, y });
+    if (group.length === 0) {
+      return;
+    }
+    const keys = group.map(pointKey);
+    const alreadyDead = keys.some((key) => pendingDead.has(key));
+    setPendingDead((prev) => {
+      const next = new Set(prev);
+      for (const key of keys) {
+        if (alreadyDead) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+      }
+      return next;
+    });
+  };
+
+  const resume = () => {
+    setPendingDead(new Set());
+    undo();
+  };
+
+  const finalize = () => {
+    finalizeScoring(Array.from(pendingDead, parsePointKey))
+      .then(() => setPendingDead(new Set()))
+      .catch(() => {});
+  };
+
   const toggleCoords = () => {
     setShowCoords((prev) => {
       const next = !prev;
       localStorage.setItem(SHOW_COORDS_KEY, String(next));
       return next;
     });
-    setMenuOpen(false);
+  };
+
+  const toggleUndo = () => {
+    setShowUndo((prev) => {
+      const next = !prev;
+      localStorage.setItem(SHOW_UNDO_KEY, String(next));
+      return next;
+    });
   };
 
   return (
@@ -204,8 +289,14 @@ function GameView({ gameId }: GameViewProps) {
               >
                 {isReviewing ? 'Live' : 'Review'}
               </button>
-              <button type="button" onClick={toggleCoords}>
-                {showCoords ? 'Hide coordinates' : 'Show coordinates'}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setSettingsOpen(true);
+                }}
+              >
+                Settings
               </button>
             </div>
           )}
@@ -248,15 +339,15 @@ function GameView({ gameId }: GameViewProps) {
                     key={x}
                     type="button"
                     className="go-point"
-                    onClick={() => play(x, y)}
-                    disabled={stone !== null || !canInteract}
+                    onClick={() => (canToggleDead ? toggleDeadGroup(x, y) : play(x, y))}
+                    disabled={canToggleDead ? stone === null : stone !== null || !canInteract}
                     aria-label={`Point ${COLUMN_LABELS[x]}${size - y}`}
                   >
                     {stone && (
                       <span
                         className={`go-stone go-stone--${stone}${
                           reviewEntry?.point?.x === x && reviewEntry?.point?.y === y ? ' go-stone--last' : ''
-                        }`}
+                        }${pendingDead.has(pointKey({ x, y })) ? ' go-stone--dead' : ''}`}
                       />
                     )}
                   </button>
@@ -266,6 +357,12 @@ function GameView({ gameId }: GameViewProps) {
           </div>
         </div>
         {!isReviewing && finished && <p>{result}</p>}
+        {!isReviewing && scoring && (
+          <p>
+            Marking dead stones — click a stone to toggle its group.
+            {provisionalResult && <> Estimated: {provisionalResult}</>}
+          </p>
+        )}
         {!isReviewing && error && <p className="error">{error}</p>}
         {isReviewing && (
           <p>
@@ -280,17 +377,29 @@ function GameView({ gameId }: GameViewProps) {
             B: <span className="capture-count capture-count--white">{displayedCaptures.black}</span>
           </span>
           <div className="footer-buttons">
-            {!finished && !isReviewing && (
+            {status === 'in_progress' && !isReviewing && (
               <div className="go-actions" style={{ '--cell': '24px' } as React.CSSProperties}>
                 <span className={`go-stone go-stone--${currentColor}`} />
-                <button type="button" onClick={undo}>
-                  Undo
-                </button>
+                {showUndo && (
+                  <button type="button" onClick={undo}>
+                    Undo
+                  </button>
+                )}
                 <button type="button" onClick={pass}>
                   Pass
                 </button>
                 <button type="button" onClick={resign}>
                   Resign
+                </button>
+              </div>
+            )}
+            {scoring && !isReviewing && (
+              <div className="go-actions">
+                <button type="button" onClick={resume}>
+                  Resume
+                </button>
+                <button type="button" onClick={finalize}>
+                  Finalize scoring
                 </button>
               </div>
             )}
@@ -329,6 +438,24 @@ function GameView({ gameId }: GameViewProps) {
         </div>
         {isReviewing && historyError && <p className="error">{historyError}</p>}
       </footer>
+      {settingsOpen && (
+        <div className="modal-overlay" onClick={() => setSettingsOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Settings</h3>
+            <label className="modal-checkbox-row">
+              <input type="checkbox" checked={showCoords} onChange={toggleCoords} />
+              Show coordinates
+            </label>
+            <label className="modal-checkbox-row">
+              <input type="checkbox" checked={showUndo} onChange={toggleUndo} />
+              Show Undo button
+            </label>
+            <button type="button" className="modal-close" onClick={() => setSettingsOpen(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

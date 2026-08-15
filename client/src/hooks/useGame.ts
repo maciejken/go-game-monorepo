@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Board, Color } from 'shared';
-import { getGame, makeMove, passTurn, resignGame, undoMove, type Captures } from '../services/api';
+import type { Board, Color, Point } from 'shared';
+import { finalizeScoring as finalizeScoringRequest, getGame, makeMove, passTurn, resignGame, undoMove, type Captures } from '../services/api';
 
 export function useGame(gameId: string) {
   const [board, setBoard] = useState<Board | null>(null);
@@ -74,6 +74,23 @@ export function useGame(gameId: string) {
       .catch((err: Error) => setError(err.message));
   }, [gameId]);
 
+  const finalizeScoring = useCallback(
+    (deadPoints: Point[]) => {
+      setError(null);
+      return finalizeScoringRequest(gameId, deadPoints)
+        .then((res) => {
+          setStatus(res.status);
+          setResult(res.result);
+          setCaptures(res.captures);
+        })
+        .catch((err: Error) => {
+          setError(err.message);
+          throw err;
+        });
+    },
+    [gameId],
+  );
+
   const clearError = useCallback(() => setError(null), []);
 
   return {
@@ -89,6 +106,7 @@ export function useGame(gameId: string) {
     pass,
     resign,
     undo,
+    finalizeScoring,
     clearError,
   };
 }

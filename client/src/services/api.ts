@@ -1,4 +1,6 @@
-import type { Board, Color, Point } from 'shared';
+import type { Board, Captures, Color, Point } from 'shared';
+
+export type { Captures };
 
 const API_BASE = '/api';
 
@@ -9,11 +11,6 @@ export interface GameResponse {
   title: string | null;
   status: string;
   board: Board;
-}
-
-export interface Captures {
-  black: number;
-  white: number;
 }
 
 export interface GameStateResponse extends GameResponse {
@@ -57,6 +54,12 @@ export interface UndoResponse {
   status: string;
   result: string | null;
   currentColor: Color;
+  captures: Captures;
+}
+
+export interface FinalizeScoringResponse {
+  status: string;
+  result: string | null;
   captures: Captures;
 }
 
@@ -144,4 +147,12 @@ export function resignGame(id: string, color: Color): Promise<ResignResponse> {
 
 export function undoMove(id: string): Promise<UndoResponse> {
   return fetch(`${API_BASE}/games/${id}/undo`, { method: 'POST' }).then((res) => handle<UndoResponse>(res));
+}
+
+export function finalizeScoring(id: string, deadPoints: Point[]): Promise<FinalizeScoringResponse> {
+  return fetch(`${API_BASE}/games/${id}/finalize-scoring`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deadPoints }),
+  }).then((res) => handle<FinalizeScoringResponse>(res));
 }

@@ -4,12 +4,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import {
+  applyDeadStones,
   createEmptyBoard,
   getCurrentColor,
+  getKomi,
   hashBoard,
   scoreBoard,
   validateMove,
   type Board,
+  type Captures,
   type Color,
   type Point,
   type PositionRecord,
@@ -194,24 +197,12 @@ function getGameHistory(gameId: string, size: number, handicap: number): Positio
   return history;
 }
 
-// Standard Japanese-rules komi: 6.5 for an even game, 0.5 for a handicap
-// game (just enough to avoid a tie — Black's handicap stones are the real
-// compensation there).
-function getKomi(handicap: number): number {
-  return handicap >= 2 ? 0.5 : 6.5;
-}
-
 function getLastEventType(gameId: string, moveNumber: number): string | undefined {
   const row = db.prepare(`
     SELECT event_type FROM events WHERE game_id = ? AND move_number = ?
   `).get(gameId, moveNumber) as { event_type: string } | undefined;
 
   return row?.event_type;
-}
-
-interface Captures {
-  black: number;
-  white: number;
 }
 
 // Cumulative stones each color has captured over the whole game so far,
@@ -433,7 +424,7 @@ app.post('/api/games/:id/moves', (req, res) => {
   }
 
   if (game.status !== 'in_progress') {
-    res.status(400).json({ error: 'Game is already finished' });
+    res.status(400).json({ error: 'Game is not in progress' });
     return;
   }
 
@@ -491,7 +482,7 @@ app.post('/api/games/:id/pass', (req, res) => {
   }
 
   if (game.status !== 'in_progress') {
-    res.status(400).json({ error: 'Game is already finished' });
+    res.status(400).json({ error: 'Game is not in progress' });
     return;
   }
 
@@ -514,26 +505,60 @@ app.post('/api/games/:id/pass', (req, res) => {
     VALUES (?, ?, ?, ?, ?)
   `).run(game.id, moveNumber, 'PASS', JSON.stringify({ color }), now);
 
-  // Two consecutive passes end the game — score the final position
+  // Two consecutive passes end play and move into the scoring phase, where
+  // dead stones get marked before the final result is computed — see
+  // POST /api/games/:id/finalize-scoring.
   const previousEventType = getLastEventType(game.id, moveNumber - 1);
-  const status = previousEventType === 'PASS' ? 'finished' : 'in_progress';
-
-  let gameResult: string | null = null;
-  if (status === 'finished') {
-    const board = getCurrentBoard(game.id, game.size);
-    const score = scoreBoard(board, getCumulativeCaptures(game.id), getKomi(game.handicap));
-    const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
-    gameResult = `${winnerLabel} wins by ${score.margin.toFixed(1)} (B: ${score.black}, W: ${score.white})`;
-  }
+  const status = previousEventType === 'PASS' ? 'scoring' : 'in_progress';
 
   db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
-    .run(status, gameResult, now, game.id);
+    .run(status, null, now, game.id);
 
   res.json({
     status,
-    result: gameResult,
+    result: null,
     nextColor: getCurrentColor(turnMoveNumber(moveNumber + 1, game.handicap)),
   });
+});
+
+app.post('/api/games/:id/finalize-scoring', (req, res) => {
+  const game = getGameRow(req.params.id);
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  if (game.status !== 'scoring') {
+    res.status(400).json({ error: 'Game is not in the scoring phase' });
+    return;
+  }
+
+  const rawDeadPoints: unknown[] = Array.isArray(req.body?.deadPoints) ? req.body.deadPoints : [];
+  const deadPoints: Point[] = rawDeadPoints
+    .map((p: unknown) => (p && typeof p === 'object' ? (p as { x: unknown; y: unknown }) : null))
+    .filter((p: { x: unknown; y: unknown } | null): p is { x: unknown; y: unknown } => p !== null)
+    .map((p: { x: unknown; y: unknown }) => ({ x: Number(p.x), y: Number(p.y) }))
+    .filter(
+      (p: Point) =>
+        Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.x < game.size && p.y >= 0 && p.y < game.size,
+    );
+
+  const board = getCurrentBoard(game.id, game.size);
+  const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(
+    board,
+    getCumulativeCaptures(game.id),
+    deadPoints,
+  );
+
+  const score = scoreBoard(effectiveBoard, adjustedCaptures, getKomi(game.handicap));
+  const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
+  const gameResult = `${winnerLabel} wins by ${score.margin.toFixed(1)} (B: ${score.black}, W: ${score.white})`;
+
+  const now = Date.now();
+  db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
+    .run('finished', gameResult, now, game.id);
+
+  res.json({ status: 'finished', result: gameResult, captures: adjustedCaptures });
 });
 
 app.post('/api/games/:id/undo', (req, res) => {
@@ -580,7 +605,7 @@ app.post('/api/games/:id/resign', (req, res) => {
   }
 
   if (game.status !== 'in_progress') {
-    res.status(400).json({ error: 'Game is already finished' });
+    res.status(400).json({ error: 'Game is not in progress' });
     return;
   }
 
