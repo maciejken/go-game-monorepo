@@ -146,52 +146,77 @@ function GameListItem({ game, onDelete, onRename }: GameListItemProps) {
     </>
   );
 
+  // Nested inside the card (an <a> when not editing), so clicks must stop
+  // propagation or they'd also trigger the card's own navigation.
+  const actions = (
+    <div className="game-card-actions">
+      <button
+        type="button"
+        className="edit-button"
+        aria-label="Edit game title"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          startEdit();
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+          />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className="delete-button"
+        aria-label="Delete game"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onDelete(game.id);
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M9 3a1 1 0 0 0-1 1v1H4v2h16V5h-4V4a1 1 0 0 0-1-1H9zM5 9l1 11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-11H5z"
+          />
+        </svg>
+      </button>
+    </div>
+  );
+
   return (
     <li>
-      <div className="game-list-row">
-        {isEditing ? (
-          <div className="game-card">
-            <form onSubmit={saveEdit}>
-              <input
-                type="text"
-                className="game-card-title-input"
-                value={titleInput}
-                onChange={(e) => setTitleInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') cancelEdit();
-                }}
-                onBlur={cancelEdit}
-                placeholder="Title (optional)"
-                aria-label="Game title"
-                maxLength={100}
-                autoFocus
-              />
-            </form>
-            {metaRows}
-          </div>
-        ) : (
-          <Link to={`/games/${game.id}`} className="game-card">
-            {game.title && <div className="game-card-title">{game.title}</div>}
-            {metaRows}
-          </Link>
-        )}
-        <button type="button" className="edit-button" aria-label="Edit game title" onClick={startEdit}>
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-            <path
-              fill="currentColor"
-              d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+      {isEditing ? (
+        <div className="game-card">
+          {actions}
+          <form onSubmit={saveEdit}>
+            <input
+              type="text"
+              className="game-card-title-input"
+              value={titleInput}
+              onChange={(e) => setTitleInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') cancelEdit();
+              }}
+              onBlur={cancelEdit}
+              placeholder="Title (optional)"
+              aria-label="Game title"
+              maxLength={100}
+              autoFocus
             />
-          </svg>
-        </button>
-        <button type="button" className="delete-button" aria-label="Delete game" onClick={() => onDelete(game.id)}>
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-            <path
-              fill="currentColor"
-              d="M9 3a1 1 0 0 0-1 1v1H4v2h16V5h-4V4a1 1 0 0 0-1-1H9zM5 9l1 11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-11H5z"
-            />
-          </svg>
-        </button>
-      </div>
+          </form>
+          {metaRows}
+        </div>
+      ) : (
+        <Link to={`/games/${game.id}`} className="game-card">
+          {actions}
+          {game.title && <div className="game-card-title">{game.title}</div>}
+          {metaRows}
+        </Link>
+      )}
       {error && <p className="error">{error}</p>}
     </li>
   );
