@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
@@ -66,6 +66,8 @@ function sumCaptures(entries: HistoryEntry[], upToMoveNumber: number): Captures 
   return captures;
 }
 
+const SHOW_COORDS_KEY = 'go-show-coordinates';
+
 function Game() {
   const { id: gameId } = useParams<{ id: string }>();
 
@@ -100,9 +102,26 @@ function GameView({ gameId }: GameViewProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const wasReviewing = useRef(false);
+  const [showCoords, setShowCoords] = useState(() => localStorage.getItem(SHOW_COORDS_KEY) !== 'false');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const moveParam = searchParams.get('move');
   const isReviewing = moveParam !== null;
+
+  // Close the header dropdown on any click outside it.
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   // Fetch history fresh each time review is entered (including landing
   // directly on a bookmarked ?move= URL), so it can't go stale between
@@ -154,30 +173,64 @@ function GameView({ gameId }: GameViewProps) {
     setSearchParams(searchParams, { replace: true });
   };
 
+  const toggleCoords = () => {
+    setShowCoords((prev) => {
+      const next = !prev;
+      localStorage.setItem(SHOW_COORDS_KEY, String(next));
+      return next;
+    });
+    setMenuOpen(false);
+  };
+
   return (
     <>
       <header className="go-header">
         <button type="button" className="back-toggle" onClick={() => navigate(-1)}>
-          Back to games
+          Back
         </button>
-        <button type="button" className="review-toggle" onClick={isReviewing ? exitReview : enterReview}>
-          {isReviewing ? 'Live' : 'Review'}
-        </button>
+        {title ? <h2 className="game-title">{title}</h2> : <span />}
+        <div className="go-menu" ref={menuRef}>
+          <button type="button" className="go-menu-toggle" onClick={() => setMenuOpen((open) => !open)}>
+            Menu ▾
+          </button>
+          {menuOpen && (
+            <div className="go-menu-dropdown">
+              <button
+                type="button"
+                onClick={() => {
+                  (isReviewing ? exitReview : enterReview)();
+                  setMenuOpen(false);
+                }}
+              >
+                {isReviewing ? 'Live' : 'Review'}
+              </button>
+              <button type="button" onClick={toggleCoords}>
+                {showCoords ? 'Hide coordinates' : 'Show coordinates'}
+              </button>
+            </div>
+          )}
+        </div>
       </header>
       <div className="go-board-wrap">
         {handicap > 0 && <p>Handicap: {handicap}</p>}
-        <div className="go-board-frame" style={{ '--size': size } as React.CSSProperties}>
-          {title && <h2 className="game-title">{title}</h2>}
-          <div className="go-coords go-coords--top">
-            {Array.from({ length: size }, (_, x) => (
-              <span key={x}>{COLUMN_LABELS[x]}</span>
-            ))}
-          </div>
-          <div className="go-coords go-coords--left">
-            {Array.from({ length: size }, (_, y) => (
-              <span key={y}>{size - y}</span>
-            ))}
-          </div>
+        <div
+          className={`go-board-frame${showCoords ? '' : ' go-board-frame--no-coords'}`}
+          style={{ '--size': size } as React.CSSProperties}
+        >
+          {showCoords && (
+            <div className="go-coords go-coords--top">
+              {Array.from({ length: size }, (_, x) => (
+                <span key={x}>{COLUMN_LABELS[x]}</span>
+              ))}
+            </div>
+          )}
+          {showCoords && (
+            <div className="go-coords go-coords--left">
+              {Array.from({ length: size }, (_, y) => (
+                <span key={y}>{size - y}</span>
+              ))}
+            </div>
+          )}
           <div className="go-board">
             <div className="go-board-lines">
               {getHoshiPoints(size).map(([gx, gy]) => (
@@ -212,6 +265,7 @@ function GameView({ gameId }: GameViewProps) {
             ))}
           </div>
         </div>
+        {!isReviewing && finished && <p>{result}</p>}
         {!isReviewing && error && <p className="error">{error}</p>}
         {isReviewing && (
           <p>
@@ -221,7 +275,6 @@ function GameView({ gameId }: GameViewProps) {
         )}
       </div>
       <footer className="go-footer">
-        {!isReviewing && finished && <p>{result}</p>}
         <div className="footer-row">
           <span className="capture-label">
             B: <span className="capture-count capture-count--white">{displayedCaptures.black}</span>
