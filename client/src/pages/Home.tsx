@@ -22,7 +22,7 @@ function Home() {
   const [size, setSize] = useState(19);
   const [handicap, setHandicap] = useState(0);
   const [title, setTitle] = useState('');
-  const [mode, setMode] = useState<'local' | 'remote'>('local');
+  const [mode, setMode] = useState<'local' | 'remote' | 'gnugo'>('local');
   const [color, setColor] = useState<'black' | 'white'>('black');
   const [opponentUsername, setOpponentUsername] = useState('');
 
@@ -57,6 +57,7 @@ function Home() {
       title: title.trim() || undefined,
       mode,
       ...(mode === 'remote' ? { color, opponentUsername: opponentUsername.trim() } : {}),
+      ...(mode === 'gnugo' ? { color } : {}),
     })
       .then((game) => navigate(`/games/${game.id}`))
       .catch((err: Error) => setError(err.message));
@@ -118,9 +119,10 @@ function Home() {
           </label>
           <label>
             Mode
-            <select value={mode} onChange={(e) => setMode(e.target.value as 'local' | 'remote')}>
+            <select value={mode} onChange={(e) => setMode(e.target.value as 'local' | 'remote' | 'gnugo')}>
               <option value="local">Local (play both sides)</option>
               <option value="remote">Remote (invite a player)</option>
+              <option value="gnugo">Vs. computer (GNU Go)</option>
             </select>
           </label>
           {mode === 'remote' && (
@@ -141,6 +143,15 @@ function Home() {
                 required
               />
             </>
+          )}
+          {mode === 'gnugo' && (
+            <label>
+              Your color
+              <select value={color} onChange={(e) => setColor(e.target.value as 'black' | 'white')}>
+                <option value="black">Black</option>
+                <option value="white">White</option>
+              </select>
+            </label>
           )}
           <button type="submit">Start a new game</button>
         </form>

@@ -28,6 +28,7 @@ export interface GameStateResponse extends GameResponse {
   captures: Captures;
   myColor: MyColor;
   pendingUndoBy: Color | null;
+  isAiOpponent: boolean;
 }
 
 export interface GameSummary {
@@ -42,6 +43,7 @@ export interface GameSummary {
   blackUsername: string | null;
   whiteUsername: string | null;
   myColor: MyColor;
+  isAiOpponent: boolean;
 }
 
 export interface MoveResponse {
@@ -124,7 +126,7 @@ export interface CreateGameOptions {
   size?: number;
   handicap?: number;
   title?: string;
-  mode?: 'local' | 'remote';
+  mode?: 'local' | 'remote' | 'gnugo';
   color?: Color;
   opponentUsername?: string;
 }

@@ -24,6 +24,7 @@ export function useGame(gameId: string) {
   const [whiteUsername, setWhiteUsername] = useState<string | null>(null);
   const [myColor, setMyColor] = useState<MyColor>(null);
   const [pendingUndoBy, setPendingUndoBy] = useState<Color | null>(null);
+  const [isAiOpponent, setIsAiOpponent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -40,6 +41,7 @@ export function useGame(gameId: string) {
         setWhiteUsername(game.whiteUsername);
         setMyColor(game.myColor);
         setPendingUndoBy(game.pendingUndoBy);
+        setIsAiOpponent(game.isAiOpponent);
       })
       .catch((err: Error) => setError(err.message));
   }, [gameId]);
@@ -138,6 +140,7 @@ export function useGame(gameId: string) {
     whiteUsername,
     myColor,
     pendingUndoBy,
+    isAiOpponent,
     error,
     play,
     pass,

@@ -80,10 +80,16 @@ function parsePointKey(key: string): Point {
   return { x, y };
 }
 
-// Local games (myColor 'both') undo immediately; remote games negotiate —
-// the label reflects whichever side of that negotiation the viewer is on.
-function describeUndoAction(myColor: MyColor, pendingUndoBy: Color | null, scoring: boolean): string {
-  if (myColor === 'both') {
+// Local games (myColor 'both') and AI games undo immediately, since
+// there's nobody else to ask; remote games negotiate — the label reflects
+// whichever side of that negotiation the viewer is on.
+function describeUndoAction(
+  myColor: MyColor,
+  pendingUndoBy: Color | null,
+  scoring: boolean,
+  isAiOpponent: boolean,
+): string {
+  if (myColor === 'both' || isAiOpponent) {
     return scoring ? 'Resume' : 'Undo';
   }
   if (pendingUndoBy === null) {
@@ -122,6 +128,7 @@ function GameView({ gameId }: GameViewProps) {
     whiteUsername,
     myColor,
     pendingUndoBy,
+    isAiOpponent,
     error,
     play,
     pass,
@@ -424,7 +431,7 @@ function GameView({ gameId }: GameViewProps) {
           </p>
         )}
         {!isReviewing && status === 'in_progress' && isParticipant && !isMyTurn && !pendingUndoBy && (
-          <p>Waiting for {colorLabel(currentColor)} to move.</p>
+          <p>Waiting for {(currentColor === 'black' ? blackUsername : whiteUsername) ?? colorLabel(currentColor)} to move.</p>
         )}
         {!isReviewing && !isParticipant && status !== 'finished' && (
           <p>You're viewing as a spectator — log in as a player in this game to make moves.</p>
@@ -448,7 +455,7 @@ function GameView({ gameId }: GameViewProps) {
                 <span className={`go-stone go-stone--${currentColor}`} />
                 {showUndo && (
                   <button type="button" onClick={undo}>
-                    {describeUndoAction(myColor, pendingUndoBy, false)}
+                    {describeUndoAction(myColor, pendingUndoBy, false, isAiOpponent)}
                   </button>
                 )}
                 <button type="button" onClick={pass} disabled={!isMyTurn}>
@@ -462,7 +469,7 @@ function GameView({ gameId }: GameViewProps) {
             {scoring && !isReviewing && isParticipant && (
               <div className="go-actions">
                 <button type="button" onClick={resume}>
-                  {describeUndoAction(myColor, pendingUndoBy, true)}
+                  {describeUndoAction(myColor, pendingUndoBy, true, isAiOpponent)}
                 </button>
                 <button type="button" onClick={finalize}>
                   Finalize scoring

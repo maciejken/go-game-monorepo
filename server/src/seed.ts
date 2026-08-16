@@ -49,3 +49,39 @@ export function seedDefaultUser(): void {
   db.prepare('UPDATE games SET black_user_id = ?, white_user_id = ? WHERE black_user_id IS NULL')
     .run(defaultUser.id, defaultUser.id);
 }
+
+const AI_USERNAME = 'gnugo';
+let aiUserId: string | null = null;
+
+// A reserved account representing the GNU Go engine as an opponent — not a
+// real login (its password is a random value nobody is ever told), just a
+// stable user id so AI games can reuse the existing black_user_id/
+// white_user_id participant model without a schema change.
+export function seedAiUser(): string {
+  if (aiUserId) {
+    return aiUserId;
+  }
+
+  let aiUser = db.prepare('SELECT id FROM users WHERE username = ?').get(AI_USERNAME) as { id: string } | undefined;
+
+  if (!aiUser) {
+    const id = randomUUID();
+    db.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').run(
+      id,
+      AI_USERNAME,
+      hashPassword(randomBytes(32).toString('hex')),
+      Date.now(),
+    );
+    aiUser = { id };
+  }
+
+  aiUserId = aiUser.id;
+  return aiUserId;
+}
+
+export function getAiUserId(): string {
+  if (!aiUserId) {
+    throw new Error('seedAiUser() must run before getAiUserId()');
+  }
+  return aiUserId;
+}

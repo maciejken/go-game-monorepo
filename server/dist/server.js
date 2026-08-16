@@ -7,9 +7,11 @@ import { createServer } from 'http';
 import { applyDeadStones, createEmptyBoard, getCurrentColor, getKomi, hashBoard, scoreBoard, validateMove, } from 'shared';
 import { dbPath, port } from './config.js';
 import { clearSessionCookie, createSession, destroySession, getSessionToken, getSessionUser, hashPassword, requireAuth, setSessionCookie, verifyPassword, } from './auth.js';
-import { seedDefaultUser } from './seed.js';
+import { seedDefaultUser, seedAiUser, getAiUserId } from './seed.js';
 import { attachWebSocketServer, broadcastGameUpdate, broadcastGamesListUpdate } from './ws.js';
+import { generateAiMove, isGnuGoAvailable } from './gnugo.js';
 seedDefaultUser();
+seedAiUser();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -63,6 +65,10 @@ function canActAsColor(game, userId, color) {
 }
 function isParticipant(game, userId) {
     return game.black_user_id === userId || game.white_user_id === userId;
+}
+function isAiOpponentGame(game) {
+    const aiId = getAiUserId();
+    return game.black_user_id === aiId || game.white_user_id === aiId;
 }
 const MAX_TITLE_LENGTH = 100;
 function sanitizeTitle(rawTitle) {
@@ -169,6 +175,30 @@ function getLastEventType(gameId, moveNumber) {
   `).get(gameId, moveNumber);
     return row?.event_type;
 }
+// The game replayed as a flat move list for GNU Go to `play` back in via
+// GTP before it's asked to generate its own move — handicap stones count
+// as black plays, passes carry a null point.
+function getReplayMoves(gameId) {
+    const events = db.prepare(`
+    SELECT event_type, payload FROM events WHERE game_id = ? ORDER BY move_number ASC
+  `).all(gameId);
+    const moves = [];
+    for (const event of events) {
+        const payload = JSON.parse(event.payload);
+        if (event.event_type === 'HANDICAP' && payload.points) {
+            for (const [x, y] of payload.points) {
+                moves.push({ color: 'black', point: { x, y } });
+            }
+        }
+        else if (event.event_type === 'MOVE' && payload.color && payload.x !== undefined && payload.y !== undefined) {
+            moves.push({ color: payload.color, point: { x: payload.x, y: payload.y } });
+        }
+        else if (event.event_type === 'PASS' && payload.color) {
+            moves.push({ color: payload.color, point: null });
+        }
+    }
+    return moves;
+}
 // Cumulative stones each color has captured over the whole game so far,
 // derived fresh from the event log rather than tracked separately — the
 // event log is already the source of truth for what each move captured.
@@ -231,6 +261,119 @@ function getMoveHistory(gameId, size) {
         });
     }
     return history;
+}
+// Shared by the human-facing /moves endpoint and the AI trigger below, so
+// there's exactly one place that writes a MOVE event to the log.
+function applyMoveToGame(game, x, y, color) {
+    const board = getCurrentBoard(game.id, game.size);
+    const history = getGameHistory(game.id, game.size, game.handicap);
+    const moveNumber = getNextMoveNumber(game.id);
+    const validation = validateMove(board, { x, y }, color, turnMoveNumber(moveNumber, game.handicap), history);
+    if (!validation.valid) {
+        return { ok: false, error: validation.error };
+    }
+    const newBoard = validation.board;
+    const capturedPoints = validation.capturedPoints;
+    const now = Date.now();
+    db.prepare(`
+    INSERT INTO snapshots (game_id, move_number, state, hash, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(game.id, moveNumber, JSON.stringify(newBoard), validation.hash, now);
+    db.prepare(`
+    INSERT INTO events (game_id, move_number, event_type, payload, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(game.id, moveNumber, 'MOVE', JSON.stringify({ x, y, color, capturedPoints }), now);
+    db.prepare('UPDATE games SET updated_at = ? WHERE id = ?').run(now, game.id);
+    broadcastGameUpdate(game.id);
+    broadcastGamesListUpdate();
+    return {
+        ok: true,
+        result: {
+            board: newBoard,
+            moveNumber,
+            capturedPoints,
+            nextColor: getCurrentColor(turnMoveNumber(moveNumber + 1, game.handicap)),
+            captures: getCumulativeCaptures(game.id),
+        },
+    };
+}
+function applyPassToGame(game, color) {
+    const moveNumber = getNextMoveNumber(game.id);
+    const now = Date.now();
+    db.prepare(`
+    INSERT INTO events (game_id, move_number, event_type, payload, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(game.id, moveNumber, 'PASS', JSON.stringify({ color }), now);
+    // Two consecutive passes end play and move into the scoring phase, where
+    // dead stones get marked before the final result is computed — see
+    // POST /api/games/:id/finalize-scoring.
+    const previousEventType = getLastEventType(game.id, moveNumber - 1);
+    const status = previousEventType === 'PASS' ? 'scoring' : 'in_progress';
+    db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
+        .run(status, null, now, game.id);
+    broadcastGameUpdate(game.id);
+    broadcastGamesListUpdate();
+    return { status, nextColor: getCurrentColor(turnMoveNumber(moveNumber + 1, game.handicap)) };
+}
+function applyResignToGame(game, color) {
+    const now = Date.now();
+    const moveNumber = getNextMoveNumber(game.id);
+    db.prepare(`
+    INSERT INTO events (game_id, move_number, event_type, payload, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(game.id, moveNumber, 'RESIGN', JSON.stringify({ color }), now);
+    const gameResult = `${color === 'black' ? 'Black' : 'White'} resigned`;
+    db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
+        .run('finished', gameResult, now, game.id);
+    broadcastGameUpdate(game.id);
+    broadcastGamesListUpdate();
+    return gameResult;
+}
+// Called (fire-and-forget) after any action that might hand the turn to
+// the AI — a human move/pass, or game creation when the AI plays first.
+// No-ops immediately unless it's actually the AI's turn.
+async function maybeTriggerAiMove(gameId) {
+    const game = getGameRow(gameId);
+    if (!game || game.status !== 'in_progress') {
+        return;
+    }
+    const aiId = getAiUserId();
+    const moveNumber = getNextMoveNumber(game.id);
+    const currentColor = getCurrentColor(turnMoveNumber(moveNumber, game.handicap));
+    const colorUserId = currentColor === 'black' ? game.black_user_id : game.white_user_id;
+    if (colorUserId !== aiId) {
+        return;
+    }
+    try {
+        const moves = getReplayMoves(game.id);
+        const aiResult = await generateAiMove({
+            size: game.size,
+            komi: getKomi(game.handicap),
+            moves,
+            colorToMove: currentColor,
+        });
+        // Re-check: state may have moved on (e.g. an undo) while GNU Go was thinking.
+        const freshGame = getGameRow(game.id);
+        if (!freshGame || freshGame.status !== 'in_progress') {
+            return;
+        }
+        if (aiResult.type === 'move') {
+            const applied = applyMoveToGame(freshGame, aiResult.point.x, aiResult.point.y, currentColor);
+            if (!applied.ok) {
+                console.error(`GNU Go proposed an illegal move (${applied.error}) — passing instead.`);
+                applyPassToGame(freshGame, currentColor);
+            }
+        }
+        else if (aiResult.type === 'resign') {
+            applyResignToGame(freshGame, currentColor);
+        }
+        else {
+            applyPassToGame(freshGame, currentColor);
+        }
+    }
+    catch (err) {
+        console.error('AI move generation failed:', err);
+    }
 }
 const MIN_USERNAME_LENGTH = 3;
 const MIN_PASSWORD_LENGTH = 6;
@@ -298,9 +441,10 @@ app.get('/api/games', (req, res) => {
         blackUsername: getUsername(row.black_user_id),
         whiteUsername: getUsername(row.white_user_id),
         myColor: getMyColor(row, currentUser?.id ?? null),
+        isAiOpponent: isAiOpponentGame(row),
     })));
 });
-app.post('/api/games', (req, res) => {
+app.post('/api/games', async (req, res) => {
     const user = requireAuth(req, res);
     if (!user) {
         return;
@@ -334,6 +478,16 @@ app.post('/api/games', (req, res) => {
         blackUserId = color === 'black' ? user.id : opponent.id;
         whiteUserId = color === 'white' ? user.id : opponent.id;
     }
+    else if (req.body?.mode === 'gnugo') {
+        if (!(await isGnuGoAvailable())) {
+            res.status(400).json({ error: 'GNU Go is not installed on the server — AI games are unavailable.' });
+            return;
+        }
+        const color = req.body?.color === 'white' ? 'white' : 'black';
+        const aiId = getAiUserId();
+        blackUserId = color === 'black' ? user.id : aiId;
+        whiteUserId = color === 'white' ? user.id : aiId;
+    }
     const id = randomUUID();
     const now = Date.now();
     db.prepare(`
@@ -366,6 +520,9 @@ app.post('/api/games', (req, res) => {
         blackUsername: getUsername(blackUserId),
         whiteUsername: getUsername(whiteUserId),
     });
+    // No-op unless the AI was just assigned the color that moves first
+    // (always true for AI-as-black; true for AI-as-white in a handicap game).
+    maybeTriggerAiMove(id);
 });
 app.get('/api/games/:id', (req, res) => {
     const game = getGameRow(req.params.id);
@@ -390,6 +547,7 @@ app.get('/api/games/:id', (req, res) => {
         whiteUsername: getUsername(game.white_user_id),
         myColor: getMyColor(game, currentUser?.id ?? null),
         pendingUndoBy: game.pending_undo_by,
+        isAiOpponent: isAiOpponentGame(game),
     });
 });
 app.patch('/api/games/:id', (req, res) => {
@@ -468,35 +626,13 @@ app.post('/api/games/:id/moves', (req, res) => {
         res.status(403).json({ error: `You are not playing as ${color} in this game` });
         return;
     }
-    const board = getCurrentBoard(game.id, game.size);
-    const history = getGameHistory(game.id, game.size, game.handicap);
-    const moveNumber = getNextMoveNumber(game.id);
-    const result = validateMove(board, { x, y }, color, turnMoveNumber(moveNumber, game.handicap), history);
-    if (!result.valid) {
-        res.status(400).json({ error: result.error });
+    const applied = applyMoveToGame(game, x, y, color);
+    if (!applied.ok) {
+        res.status(400).json({ error: applied.error });
         return;
     }
-    const newBoard = result.board;
-    const capturedPoints = result.capturedPoints;
-    const now = Date.now();
-    db.prepare(`
-    INSERT INTO snapshots (game_id, move_number, state, hash, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(game.id, moveNumber, JSON.stringify(newBoard), result.hash, now);
-    db.prepare(`
-    INSERT INTO events (game_id, move_number, event_type, payload, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(game.id, moveNumber, 'MOVE', JSON.stringify({ x, y, color, capturedPoints }), now);
-    db.prepare('UPDATE games SET updated_at = ? WHERE id = ?').run(now, game.id);
-    broadcastGameUpdate(game.id);
-    broadcastGamesListUpdate();
-    res.json({
-        board: newBoard,
-        moveNumber,
-        capturedPoints,
-        nextColor: getCurrentColor(turnMoveNumber(moveNumber + 1, game.handicap)),
-        captures: getCumulativeCaptures(game.id),
-    });
+    res.json(applied.result);
+    maybeTriggerAiMove(game.id);
 });
 app.post('/api/games/:id/pass', (req, res) => {
     const game = getGameRow(req.params.id);
@@ -531,25 +667,15 @@ app.post('/api/games/:id/pass', (req, res) => {
         res.status(400).json({ error: `It is ${currentColor}'s turn` });
         return;
     }
-    const now = Date.now();
-    db.prepare(`
-    INSERT INTO events (game_id, move_number, event_type, payload, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(game.id, moveNumber, 'PASS', JSON.stringify({ color }), now);
-    // Two consecutive passes end play and move into the scoring phase, where
-    // dead stones get marked before the final result is computed — see
-    // POST /api/games/:id/finalize-scoring.
-    const previousEventType = getLastEventType(game.id, moveNumber - 1);
-    const status = previousEventType === 'PASS' ? 'scoring' : 'in_progress';
-    db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
-        .run(status, null, now, game.id);
-    broadcastGameUpdate(game.id);
-    broadcastGamesListUpdate();
+    const applied = applyPassToGame(game, color);
     res.json({
-        status,
+        status: applied.status,
         result: null,
-        nextColor: getCurrentColor(turnMoveNumber(moveNumber + 1, game.handicap)),
+        nextColor: applied.nextColor,
     });
+    if (applied.status === 'in_progress') {
+        maybeTriggerAiMove(game.id);
+    }
 });
 app.post('/api/games/:id/finalize-scoring', (req, res) => {
     const game = getGameRow(req.params.id);
@@ -592,10 +718,11 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
     res.json({ status: 'finished', result: gameResult, captures: adjustedCaptures });
 });
 // A single endpoint drives the whole undo negotiation: in a local game (one
-// account playing both colors) it undoes immediately, same as before. In a
-// remote game (two different accounts), the first call files a request and
-// the *other* player must call this same endpoint to confirm it — calling
-// it again as the original requester cancels the request instead.
+// account playing both colors) or an AI game (there's no second human to
+// ask) it undoes immediately, same as before. In a remote game between two
+// different accounts, the first call files a request and the *other*
+// player must call this same endpoint to confirm it — calling it again as
+// the original requester cancels the request instead.
 app.post('/api/games/:id/undo', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
@@ -619,9 +746,9 @@ app.post('/api/games/:id/undo', (req, res) => {
         res.status(400).json({ error: 'Nothing to undo' });
         return;
     }
-    const isLocal = game.black_user_id === game.white_user_id;
+    const isImmediate = game.black_user_id === game.white_user_id || isAiOpponentGame(game);
     const myColor = game.black_user_id === user.id ? 'black' : 'white';
-    if (!isLocal) {
+    if (!isImmediate) {
         if (!game.pending_undo_by) {
             db.prepare('UPDATE games SET pending_undo_by = ? WHERE id = ?').run(myColor, game.id);
             broadcastGameUpdate(game.id);
@@ -654,6 +781,9 @@ app.post('/api/games/:id/undo', (req, res) => {
         captures: getCumulativeCaptures(game.id),
         pendingUndoBy: null,
     });
+    // If what got undone was the AI's own move, it's the AI's turn again —
+    // nothing else would prompt it to move, so ask it to reconsider now.
+    maybeTriggerAiMove(game.id);
 });
 app.post('/api/games/:id/resign', (req, res) => {
     const game = getGameRow(req.params.id);
@@ -682,17 +812,7 @@ app.post('/api/games/:id/resign', (req, res) => {
         res.status(403).json({ error: `You are not playing as ${color} in this game` });
         return;
     }
-    const now = Date.now();
-    const moveNumber = getNextMoveNumber(game.id);
-    db.prepare(`
-    INSERT INTO events (game_id, move_number, event_type, payload, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(game.id, moveNumber, 'RESIGN', JSON.stringify({ color }), now);
-    const gameResult = `${color === 'black' ? 'Black' : 'White'} resigned`;
-    db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
-        .run('finished', gameResult, now, game.id);
-    broadcastGameUpdate(game.id);
-    broadcastGamesListUpdate();
+    const gameResult = applyResignToGame(game, color);
     res.json({ status: 'finished', result: gameResult });
 });
 // For React Router — serve index.html for all non-API routes
