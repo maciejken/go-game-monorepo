@@ -1,3 +1,9 @@
 node_modules/
 .DS_Store
 *.tsbuildinfo
+
+# Deploy config / secrets — never commit real credentials
+pm2.config.js
+ecosystem.config.js
+.env
+.env.*

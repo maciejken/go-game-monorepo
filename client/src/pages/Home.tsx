@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createGame, deleteGame, listGames, updateGameTitle, type GameSummary } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
+import { useLiveSocket } from '../hooks/useLiveSocket';
 
 const BOARD_SIZES = [9, 13, 19];
 
@@ -13,12 +15,16 @@ function formatDate(ms: number): string {
 }
 
 function Home() {
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState(19);
   const [handicap, setHandicap] = useState(0);
   const [title, setTitle] = useState('');
+  const [mode, setMode] = useState<'local' | 'remote'>('local');
+  const [color, setColor] = useState<'black' | 'white'>('black');
+  const [opponentUsername, setOpponentUsername] = useState('');
 
   const refresh = useCallback(() => {
     listGames()
@@ -29,6 +35,10 @@ function Home() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Live updates: a new invite, a finished game, or any other player's
+  // move updates the list here without needing a manual reload.
+  useLiveSocket('/ws/games', refresh);
 
   const maxHandicap = getMaxHandicap(size);
   const handicapOptions = [0, ...Array.from({ length: maxHandicap - 1 }, (_, i) => i + 2)];
@@ -41,7 +51,13 @@ function Home() {
   const startNewGame = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    createGame(size, handicap, title.trim() || undefined)
+    createGame({
+      size,
+      handicap,
+      title: title.trim() || undefined,
+      mode,
+      ...(mode === 'remote' ? { color, opponentUsername: opponentUsername.trim() } : {}),
+    })
       .then((game) => navigate(`/games/${game.id}`))
       .catch((err: Error) => setError(err.message));
   };
@@ -58,37 +74,81 @@ function Home() {
 
   return (
     <div className="game-list-wrap">
-      <form className="new-game-form" onSubmit={startNewGame}>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title (optional)"
-          aria-label="Title (optional)"
-          maxLength={100}
-        />
-        <label>
-          Board size
-          <select value={size} onChange={(e) => handleSizeChange(Number(e.target.value))}>
-            {BOARD_SIZES.map((s) => (
-              <option key={s} value={s}>
-                {s}x{s}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Handicap
-          <select value={handicap} onChange={(e) => setHandicap(Number(e.target.value))}>
-            {handicapOptions.map((h) => (
-              <option key={h} value={h}>
-                {h === 0 ? 'None' : h}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="submit">Start a new game</button>
-      </form>
+      <div className="auth-status">
+        {user ? (
+          <>
+            Logged in as <strong>{user.username}</strong>
+            <button type="button" onClick={() => logout().then(refresh)}>
+              Log out
+            </button>
+          </>
+        ) : (
+          <Link to="/login">Log in / Register</Link>
+        )}
+      </div>
+      {user ? (
+        <form className="new-game-form" onSubmit={startNewGame}>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title (optional)"
+            aria-label="Title (optional)"
+            maxLength={100}
+          />
+          <label>
+            Board size
+            <select value={size} onChange={(e) => handleSizeChange(Number(e.target.value))}>
+              {BOARD_SIZES.map((s) => (
+                <option key={s} value={s}>
+                  {s}x{s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Handicap
+            <select value={handicap} onChange={(e) => setHandicap(Number(e.target.value))}>
+              {handicapOptions.map((h) => (
+                <option key={h} value={h}>
+                  {h === 0 ? 'None' : h}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Mode
+            <select value={mode} onChange={(e) => setMode(e.target.value as 'local' | 'remote')}>
+              <option value="local">Local (play both sides)</option>
+              <option value="remote">Remote (invite a player)</option>
+            </select>
+          </label>
+          {mode === 'remote' && (
+            <>
+              <label>
+                Your color
+                <select value={color} onChange={(e) => setColor(e.target.value as 'black' | 'white')}>
+                  <option value="black">Black</option>
+                  <option value="white">White</option>
+                </select>
+              </label>
+              <input
+                type="text"
+                value={opponentUsername}
+                onChange={(e) => setOpponentUsername(e.target.value)}
+                placeholder="Opponent's username"
+                aria-label="Opponent's username"
+                required
+              />
+            </>
+          )}
+          <button type="submit">Start a new game</button>
+        </form>
+      ) : (
+        <p>
+          <Link to="/login">Log in</Link> to start a new game.
+        </p>
+      )}
       {error && <p className="error">{error}</p>}
       {!games ? (
         <p>Loading games...</p>
@@ -115,6 +175,7 @@ function GameListItem({ game, onDelete, onRename }: GameListItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [titleInput, setTitleInput] = useState(game.title ?? '');
   const [error, setError] = useState<string | null>(null);
+  const canEdit = game.myColor !== null;
 
   const startEdit = () => {
     setError(null);
@@ -135,11 +196,24 @@ function GameListItem({ game, onDelete, onRename }: GameListItemProps) {
       .catch((err: Error) => setError(err.message));
   };
 
+  const playerLabel = (playerColor: 'black' | 'white', username: string | null) => {
+    if (!username) {
+      return null;
+    }
+    const isMe = game.myColor === playerColor || game.myColor === 'both';
+    return `${playerColor === 'black' ? 'Black' : 'White'}: ${username}${isMe ? ' (you)' : ''}`;
+  };
+
   const metaRows = (
     <>
       <div className="game-card-row">
         {game.size}x{game.size}
         {game.handicap > 0 ? ` · Handicap ${game.handicap}` : ''} — {game.result ?? game.status}
+      </div>
+      <div className="game-card-row">
+        {[playerLabel('black', game.blackUsername), playerLabel('white', game.whiteUsername)]
+          .filter(Boolean)
+          .join(' · ')}
       </div>
       <div className="game-card-row">Created: {formatDate(game.createdAt)}</div>
       <div className="game-card-row">Updated: {formatDate(game.updatedAt)}</div>
@@ -148,7 +222,7 @@ function GameListItem({ game, onDelete, onRename }: GameListItemProps) {
 
   // Nested inside the card (an <a> when not editing), so clicks must stop
   // propagation or they'd also trigger the card's own navigation.
-  const actions = (
+  const actions = canEdit ? (
     <div className="game-card-actions">
       <button
         type="button"
@@ -185,7 +259,7 @@ function GameListItem({ game, onDelete, onRename }: GameListItemProps) {
         </svg>
       </button>
     </div>
-  );
+  ) : null;
 
   return (
     <li>

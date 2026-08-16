@@ -3,6 +3,7 @@ import db from './db.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
+import { createServer } from 'http';
 import {
   applyDeadStones,
   createEmptyBoard,
@@ -19,6 +20,21 @@ import {
 } from 'shared';
 
 import { dbPath, port } from './config.js';
+import {
+  clearSessionCookie,
+  createSession,
+  destroySession,
+  getSessionToken,
+  getSessionUser,
+  hashPassword,
+  requireAuth,
+  setSessionCookie,
+  verifyPassword,
+} from './auth.js';
+import { seedDefaultUser } from './seed.js';
+import { attachWebSocketServer, broadcastGameUpdate, broadcastGamesListUpdate } from './ws.js';
+
+seedDefaultUser();
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -58,12 +74,50 @@ interface GameRow {
   result: string | null;
   handicap: number;
   title: string | null;
+  black_user_id: string | null;
+  white_user_id: string | null;
+  pending_undo_by: string | null;
 }
 
 function getGameRow(id: string): GameRow | undefined {
-  return db.prepare('SELECT id, size, status, result, handicap, title FROM games WHERE id = ?').get(id) as
-    | GameRow
-    | undefined;
+  return db.prepare(`
+    SELECT id, size, status, result, handicap, title, black_user_id, white_user_id, pending_undo_by
+    FROM games WHERE id = ?
+  `).get(id) as GameRow | undefined;
+}
+
+function getUsername(userId: string | null): string | null {
+  if (!userId) {
+    return null;
+  }
+  const row = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as { username: string } | undefined;
+  return row?.username ?? null;
+}
+
+interface Participants {
+  black_user_id: string | null;
+  white_user_id: string | null;
+}
+
+// 'both' covers local games, where one account plays both colors.
+function getMyColor(game: Participants, userId: string | null): 'black' | 'white' | 'both' | null {
+  if (!userId) {
+    return null;
+  }
+  const isBlack = game.black_user_id === userId;
+  const isWhite = game.white_user_id === userId;
+  if (isBlack && isWhite) return 'both';
+  if (isBlack) return 'black';
+  if (isWhite) return 'white';
+  return null;
+}
+
+function canActAsColor(game: Participants, userId: string, color: Color): boolean {
+  return color === 'black' ? game.black_user_id === userId : game.white_user_id === userId;
+}
+
+function isParticipant(game: Participants, userId: string): boolean {
+  return game.black_user_id === userId || game.white_user_id === userId;
 }
 
 const MAX_TITLE_LENGTH = 100;
@@ -293,6 +347,68 @@ function getMoveHistory(gameId: string, size: number): MoveHistoryEntry[] {
   return history;
 }
 
+const MIN_USERNAME_LENGTH = 3;
+const MIN_PASSWORD_LENGTH = 6;
+
+app.post('/api/auth/register', (req, res) => {
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+  if (username.length < MIN_USERNAME_LENGTH) {
+    res.status(400).json({ error: `Username must be at least ${MIN_USERNAME_LENGTH} characters` });
+    return;
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+    return;
+  }
+
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  if (existing) {
+    res.status(400).json({ error: 'Username is already taken' });
+    return;
+  }
+
+  const id = randomUUID();
+  db.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)')
+    .run(id, username, hashPassword(password), Date.now());
+
+  const token = createSession(id);
+  setSessionCookie(res, token);
+  res.status(201).json({ id, username });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+  const user = db.prepare('SELECT id, username, password_hash FROM users WHERE username = ?').get(username) as
+    | { id: string; username: string; password_hash: string }
+    | undefined;
+
+  if (!user || !verifyPassword(password, user.password_hash)) {
+    res.status(401).json({ error: 'Invalid username or password' });
+    return;
+  }
+
+  const token = createSession(user.id);
+  setSessionCookie(res, token);
+  res.json({ id: user.id, username: user.username });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const token = getSessionToken(req);
+  if (token) {
+    destroySession(token);
+  }
+  clearSessionCookie(res);
+  res.status(204).end();
+});
+
+app.get('/api/auth/me', (req, res) => {
+  res.json({ user: getSessionUser(req) });
+});
+
 interface GameListRow {
   id: string;
   size: number;
@@ -302,11 +418,14 @@ interface GameListRow {
   title: string | null;
   created_at: number;
   updated_at: number;
+  black_user_id: string | null;
+  white_user_id: string | null;
 }
 
 app.get('/api/games', (req, res) => {
+  const currentUser = getSessionUser(req);
   const rows = db.prepare(`
-    SELECT id, size, status, result, handicap, title, created_at, updated_at FROM games
+    SELECT id, size, status, result, handicap, title, created_at, updated_at, black_user_id, white_user_id FROM games
     ORDER BY updated_at DESC
   `).all() as GameListRow[];
 
@@ -319,21 +438,63 @@ app.get('/api/games', (req, res) => {
     title: row.title,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    blackUsername: getUsername(row.black_user_id),
+    whiteUsername: getUsername(row.white_user_id),
+    myColor: getMyColor(row, currentUser?.id ?? null),
   })));
 });
 
 app.post('/api/games', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
   const size = Number(req.body?.size) || 19;
   // Handicap placement is only defined for boards with a known star-point layout
   const handicap = STAR_POINTS[size] ? Math.max(0, Number(req.body?.handicap) || 0) : 0;
   const title = sanitizeTitle(req.body?.title);
+
+  let blackUserId = user.id;
+  let whiteUserId = user.id;
+
+  if (req.body?.mode === 'remote') {
+    const color = req.body?.color === 'white' ? 'white' : req.body?.color === 'black' ? 'black' : null;
+    const opponentUsername =
+      typeof req.body?.opponentUsername === 'string' ? req.body.opponentUsername.trim() : '';
+
+    if (!color) {
+      res.status(400).json({ error: 'Choose which color you will play' });
+      return;
+    }
+    if (!opponentUsername) {
+      res.status(400).json({ error: "Opponent's username is required for a remote game" });
+      return;
+    }
+
+    const opponent = db.prepare('SELECT id FROM users WHERE username = ?').get(opponentUsername) as
+      | { id: string }
+      | undefined;
+    if (!opponent) {
+      res.status(400).json({ error: `No user named "${opponentUsername}"` });
+      return;
+    }
+    if (opponent.id === user.id) {
+      res.status(400).json({ error: 'Invite a different user, not yourself' });
+      return;
+    }
+
+    blackUserId = color === 'black' ? user.id : opponent.id;
+    whiteUserId = color === 'white' ? user.id : opponent.id;
+  }
+
   const id = randomUUID();
   const now = Date.now();
 
   db.prepare(`
-    INSERT INTO games (id, size, handicap, title, created_at, updated_at, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, size, handicap, title, now, now, 'in_progress');
+    INSERT INTO games (id, size, handicap, title, created_at, updated_at, status, black_user_id, white_user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, size, handicap, title, now, now, 'in_progress', blackUserId, whiteUserId);
 
   const board = createEmptyBoard(size);
   const handicapPoints = getHandicapPoints(size, handicap);
@@ -353,7 +514,18 @@ app.post('/api/games', (req, res) => {
     `).run(id, 0, 'HANDICAP', JSON.stringify({ handicap, points: handicapPoints }), now);
   }
 
-  res.status(201).json({ id, size, handicap, title, status: 'in_progress', board });
+  broadcastGamesListUpdate();
+
+  res.status(201).json({
+    id,
+    size,
+    handicap,
+    title,
+    status: 'in_progress',
+    board,
+    blackUsername: getUsername(blackUserId),
+    whiteUsername: getUsername(whiteUserId),
+  });
 });
 
 app.get('/api/games/:id', (req, res) => {
@@ -365,6 +537,7 @@ app.get('/api/games/:id', (req, res) => {
 
   const board = getCurrentBoard(game.id, game.size);
   const moveNumber = getNextMoveNumber(game.id);
+  const currentUser = getSessionUser(req);
 
   res.json({
     id: game.id,
@@ -376,6 +549,10 @@ app.get('/api/games/:id', (req, res) => {
     board,
     currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
     captures: getCumulativeCaptures(game.id),
+    blackUsername: getUsername(game.black_user_id),
+    whiteUsername: getUsername(game.white_user_id),
+    myColor: getMyColor(game, currentUser?.id ?? null),
+    pendingUndoBy: game.pending_undo_by,
   });
 });
 
@@ -386,8 +563,20 @@ app.patch('/api/games/:id', (req, res) => {
     return;
   }
 
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  if (!isParticipant(game, user.id)) {
+    res.status(403).json({ error: 'Only players in this game can edit it' });
+    return;
+  }
+
   const title = sanitizeTitle(req.body?.title);
   db.prepare('UPDATE games SET title = ? WHERE id = ?').run(title, game.id);
+
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
 
   res.json({ title });
 });
@@ -409,9 +598,21 @@ app.delete('/api/games/:id', (req, res) => {
     return;
   }
 
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  if (!isParticipant(game, user.id)) {
+    res.status(403).json({ error: 'Only players in this game can delete it' });
+    return;
+  }
+
   db.prepare('DELETE FROM events WHERE game_id = ?').run(game.id);
   db.prepare('DELETE FROM snapshots WHERE game_id = ?').run(game.id);
   db.prepare('DELETE FROM games WHERE id = ?').run(game.id);
+
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
 
   res.status(204).end();
 });
@@ -423,14 +624,27 @@ app.post('/api/games/:id/moves', (req, res) => {
     return;
   }
 
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
   if (game.status !== 'in_progress') {
     res.status(400).json({ error: 'Game is not in progress' });
+    return;
+  }
+  if (game.pending_undo_by) {
+    res.status(400).json({ error: 'An undo request is pending confirmation' });
     return;
   }
 
   const { x, y, color } = req.body ?? {};
   if (typeof x !== 'number' || typeof y !== 'number' || (color !== 'black' && color !== 'white')) {
     res.status(400).json({ error: 'Invalid move payload' });
+    return;
+  }
+  if (!canActAsColor(game, user.id, color)) {
+    res.status(403).json({ error: `You are not playing as ${color} in this game` });
     return;
   }
 
@@ -465,6 +679,9 @@ app.post('/api/games/:id/moves', (req, res) => {
 
   db.prepare('UPDATE games SET updated_at = ? WHERE id = ?').run(now, game.id);
 
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
+
   res.json({
     board: newBoard,
     moveNumber,
@@ -481,14 +698,27 @@ app.post('/api/games/:id/pass', (req, res) => {
     return;
   }
 
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
   if (game.status !== 'in_progress') {
     res.status(400).json({ error: 'Game is not in progress' });
+    return;
+  }
+  if (game.pending_undo_by) {
+    res.status(400).json({ error: 'An undo request is pending confirmation' });
     return;
   }
 
   const { color } = req.body ?? {};
   if (color !== 'black' && color !== 'white') {
     res.status(400).json({ error: 'Invalid color' });
+    return;
+  }
+  if (!canActAsColor(game, user.id, color)) {
+    res.status(403).json({ error: `You are not playing as ${color} in this game` });
     return;
   }
 
@@ -514,6 +744,9 @@ app.post('/api/games/:id/pass', (req, res) => {
   db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
     .run(status, null, now, game.id);
 
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
+
   res.json({
     status,
     result: null,
@@ -528,8 +761,21 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
     return;
   }
 
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  if (!isParticipant(game, user.id)) {
+    res.status(403).json({ error: 'Only players in this game can finalize scoring' });
+    return;
+  }
+
   if (game.status !== 'scoring') {
     res.status(400).json({ error: 'Game is not in the scoring phase' });
+    return;
+  }
+  if (game.pending_undo_by) {
+    res.status(400).json({ error: 'An undo request is pending confirmation' });
     return;
   }
 
@@ -558,13 +804,30 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
   db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
     .run('finished', gameResult, now, game.id);
 
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
+
   res.json({ status: 'finished', result: gameResult, captures: adjustedCaptures });
 });
 
+// A single endpoint drives the whole undo negotiation: in a local game (one
+// account playing both colors) it undoes immediately, same as before. In a
+// remote game (two different accounts), the first call files a request and
+// the *other* player must call this same endpoint to confirm it — calling
+// it again as the original requester cancels the request instead.
 app.post('/api/games/:id/undo', (req, res) => {
   const game = getGameRow(req.params.id);
   if (!game) {
     res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  if (!isParticipant(game, user.id)) {
+    res.status(403).json({ error: 'Only players in this game can undo moves' });
     return;
   }
 
@@ -579,21 +842,45 @@ app.post('/api/games/:id/undo', (req, res) => {
     return;
   }
 
+  const isLocal = game.black_user_id === game.white_user_id;
+  const myColor: Color = game.black_user_id === user.id ? 'black' : 'white';
+
+  if (!isLocal) {
+    if (!game.pending_undo_by) {
+      db.prepare('UPDATE games SET pending_undo_by = ? WHERE id = ?').run(myColor, game.id);
+      broadcastGameUpdate(game.id);
+      res.json({ action: 'requested', pendingUndoBy: myColor });
+      return;
+    }
+    if (game.pending_undo_by === myColor) {
+      db.prepare('UPDATE games SET pending_undo_by = NULL WHERE id = ?').run(game.id);
+      broadcastGameUpdate(game.id);
+      res.json({ action: 'cancelled', pendingUndoBy: null });
+      return;
+    }
+    // Otherwise myColor is the other player, confirming — fall through and perform the undo.
+  }
+
   const now = Date.now();
   db.prepare('DELETE FROM events WHERE game_id = ? AND move_number = ?').run(game.id, lastEvent.move_number);
   db.prepare('DELETE FROM snapshots WHERE game_id = ? AND move_number = ?').run(game.id, lastEvent.move_number);
-  db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
+  db.prepare('UPDATE games SET status = ?, result = ?, pending_undo_by = NULL, updated_at = ? WHERE id = ?')
     .run('in_progress', null, now, game.id);
+
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
 
   const board = getCurrentBoard(game.id, game.size);
   const nextMoveNumber = getNextMoveNumber(game.id);
 
   res.json({
+    action: 'confirmed',
     board,
     status: 'in_progress',
     result: null,
     currentColor: getCurrentColor(turnMoveNumber(nextMoveNumber, game.handicap)),
     captures: getCumulativeCaptures(game.id),
+    pendingUndoBy: null,
   });
 });
 
@@ -604,14 +891,27 @@ app.post('/api/games/:id/resign', (req, res) => {
     return;
   }
 
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
   if (game.status !== 'in_progress') {
     res.status(400).json({ error: 'Game is not in progress' });
+    return;
+  }
+  if (game.pending_undo_by) {
+    res.status(400).json({ error: 'An undo request is pending confirmation' });
     return;
   }
 
   const { color } = req.body ?? {};
   if (color !== 'black' && color !== 'white') {
     res.status(400).json({ error: 'Invalid color' });
+    return;
+  }
+  if (!canActAsColor(game, user.id, color)) {
+    res.status(403).json({ error: `You are not playing as ${color} in this game` });
     return;
   }
 
@@ -626,6 +926,9 @@ app.post('/api/games/:id/resign', (req, res) => {
   db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
     .run('finished', gameResult, now, game.id);
 
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
+
   res.json({ status: 'finished', result: gameResult });
 });
 
@@ -634,6 +937,9 @@ app.get('/{*path}', (req, res) => {
   res.sendFile(path.resolve(__dirname, '../../client/dist/index.html'));
 });
 
-app.listen(port, () => {
+const httpServer = createServer(app);
+attachWebSocketServer(httpServer);
+
+httpServer.listen(port, () => {
   console.log(`Server running on port ${port}; db path: ${dbPath}`);
 });

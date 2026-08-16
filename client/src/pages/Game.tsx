@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { applyDeadStones, getGroup, getKomi, scoreBoard, type Point } from 'shared';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { applyDeadStones, getGroup, getKomi, scoreBoard, type Color, type Point } from 'shared';
+import { useAuth } from '../hooks/useAuth';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
-import type { Captures, HistoryEntry } from '../services/api';
+import type { Captures, HistoryEntry, MyColor } from '../services/api';
 
 // Go board columns skip the letter "I" to avoid confusion with the numeral 1
 const COLUMN_LABELS = 'ABCDEFGHJKLMNOPQRST';
@@ -79,6 +80,21 @@ function parsePointKey(key: string): Point {
   return { x, y };
 }
 
+// Local games (myColor 'both') undo immediately; remote games negotiate —
+// the label reflects whichever side of that negotiation the viewer is on.
+function describeUndoAction(myColor: MyColor, pendingUndoBy: Color | null, scoring: boolean): string {
+  if (myColor === 'both') {
+    return scoring ? 'Resume' : 'Undo';
+  }
+  if (pendingUndoBy === null) {
+    return 'Request Undo';
+  }
+  if (pendingUndoBy === myColor) {
+    return 'Cancel Undo Request';
+  }
+  return 'Confirm Undo';
+}
+
 function Game() {
   const { id: gameId } = useParams<{ id: string }>();
 
@@ -102,6 +118,10 @@ function GameView({ gameId }: GameViewProps) {
     handicap,
     title,
     captures,
+    blackUsername,
+    whiteUsername,
+    myColor,
+    pendingUndoBy,
     error,
     play,
     pass,
@@ -111,8 +131,10 @@ function GameView({ gameId }: GameViewProps) {
     clearError,
   } = useGame(gameId);
   const { history, error: historyError, load: loadHistory } = useGameHistory(gameId);
+  const { user, logout } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const wasReviewing = useRef(false);
   const [showCoords, setShowCoords] = useState(() => localStorage.getItem(SHOW_COORDS_KEY) !== 'false');
   const [showUndo, setShowUndo] = useState(() => localStorage.getItem(SHOW_UNDO_KEY) !== 'false');
@@ -182,8 +204,10 @@ function GameView({ gameId }: GameViewProps) {
   const displayedBoard = isReviewing && reviewEntry ? reviewEntry.board : liveBoard;
   const displayedCaptures =
     isReviewing && history && reviewMoveNumber !== null ? sumCaptures(history, reviewMoveNumber) : captures;
-  const canInteract = !isReviewing && status === 'in_progress';
-  const canToggleDead = !isReviewing && scoring;
+  const isParticipant = myColor !== null;
+  const isMyTurn = myColor === 'both' || myColor === currentColor;
+  const canInteract = !isReviewing && status === 'in_progress' && isMyTurn;
+  const canToggleDead = !isReviewing && scoring && isParticipant;
   const navDisabled = latestMoveNumber === null || reviewMoveNumber === null;
 
   // Live preview of the final result as dead stones are marked, computed
@@ -298,12 +322,41 @@ function GameView({ gameId }: GameViewProps) {
               >
                 Settings
               </button>
+              {user ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    // Permissions (myColor, etc.) were fetched under the old
+                    // session and won't update in place — leave the game
+                    // view instead of showing stale, now-wrong controls.
+                    logout().then(() => navigate('/'));
+                  }}
+                >
+                  Log out ({user.username})
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate('/login', { state: { from: `${location.pathname}${location.search}` } });
+                  }}
+                >
+                  Log in
+                </button>
+              )}
             </div>
           )}
         </div>
       </header>
       <div className="go-board-wrap">
         {handicap > 0 && <p>Handicap: {handicap}</p>}
+        {myColor !== 'both' && (blackUsername || whiteUsername) && (
+          <p>
+            Black: {blackUsername ?? '—'} · White: {whiteUsername ?? '—'}
+          </p>
+        )}
         <div
           className={`go-board-frame${showCoords ? '' : ' go-board-frame--no-coords'}`}
           style={{ '--size': size } as React.CSSProperties}
@@ -363,6 +416,19 @@ function GameView({ gameId }: GameViewProps) {
             {provisionalResult && <> Estimated: {provisionalResult}</>}
           </p>
         )}
+        {!isReviewing && isParticipant && pendingUndoBy && myColor !== 'both' && (
+          <p>
+            {pendingUndoBy === myColor
+              ? 'Waiting for the other player to confirm your undo request.'
+              : `${colorLabel(pendingUndoBy)} requested to undo the last move.`}
+          </p>
+        )}
+        {!isReviewing && status === 'in_progress' && isParticipant && !isMyTurn && !pendingUndoBy && (
+          <p>Waiting for {colorLabel(currentColor)} to move.</p>
+        )}
+        {!isReviewing && !isParticipant && status !== 'finished' && (
+          <p>You're viewing as a spectator — log in as a player in this game to make moves.</p>
+        )}
         {!isReviewing && error && <p className="error">{error}</p>}
         {isReviewing && (
           <p>
@@ -377,15 +443,15 @@ function GameView({ gameId }: GameViewProps) {
             B: <span className="capture-count capture-count--white">{displayedCaptures.black}</span>
           </span>
           <div className="footer-buttons">
-            {status === 'in_progress' && !isReviewing && (
+            {status === 'in_progress' && !isReviewing && isParticipant && (
               <div className="go-actions" style={{ '--cell': '24px' } as React.CSSProperties}>
                 <span className={`go-stone go-stone--${currentColor}`} />
                 {showUndo && (
                   <button type="button" onClick={undo}>
-                    Undo
+                    {describeUndoAction(myColor, pendingUndoBy, false)}
                   </button>
                 )}
-                <button type="button" onClick={pass}>
+                <button type="button" onClick={pass} disabled={!isMyTurn}>
                   Pass
                 </button>
                 <button type="button" onClick={resign}>
@@ -393,10 +459,10 @@ function GameView({ gameId }: GameViewProps) {
                 </button>
               </div>
             )}
-            {scoring && !isReviewing && (
+            {scoring && !isReviewing && isParticipant && (
               <div className="go-actions">
                 <button type="button" onClick={resume}>
-                  Resume
+                  {describeUndoAction(myColor, pendingUndoBy, true)}
                 </button>
                 <button type="button" onClick={finalize}>
                   Finalize scoring

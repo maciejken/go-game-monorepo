@@ -48,6 +48,19 @@ db.exec(`
     updated_at INTEGER NOT NULL,
     status TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
 `);
 
 // Migrate older `games` tables that predate the `size`/`result` columns
@@ -65,6 +78,17 @@ if (!gamesColumns.has('handicap')) {
 }
 if (!gamesColumns.has('title')) {
   db.exec('ALTER TABLE games ADD COLUMN title TEXT');
+}
+// Participant assignment (who may act as black/white) and the in-flight
+// undo request/confirm flow between two different players.
+if (!gamesColumns.has('black_user_id')) {
+  db.exec('ALTER TABLE games ADD COLUMN black_user_id TEXT');
+}
+if (!gamesColumns.has('white_user_id')) {
+  db.exec('ALTER TABLE games ADD COLUMN white_user_id TEXT');
+}
+if (!gamesColumns.has('pending_undo_by')) {
+  db.exec('ALTER TABLE games ADD COLUMN pending_undo_by TEXT');
 }
 
 // Migrate older `snapshots` tables that predate the `hash` column (used for

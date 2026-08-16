@@ -4,6 +4,13 @@ export type { Captures };
 
 const API_BASE = '/api';
 
+export type MyColor = Color | 'both' | null;
+
+export interface AuthUser {
+  id: string;
+  username: string;
+}
+
 export interface GameResponse {
   id: string;
   size: number;
@@ -11,12 +18,16 @@ export interface GameResponse {
   title: string | null;
   status: string;
   board: Board;
+  blackUsername: string | null;
+  whiteUsername: string | null;
 }
 
 export interface GameStateResponse extends GameResponse {
   currentColor: Color;
   result: string | null;
   captures: Captures;
+  myColor: MyColor;
+  pendingUndoBy: Color | null;
 }
 
 export interface GameSummary {
@@ -28,6 +39,9 @@ export interface GameSummary {
   result: string | null;
   createdAt: number;
   updatedAt: number;
+  blackUsername: string | null;
+  whiteUsername: string | null;
+  myColor: MyColor;
 }
 
 export interface MoveResponse {
@@ -49,13 +63,22 @@ export interface ResignResponse {
   result: string | null;
 }
 
-export interface UndoResponse {
-  board: Board;
-  status: string;
-  result: string | null;
-  currentColor: Color;
-  captures: Captures;
-}
+// A local game (one account playing both colors) always undoes immediately
+// ('confirmed'). A remote game negotiates: the first call from either
+// player 'requested's it, and only the other player's call can 'confirmed'
+// it — calling again as the original requester 'cancelled's it instead.
+export type UndoResponse =
+  | { action: 'requested'; pendingUndoBy: Color }
+  | { action: 'cancelled'; pendingUndoBy: null }
+  | {
+      action: 'confirmed';
+      pendingUndoBy: null;
+      board: Board;
+      status: string;
+      result: string | null;
+      currentColor: Color;
+      captures: Captures;
+    };
 
 export interface FinalizeScoringResponse {
   status: string;
@@ -97,11 +120,20 @@ export async function deleteGame(id: string): Promise<void> {
   }
 }
 
-export function createGame(size = 19, handicap = 0, title?: string): Promise<GameResponse> {
+export interface CreateGameOptions {
+  size?: number;
+  handicap?: number;
+  title?: string;
+  mode?: 'local' | 'remote';
+  color?: Color;
+  opponentUsername?: string;
+}
+
+export function createGame(options: CreateGameOptions = {}): Promise<GameResponse> {
   return fetch(`${API_BASE}/games`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ size, handicap, title }),
+    body: JSON.stringify({ size: 19, handicap: 0, ...options }),
   }).then((res) => handle<GameResponse>(res));
 }
 
@@ -155,4 +187,30 @@ export function finalizeScoring(id: string, deadPoints: Point[]): Promise<Finali
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ deadPoints }),
   }).then((res) => handle<FinalizeScoringResponse>(res));
+}
+
+export function register(username: string, password: string): Promise<AuthUser> {
+  return fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  }).then((res) => handle<AuthUser>(res));
+}
+
+export function login(username: string, password: string): Promise<AuthUser> {
+  return fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  }).then((res) => handle<AuthUser>(res));
+}
+
+export async function logout(): Promise<void> {
+  await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+}
+
+export function getMe(): Promise<AuthUser | null> {
+  return fetch(`${API_BASE}/auth/me`)
+    .then((res) => handle<{ user: AuthUser | null }>(res))
+    .then((data) => data.user);
 }

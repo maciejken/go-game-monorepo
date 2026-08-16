@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Board, Color, Point } from 'shared';
-import { finalizeScoring as finalizeScoringRequest, getGame, makeMove, passTurn, resignGame, undoMove, type Captures } from '../services/api';
+import {
+  finalizeScoring as finalizeScoringRequest,
+  getGame,
+  makeMove,
+  passTurn,
+  resignGame,
+  undoMove,
+  type Captures,
+  type MyColor,
+} from '../services/api';
+import { useLiveSocket } from './useLiveSocket';
 
 export function useGame(gameId: string) {
   const [board, setBoard] = useState<Board | null>(null);
@@ -10,10 +20,14 @@ export function useGame(gameId: string) {
   const [handicap, setHandicap] = useState(0);
   const [title, setTitle] = useState<string | null>(null);
   const [captures, setCaptures] = useState<Captures>({ black: 0, white: 0 });
+  const [blackUsername, setBlackUsername] = useState<string | null>(null);
+  const [whiteUsername, setWhiteUsername] = useState<string | null>(null);
+  const [myColor, setMyColor] = useState<MyColor>(null);
+  const [pendingUndoBy, setPendingUndoBy] = useState<Color | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getGame(gameId)
+  const refresh = useCallback(() => {
+    return getGame(gameId)
       .then((game) => {
         setBoard(game.board);
         setCurrentColor(game.currentColor);
@@ -22,9 +36,21 @@ export function useGame(gameId: string) {
         setHandicap(game.handicap);
         setTitle(game.title);
         setCaptures(game.captures);
+        setBlackUsername(game.blackUsername);
+        setWhiteUsername(game.whiteUsername);
+        setMyColor(game.myColor);
+        setPendingUndoBy(game.pendingUndoBy);
       })
       .catch((err: Error) => setError(err.message));
   }, [gameId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Live updates: the opponent's move/pass/undo request lands here without
+  // needing a manual reload.
+  useLiveSocket(`/ws/games/${gameId}`, refresh);
 
   const play = useCallback(
     (x: number, y: number) => {
@@ -53,23 +79,30 @@ export function useGame(gameId: string) {
 
   const resign = useCallback(() => {
     setError(null);
-    resignGame(gameId, currentColor)
+    // Resigning isn't turn-gated, so it goes out as the caller's own
+    // assigned color rather than whoever's turn it happens to be — for a
+    // local game (myColor 'both') that distinction doesn't matter.
+    const resignColor = myColor === 'black' || myColor === 'white' ? myColor : currentColor;
+    resignGame(gameId, resignColor)
       .then((res) => {
         setStatus(res.status);
         setResult(res.result);
       })
       .catch((err: Error) => setError(err.message));
-  }, [gameId, currentColor]);
+  }, [gameId, currentColor, myColor]);
 
   const undo = useCallback(() => {
     setError(null);
     undoMove(gameId)
       .then((res) => {
-        setBoard(res.board);
-        setCurrentColor(res.currentColor);
-        setStatus(res.status);
-        setResult(res.result);
-        setCaptures(res.captures);
+        setPendingUndoBy(res.pendingUndoBy);
+        if (res.action === 'confirmed') {
+          setBoard(res.board);
+          setCurrentColor(res.currentColor);
+          setStatus(res.status);
+          setResult(res.result);
+          setCaptures(res.captures);
+        }
       })
       .catch((err: Error) => setError(err.message));
   }, [gameId]);
@@ -101,6 +134,10 @@ export function useGame(gameId: string) {
     handicap,
     title,
     captures,
+    blackUsername,
+    whiteUsername,
+    myColor,
+    pendingUndoBy,
     error,
     play,
     pass,

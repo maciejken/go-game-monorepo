@@ -1,0 +1,81 @@
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'crypto';
+import db from './db.js';
+const SESSION_COOKIE = 'go_session';
+// "Permanent until logout" — a far-future expiry so the cookie survives
+// browser restarts instead of behaving like a session-only cookie.
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365 * 10;
+export function hashPassword(password) {
+    const salt = randomBytes(16).toString('hex');
+    const hash = scryptSync(password, salt, 64).toString('hex');
+    return `${salt}:${hash}`;
+}
+export function verifyPassword(password, stored) {
+    const [salt, hash] = stored.split(':');
+    if (!salt || !hash) {
+        return false;
+    }
+    const candidate = scryptSync(password, salt, 64);
+    const expected = Buffer.from(hash, 'hex');
+    return candidate.length === expected.length && timingSafeEqual(candidate, expected);
+}
+function parseCookies(header) {
+    const cookies = {};
+    if (!header) {
+        return cookies;
+    }
+    for (const part of header.split(';')) {
+        const eq = part.indexOf('=');
+        if (eq === -1) {
+            continue;
+        }
+        const key = part.slice(0, eq).trim();
+        const value = part.slice(eq + 1).trim();
+        if (key) {
+            cookies[key] = decodeURIComponent(value);
+        }
+    }
+    return cookies;
+}
+// No `secure` flag — this app is explicitly served over plain HTTP for now.
+export function setSessionCookie(res, token) {
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE_SECONDS}`);
+}
+export function clearSessionCookie(res) {
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
+export function createSession(userId) {
+    const token = randomUUID();
+    db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, Date.now());
+    return token;
+}
+export function destroySession(token) {
+    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+}
+export function getSessionToken(req) {
+    return parseCookies(req.headers.cookie)[SESSION_COOKIE] ?? null;
+}
+// Resolves the request's session cookie to the logged-in user, or null if
+// there's no session / it doesn't match a live one.
+export function getSessionUser(req) {
+    const token = getSessionToken(req);
+    if (!token) {
+        return null;
+    }
+    const row = db.prepare(`
+    SELECT users.id as id, users.username as username
+    FROM sessions
+    JOIN users ON users.id = sessions.user_id
+    WHERE sessions.token = ?
+  `).get(token);
+    return row ?? null;
+}
+// Sends 401 and returns null if there's no logged-in user; otherwise
+// returns the user so the caller can proceed.
+export function requireAuth(req, res) {
+    const user = getSessionUser(req);
+    if (!user) {
+        res.status(401).json({ error: 'Login required' });
+        return null;
+    }
+    return user;
+}
