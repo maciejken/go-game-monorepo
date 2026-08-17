@@ -5,9 +5,11 @@ import {
   getGame,
   makeMove,
   passTurn,
+  reopenScoring as reopenScoringRequest,
   resignGame,
   undoMove,
   type Captures,
+  type EndReason,
   type MyColor,
   type StoredTimeControl,
 } from '../services/api';
@@ -25,6 +27,8 @@ export function useGame(gameId: string) {
   const [whiteUsername, setWhiteUsername] = useState<string | null>(null);
   const [myColor, setMyColor] = useState<MyColor>(null);
   const [pendingUndoBy, setPendingUndoBy] = useState<Color | null>(null);
+  const [endReason, setEndReason] = useState<EndReason>(null);
+  const [pendingReopenBy, setPendingReopenBy] = useState<Color | null>(null);
   const [isAiOpponent, setIsAiOpponent] = useState(false);
   const [timeControl, setTimeControl] = useState<StoredTimeControl>(null);
   const [mainTimeSeconds, setMainTimeSeconds] = useState<number | null>(null);
@@ -51,6 +55,8 @@ export function useGame(gameId: string) {
         setWhiteUsername(game.whiteUsername);
         setMyColor(game.myColor);
         setPendingUndoBy(game.pendingUndoBy);
+        setEndReason(game.endReason);
+        setPendingReopenBy(game.pendingReopenBy);
         setIsAiOpponent(game.isAiOpponent);
         setTimeControl(game.timeControl);
         setMainTimeSeconds(game.mainTimeSeconds);
@@ -113,6 +119,7 @@ export function useGame(gameId: string) {
       .then((res) => {
         setStatus(res.status);
         setResult(res.result);
+        setEndReason('resign');
       })
       .catch((err: Error) => setError(err.message));
   }, [gameId, currentColor, myColor]);
@@ -135,6 +142,20 @@ export function useGame(gameId: string) {
       .catch((err: Error) => setError(err.message));
   }, [gameId, refresh]);
 
+  const reopenScoring = useCallback(() => {
+    setError(null);
+    reopenScoringRequest(gameId)
+      .then((res) => {
+        setPendingReopenBy(res.pendingReopenBy);
+        if (res.action === 'confirmed') {
+          setStatus(res.status);
+          setResult(res.result);
+          setEndReason(null);
+        }
+      })
+      .catch((err: Error) => setError(err.message));
+  }, [gameId]);
+
   const finalizeScoring = useCallback(
     (deadPoints: Point[]) => {
       setError(null);
@@ -143,6 +164,7 @@ export function useGame(gameId: string) {
           setStatus(res.status);
           setResult(res.result);
           setCaptures(res.captures);
+          setEndReason('scoring');
         })
         .catch((err: Error) => {
           setError(err.message);
@@ -166,6 +188,8 @@ export function useGame(gameId: string) {
     whiteUsername,
     myColor,
     pendingUndoBy,
+    endReason,
+    pendingReopenBy,
     isAiOpponent,
     timeControl,
     mainTimeSeconds,
@@ -182,6 +206,7 @@ export function useGame(gameId: string) {
     resign,
     undo,
     finalizeScoring,
+    reopenScoring,
     clearError,
   };
 }

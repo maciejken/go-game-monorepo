@@ -102,6 +102,21 @@ function describeUndoAction(
   return 'Confirm Undo';
 }
 
+// Same immediate-vs-negotiate split as describeUndoAction, for reopening a
+// scoring-finished game to re-mark dead stones.
+function describeReopenAction(myColor: MyColor, pendingReopenBy: Color | null, isAiOpponent: boolean): string {
+  if (myColor === 'both' || isAiOpponent) {
+    return 'Redo Scoring';
+  }
+  if (pendingReopenBy === null) {
+    return 'Request Redo Scoring';
+  }
+  if (pendingReopenBy === myColor) {
+    return 'Cancel Redo-Scoring Request';
+  }
+  return 'Confirm Redo Scoring';
+}
+
 function Game() {
   const { id: gameId } = useParams<{ id: string }>();
 
@@ -129,6 +144,8 @@ function GameView({ gameId }: GameViewProps) {
     whiteUsername,
     myColor,
     pendingUndoBy,
+    endReason,
+    pendingReopenBy,
     isAiOpponent,
     mainTimeSeconds,
     byoyomiSeconds,
@@ -144,6 +161,7 @@ function GameView({ gameId }: GameViewProps) {
     resign,
     undo,
     finalizeScoring,
+    reopenScoring,
     clearError,
   } = useGame(gameId);
   const { history, error: historyError, load: loadHistory } = useGameHistory(gameId);
@@ -370,6 +388,17 @@ function GameView({ gameId }: GameViewProps) {
               >
                 {isReviewing ? 'Live' : 'Review'}
               </button>
+              {finished && endReason === 'scoring' && isParticipant && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    reopenScoring();
+                  }}
+                >
+                  {describeReopenAction(myColor, pendingReopenBy, isAiOpponent)}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -488,6 +517,13 @@ function GameView({ gameId }: GameViewProps) {
             {pendingUndoBy === myColor
               ? 'Waiting for the other player to confirm your undo request.'
               : `${colorLabel(pendingUndoBy)} requested to undo the last move.`}
+          </p>
+        )}
+        {!isReviewing && isParticipant && pendingReopenBy && myColor !== 'both' && (
+          <p>
+            {pendingReopenBy === myColor
+              ? 'Waiting for the other player to confirm redoing scoring.'
+              : `${colorLabel(pendingReopenBy)} requested to redo scoring.`}
           </p>
         )}
         {!isReviewing && status === 'in_progress' && isParticipant && !isMyTurn && !pendingUndoBy && (

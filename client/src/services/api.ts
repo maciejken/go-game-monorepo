@@ -40,12 +40,18 @@ export interface GameResponse {
   whiteUsername: string | null;
 }
 
+// How a finished game ended — only a 'scoring' finish can be reopened via
+// redo-scoring; resignations and timeouts have nothing to rescore.
+export type EndReason = 'scoring' | 'resign' | 'timeout' | null;
+
 export interface GameStateResponse extends GameResponse, ClockFields {
   currentColor: Color;
   result: string | null;
   captures: Captures;
   myColor: MyColor;
   pendingUndoBy: Color | null;
+  endReason: EndReason;
+  pendingReopenBy: Color | null;
   isAiOpponent: boolean;
 }
 
@@ -106,6 +112,13 @@ export interface FinalizeScoringResponse {
   result: string | null;
   captures: Captures;
 }
+
+// Same request/confirm negotiation shape as UndoResponse, for reopening a
+// scoring-finished game so dead stones can be re-marked.
+export type ReopenScoringResponse =
+  | { action: 'requested'; pendingReopenBy: Color }
+  | { action: 'cancelled'; pendingReopenBy: null }
+  | { action: 'confirmed'; pendingReopenBy: null; status: string; result: null };
 
 export interface HistoryEntry {
   moveNumber: number;
@@ -200,6 +213,12 @@ export function resignGame(id: string, color: Color): Promise<ResignResponse> {
 
 export function undoMove(id: string): Promise<UndoResponse> {
   return fetch(`${API_BASE}/games/${id}/undo`, { method: 'POST' }).then((res) => handle<UndoResponse>(res));
+}
+
+export function reopenScoring(id: string): Promise<ReopenScoringResponse> {
+  return fetch(`${API_BASE}/games/${id}/reopen-scoring`, { method: 'POST' }).then((res) =>
+    handle<ReopenScoringResponse>(res),
+  );
 }
 
 export function finalizeScoring(id: string, deadPoints: Point[]): Promise<FinalizeScoringResponse> {

@@ -36,7 +36,7 @@ app.get('/db-test', (req, res) => {
 function getGameRow(id) {
     return db.prepare(`
     SELECT id, size, status, result, handicap, title, created_at, updated_at,
-           black_user_id, white_user_id, pending_undo_by,
+           black_user_id, white_user_id, pending_undo_by, end_reason, pending_reopen_by,
            time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
            black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at
     FROM games WHERE id = ?
@@ -102,11 +102,11 @@ function withTimeoutCheck(game) {
     const loserLabel = currentColor === 'black' ? 'Black' : 'White';
     const result = `${winnerLabel} wins on time (${loserLabel} ran out)`;
     const now = Date.now();
-    db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
-        .run('finished', result, now, game.id);
+    db.prepare('UPDATE games SET status = ?, result = ?, end_reason = ?, updated_at = ? WHERE id = ?')
+        .run('finished', result, 'timeout', now, game.id);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();
-    return { ...game, status: 'finished', result };
+    return { ...game, status: 'finished', result, end_reason: 'timeout' };
 }
 // Periodically catches timeouts in games nobody is actively viewing —
 // otherwise a clock could visibly show 0:00 to nobody, forever, since
@@ -396,8 +396,8 @@ function applyResignToGame(game, color) {
     VALUES (?, ?, ?, ?, ?)
   `).run(game.id, moveNumber, 'RESIGN', JSON.stringify({ color }), now);
     const gameResult = `${color === 'black' ? 'Black' : 'White'} resigned`;
-    db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
-        .run('finished', gameResult, now, game.id);
+    db.prepare('UPDATE games SET status = ?, result = ?, end_reason = ?, updated_at = ? WHERE id = ?')
+        .run('finished', gameResult, 'resign', now, game.id);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();
     return gameResult;
@@ -658,6 +658,8 @@ app.get('/api/games/:id', (req, res) => {
         whiteUsername: getUsername(game.white_user_id),
         myColor: getMyColor(game, currentUser?.id ?? null),
         pendingUndoBy: game.pending_undo_by,
+        endReason: game.end_reason,
+        pendingReopenBy: game.pending_reopen_by,
         isAiOpponent: isAiOpponentGame(game),
         timeControl: game.time_control,
         mainTimeSeconds: game.main_time_seconds,
@@ -833,11 +835,63 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
     const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
     const gameResult = `${winnerLabel} wins by ${score.margin.toFixed(1)} (B: ${score.black}, W: ${score.white})`;
     const now = Date.now();
-    db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
-        .run('finished', gameResult, now, game.id);
+    db.prepare('UPDATE games SET status = ?, result = ?, end_reason = ?, updated_at = ? WHERE id = ?')
+        .run('finished', gameResult, 'scoring', now, game.id);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();
     res.json({ status: 'finished', result: gameResult, captures: adjustedCaptures });
+});
+// Lets a mismarked scoring result be redone: reopens a game that finished
+// via the scoring phase back into 'scoring', with the board and move
+// history untouched, so dead stones can be re-marked and finalized again.
+// Not offered for games that ended by resignation or timeout — there's no
+// scoring to redo. Negotiates the same way undo does: immediate for a
+// local/AI game, request-then-confirm between two different players.
+app.post('/api/games/:id/reopen-scoring', (req, res) => {
+    const game = getGameRow(req.params.id);
+    if (!game) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+    }
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    if (!isParticipant(game, user.id)) {
+        res.status(403).json({ error: 'Only players in this game can redo scoring' });
+        return;
+    }
+    if (game.status !== 'finished' || game.end_reason !== 'scoring') {
+        res.status(400).json({ error: 'Only a game finished by scoring can be reopened' });
+        return;
+    }
+    if (game.pending_undo_by) {
+        res.status(400).json({ error: 'An undo request is pending confirmation' });
+        return;
+    }
+    const isImmediate = game.black_user_id === game.white_user_id || isAiOpponentGame(game);
+    const myColor = game.black_user_id === user.id ? 'black' : 'white';
+    if (!isImmediate) {
+        if (!game.pending_reopen_by) {
+            db.prepare('UPDATE games SET pending_reopen_by = ? WHERE id = ?').run(myColor, game.id);
+            broadcastGameUpdate(game.id);
+            res.json({ action: 'requested', pendingReopenBy: myColor });
+            return;
+        }
+        if (game.pending_reopen_by === myColor) {
+            db.prepare('UPDATE games SET pending_reopen_by = NULL WHERE id = ?').run(game.id);
+            broadcastGameUpdate(game.id);
+            res.json({ action: 'cancelled', pendingReopenBy: null });
+            return;
+        }
+        // Otherwise myColor is the other player, confirming — fall through and reopen.
+    }
+    const now = Date.now();
+    db.prepare('UPDATE games SET status = ?, result = NULL, end_reason = NULL, pending_reopen_by = NULL, updated_at = ? WHERE id = ?')
+        .run('scoring', now, game.id);
+    broadcastGameUpdate(game.id);
+    broadcastGamesListUpdate();
+    res.json({ action: 'confirmed', status: 'scoring', result: null, pendingReopenBy: null });
 });
 // A single endpoint drives the whole undo negotiation: in a local game (one
 // account playing both colors) or an AI game (there's no second human to
@@ -867,6 +921,10 @@ app.post('/api/games/:id/undo', (req, res) => {
     game = withTimeoutCheck(game);
     if (statusBeforeTimeoutCheck === 'in_progress' && game.status === 'finished') {
         res.status(400).json({ error: 'Game is not in progress' });
+        return;
+    }
+    if (game.pending_reopen_by) {
+        res.status(400).json({ error: 'A redo-scoring request is pending confirmation' });
         return;
     }
     const lastEvent = db.prepare(`

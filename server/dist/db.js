@@ -111,6 +111,19 @@ if (!gamesColumns.has('white_periods_left')) {
 if (!gamesColumns.has('turn_started_at')) {
     db.exec('ALTER TABLE games ADD COLUMN turn_started_at INTEGER');
 }
+// How a finished game ended ('scoring' | 'resign' | 'timeout') — lets the
+// "redo scoring" feature offer itself only for games that actually went
+// through the scoring phase, not ones that ended by resignation or timeout.
+if (!gamesColumns.has('end_reason')) {
+    db.exec('ALTER TABLE games ADD COLUMN end_reason TEXT');
+}
+// Mirrors pending_undo_by's request/confirm negotiation, but for reopening
+// a finished game back into the scoring phase — kept separate from
+// pending_undo_by since the two are conceptually different actions that
+// could otherwise collide on the same column.
+if (!gamesColumns.has('pending_reopen_by')) {
+    db.exec('ALTER TABLE games ADD COLUMN pending_reopen_by TEXT');
+}
 // Migrate older `snapshots` tables that predate the `hash` column (used for
 // situational superko checks), backfilling it for any existing rows.
 const snapshotsColumns = new Set(db.prepare('PRAGMA table_info(snapshots)').all().map((column) => column.name));
