@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createGame, deleteGame, listGames, updateGameTitle, type GameSummary } from '../services/api';
+import {
+  createGame,
+  deleteGame,
+  listGames,
+  updateGameTitle,
+  type GameSummary,
+  type TimeControlName,
+} from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useLiveSocket } from '../hooks/useLiveSocket';
+import { timeControlLabel } from '../utils/clock';
 
 const BOARD_SIZES = [9, 13, 19];
 
@@ -23,7 +31,7 @@ function Home() {
   const [handicap, setHandicap] = useState(0);
   const [title, setTitle] = useState('');
   const [mode, setMode] = useState<'local' | 'remote' | 'gnugo'>('local');
-  const [color, setColor] = useState<'black' | 'white'>('black');
+  const [timeControl, setTimeControl] = useState<TimeControlName>('unlimited');
   const [opponentUsername, setOpponentUsername] = useState('');
 
   const refresh = useCallback(() => {
@@ -56,8 +64,8 @@ function Home() {
       handicap,
       title: title.trim() || undefined,
       mode,
-      ...(mode === 'remote' ? { color, opponentUsername: opponentUsername.trim() } : {}),
-      ...(mode === 'gnugo' ? { color } : {}),
+      timeControl,
+      ...(mode === 'remote' ? { opponentUsername: opponentUsername.trim() } : {}),
     })
       .then((game) => navigate(`/games/${game.id}`))
       .catch((err: Error) => setError(err.message));
@@ -126,34 +134,24 @@ function Home() {
             </select>
           </label>
           {mode === 'remote' && (
-            <>
-              <label>
-                Your color
-                <select value={color} onChange={(e) => setColor(e.target.value as 'black' | 'white')}>
-                  <option value="black">Black</option>
-                  <option value="white">White</option>
-                </select>
-              </label>
-              <input
-                type="text"
-                value={opponentUsername}
-                onChange={(e) => setOpponentUsername(e.target.value)}
-                placeholder="Opponent's username"
-                aria-label="Opponent's username"
-                required
-              />
-            </>
+            <input
+              type="text"
+              value={opponentUsername}
+              onChange={(e) => setOpponentUsername(e.target.value)}
+              placeholder="Opponent's username"
+              aria-label="Opponent's username"
+              required
+            />
           )}
-          {mode === 'gnugo' && (
-            <label>
-              Your color
-              <select value={color} onChange={(e) => setColor(e.target.value as 'black' | 'white')}>
-                <option value="black">Black</option>
-                <option value="white">White</option>
-              </select>
-            </label>
-          )}
-          <button type="submit">Start a new game</button>
+          <label>
+            Time control
+            <select value={timeControl} onChange={(e) => setTimeControl(e.target.value as TimeControlName)}>
+              <option value="unlimited">Unlimited</option>
+              <option value="standard">10 minutes</option>
+              <option value="correspondence">24h per move</option>
+            </select>
+          </label>
+          <button type="submit">+</button>
         </form>
       ) : (
         <p>
@@ -219,7 +217,8 @@ function GameListItem({ game, onDelete, onRename }: GameListItemProps) {
     <>
       <div className="game-card-row">
         {game.size}x{game.size}
-        {game.handicap > 0 ? ` · Handicap ${game.handicap}` : ''} — {game.result ?? game.status}
+        {game.handicap > 0 ? ` · Handicap ${game.handicap}` : ''} · {timeControlLabel(game.timeControl)} —{' '}
+        {game.result ?? game.status}
       </div>
       <div className="game-card-row">
         {[playerLabel('black', game.blackUsername), playerLabel('white', game.whiteUsername)]

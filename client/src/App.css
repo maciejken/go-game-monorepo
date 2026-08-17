@@ -307,6 +307,21 @@
   }
 }
 
+.go-clocks {
+  display: flex;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.go-clock {
+  opacity: 0.7;
+}
+
+.go-clock--active {
+  opacity: 1;
+  font-weight: 600;
+}
+
 .footer-row {
   display: grid;
   grid-template-columns: 1fr auto 1fr;

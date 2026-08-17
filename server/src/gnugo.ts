@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import type { Color, Point } from 'shared';
 
 // Same skip-"I" column convention already used by the client and by GTP
@@ -21,16 +21,28 @@ function vertexToPoint(vertex: string, size: number): Point | null {
 }
 
 // Sends one GTP command and resolves with its result text once the
-// terminating blank line arrives, per the GTP line protocol.
-function sendCommand(stdin: NodeJS.WritableStream, stdout: NodeJS.ReadableStream, command: string): Promise<string> {
+// terminating blank line arrives. Also settles (rejects) if the process
+// exits or errors before that — otherwise, killing a stuck process (see the
+// timeout in generateAiMove below) would leave this promise pending
+// forever, since it would have had no other way to notice.
+function sendCommand(child: ChildProcessWithoutNullStreams, command: string): Promise<string> {
   return new Promise((resolve, reject) => {
     let buffer = '';
+    let settled = false;
+
+    const cleanup = () => {
+      child.stdout.off('data', onData);
+      child.off('exit', onExit);
+      child.off('error', onError);
+    };
+
     const onData = (chunk: Buffer) => {
       buffer += chunk.toString();
-      if (!buffer.includes('\n\n')) {
+      if (!buffer.includes('\n\n') || settled) {
         return;
       }
-      stdout.off('data', onData);
+      settled = true;
+      cleanup();
       const response = buffer.trim();
       if (response.startsWith('=')) {
         resolve(response.slice(1).trim());
@@ -38,8 +50,29 @@ function sendCommand(stdin: NodeJS.WritableStream, stdout: NodeJS.ReadableStream
         reject(new Error(response.slice(1).trim() || `GTP command failed: ${command}`));
       }
     };
-    stdout.on('data', onData);
-    stdin.write(`${command}\n`);
+
+    const onExit = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(new Error(`gnugo exited before responding to: ${command}`));
+    };
+
+    const onError = (err: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(err);
+    };
+
+    child.stdout.on('data', onData);
+    child.once('exit', onExit);
+    child.once('error', onError);
+    child.stdin.write(`${command}\n`);
   });
 }
 
@@ -53,32 +86,45 @@ export interface AiMoveRequest {
   komi: number;
   moves: ReplayMove[];
   colorToMove: Color;
+  // Lower = faster and weaker (GNU Go's own description). This is the main
+  // lever against the reading blowups that make some positions slow —
+  // deeper levels enable more exhaustive life-and-death/semeai search,
+  // which is exactly where that blowup tends to come from.
+  level: number;
 }
 
 export type AiMoveResult = { type: 'move'; point: Point } | { type: 'pass' } | { type: 'resign' };
 
-const GENERATE_TIMEOUT_MS = 20000;
+const DEFAULT_TIMEOUT_MS = 20000;
 
 // Stateless by design: a fresh gnugo process per request, replaying the
 // whole game into it via GTP `play` before asking it to move. Slightly more
 // work per call than keeping a process alive per game, but it means the
 // game's own event log stays the single source of truth for board state —
 // nothing to reconcile if the server restarts mid-game.
-export async function generateAiMove(request: AiMoveRequest): Promise<AiMoveResult> {
-  const child = spawn('gnugo', ['--mode', 'gtp', '--quiet']);
-  const timeout = setTimeout(() => child.kill(), GENERATE_TIMEOUT_MS);
+//
+// Some positions can make gnugo's reading take a very long time (or, per
+// observed behavior, effectively never return) — the timeout forces the
+// process to die either way, and since sendCommand also listens for process
+// exit, that reliably turns into a rejected promise instead of a permanent
+// hang. The caller (server.ts) is expected to retry at a much lower level
+// on failure, since a lower level is both faster and far less likely to
+// hit that same reading blowup again.
+export async function generateAiMove(request: AiMoveRequest, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<AiMoveResult> {
+  const child = spawn('gnugo', ['--mode', 'gtp', '--quiet', '--level', String(request.level)]);
+  const timeout = setTimeout(() => child.kill(), timeoutMs);
 
   try {
-    await sendCommand(child.stdin, child.stdout, `boardsize ${request.size}`);
-    await sendCommand(child.stdin, child.stdout, 'clear_board');
-    await sendCommand(child.stdin, child.stdout, `komi ${request.komi}`);
+    await sendCommand(child, `boardsize ${request.size}`);
+    await sendCommand(child, 'clear_board');
+    await sendCommand(child, `komi ${request.komi}`);
 
     for (const move of request.moves) {
       const vertex = move.point ? pointToVertex(move.point, request.size) : 'pass';
-      await sendCommand(child.stdin, child.stdout, `play ${move.color} ${vertex}`);
+      await sendCommand(child, `play ${move.color} ${vertex}`);
     }
 
-    const result = await sendCommand(child.stdin, child.stdout, `genmove ${request.colorToMove}`);
+    const result = await sendCommand(child, `genmove ${request.colorToMove}`);
     const upper = result.toUpperCase();
     if (upper === 'PASS') {
       return { type: 'pass' };
@@ -90,8 +136,10 @@ export async function generateAiMove(request: AiMoveRequest): Promise<AiMoveResu
     return point ? { type: 'move', point } : { type: 'pass' };
   } finally {
     clearTimeout(timeout);
-    child.stdin.write('quit\n');
-    child.kill();
+    if (child.exitCode === null && child.signalCode === null) {
+      child.stdin.write('quit\n');
+      child.kill();
+    }
   }
 }
 

@@ -90,6 +90,37 @@ if (!gamesColumns.has('white_user_id')) {
 if (!gamesColumns.has('pending_undo_by')) {
   db.exec('ALTER TABLE games ADD COLUMN pending_undo_by TEXT');
 }
+// Time control: NULL main_time_seconds means unlimited (no clock at all).
+// Byoyomi covers all timed presets uniformly — "correspondence" is just
+// byoyomi with 0 main time and a single very long period, so no separate
+// mechanism is needed for it.
+if (!gamesColumns.has('time_control')) {
+  db.exec('ALTER TABLE games ADD COLUMN time_control TEXT');
+}
+if (!gamesColumns.has('main_time_seconds')) {
+  db.exec('ALTER TABLE games ADD COLUMN main_time_seconds INTEGER');
+}
+if (!gamesColumns.has('byoyomi_seconds')) {
+  db.exec('ALTER TABLE games ADD COLUMN byoyomi_seconds INTEGER');
+}
+if (!gamesColumns.has('byoyomi_periods')) {
+  db.exec('ALTER TABLE games ADD COLUMN byoyomi_periods INTEGER');
+}
+if (!gamesColumns.has('black_time_remaining_ms')) {
+  db.exec('ALTER TABLE games ADD COLUMN black_time_remaining_ms INTEGER');
+}
+if (!gamesColumns.has('white_time_remaining_ms')) {
+  db.exec('ALTER TABLE games ADD COLUMN white_time_remaining_ms INTEGER');
+}
+if (!gamesColumns.has('black_periods_left')) {
+  db.exec('ALTER TABLE games ADD COLUMN black_periods_left INTEGER');
+}
+if (!gamesColumns.has('white_periods_left')) {
+  db.exec('ALTER TABLE games ADD COLUMN white_periods_left INTEGER');
+}
+if (!gamesColumns.has('turn_started_at')) {
+  db.exec('ALTER TABLE games ADD COLUMN turn_started_at INTEGER');
+}
 
 // Migrate older `snapshots` tables that predate the `hash` column (used for
 // situational superko checks), backfilling it for any existing rows.

@@ -9,6 +9,7 @@ import {
   undoMove,
   type Captures,
   type MyColor,
+  type StoredTimeControl,
 } from '../services/api';
 import { useLiveSocket } from './useLiveSocket';
 
@@ -25,6 +26,15 @@ export function useGame(gameId: string) {
   const [myColor, setMyColor] = useState<MyColor>(null);
   const [pendingUndoBy, setPendingUndoBy] = useState<Color | null>(null);
   const [isAiOpponent, setIsAiOpponent] = useState(false);
+  const [timeControl, setTimeControl] = useState<StoredTimeControl>(null);
+  const [mainTimeSeconds, setMainTimeSeconds] = useState<number | null>(null);
+  const [byoyomiSeconds, setByoyomiSeconds] = useState<number | null>(null);
+  const [byoyomiPeriods, setByoyomiPeriods] = useState<number | null>(null);
+  const [blackTimeRemainingMs, setBlackTimeRemainingMs] = useState<number | null>(null);
+  const [whiteTimeRemainingMs, setWhiteTimeRemainingMs] = useState<number | null>(null);
+  const [blackPeriodsLeft, setBlackPeriodsLeft] = useState<number | null>(null);
+  const [whitePeriodsLeft, setWhitePeriodsLeft] = useState<number | null>(null);
+  const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -42,6 +52,15 @@ export function useGame(gameId: string) {
         setMyColor(game.myColor);
         setPendingUndoBy(game.pendingUndoBy);
         setIsAiOpponent(game.isAiOpponent);
+        setTimeControl(game.timeControl);
+        setMainTimeSeconds(game.mainTimeSeconds);
+        setByoyomiSeconds(game.byoyomiSeconds);
+        setByoyomiPeriods(game.byoyomiPeriods);
+        setBlackTimeRemainingMs(game.blackTimeRemainingMs);
+        setWhiteTimeRemainingMs(game.whiteTimeRemainingMs);
+        setBlackPeriodsLeft(game.blackPeriodsLeft);
+        setWhitePeriodsLeft(game.whitePeriodsLeft);
+        setTurnStartedAt(game.turnStartedAt);
       })
       .catch((err: Error) => setError(err.message));
   }, [gameId]);
@@ -62,10 +81,14 @@ export function useGame(gameId: string) {
           setBoard(res.board);
           setCurrentColor(res.nextColor);
           setCaptures(res.captures);
+          // The move response doesn't carry clock fields (they'd just
+          // duplicate GameStateResponse) — refresh to pick up the newly
+          // reset turnStartedAt and deducted remaining time.
+          return refresh();
         })
         .catch((err: Error) => setError(err.message));
     },
-    [gameId, currentColor],
+    [gameId, currentColor, refresh],
   );
 
   const pass = useCallback(() => {
@@ -75,9 +98,10 @@ export function useGame(gameId: string) {
         setCurrentColor(res.nextColor);
         setStatus(res.status);
         setResult(res.result);
+        return refresh();
       })
       .catch((err: Error) => setError(err.message));
-  }, [gameId, currentColor]);
+  }, [gameId, currentColor, refresh]);
 
   const resign = useCallback(() => {
     setError(null);
@@ -104,10 +128,12 @@ export function useGame(gameId: string) {
           setStatus(res.status);
           setResult(res.result);
           setCaptures(res.captures);
+          // Undo resets turnStartedAt server-side — pick that up.
+          return refresh();
         }
       })
       .catch((err: Error) => setError(err.message));
-  }, [gameId]);
+  }, [gameId, refresh]);
 
   const finalizeScoring = useCallback(
     (deadPoints: Point[]) => {
@@ -141,6 +167,15 @@ export function useGame(gameId: string) {
     myColor,
     pendingUndoBy,
     isAiOpponent,
+    timeControl,
+    mainTimeSeconds,
+    byoyomiSeconds,
+    byoyomiPeriods,
+    blackTimeRemainingMs,
+    whiteTimeRemainingMs,
+    blackPeriodsLeft,
+    whitePeriodsLeft,
+    turnStartedAt,
     error,
     play,
     pass,

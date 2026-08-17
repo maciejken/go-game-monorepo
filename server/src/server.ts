@@ -33,7 +33,8 @@ import {
 } from './auth.js';
 import { seedDefaultUser, seedAiUser, getAiUserId } from './seed.js';
 import { attachWebSocketServer, broadcastGameUpdate, broadcastGamesListUpdate } from './ws.js';
-import { generateAiMove, isGnuGoAvailable, type ReplayMove } from './gnugo.js';
+import { generateAiMove, isGnuGoAvailable, type AiMoveResult, type ReplayMove } from './gnugo.js';
+import { deductClock, hasTimedOut, resolveTimeControl, type ClockState, type TimeControlName } from './clock.js';
 
 seedDefaultUser();
 seedAiUser();
@@ -76,14 +77,28 @@ interface GameRow {
   result: string | null;
   handicap: number;
   title: string | null;
+  created_at: number;
+  updated_at: number;
   black_user_id: string | null;
   white_user_id: string | null;
   pending_undo_by: string | null;
+  time_control: string | null;
+  main_time_seconds: number | null;
+  byoyomi_seconds: number | null;
+  byoyomi_periods: number | null;
+  black_time_remaining_ms: number | null;
+  white_time_remaining_ms: number | null;
+  black_periods_left: number | null;
+  white_periods_left: number | null;
+  turn_started_at: number | null;
 }
 
 function getGameRow(id: string): GameRow | undefined {
   return db.prepare(`
-    SELECT id, size, status, result, handicap, title, black_user_id, white_user_id, pending_undo_by
+    SELECT id, size, status, result, handicap, title, created_at, updated_at,
+           black_user_id, white_user_id, pending_undo_by,
+           time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
+           black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at
     FROM games WHERE id = ?
   `).get(id) as GameRow | undefined;
 }
@@ -125,6 +140,64 @@ function isParticipant(game: Participants, userId: string): boolean {
 function isAiOpponentGame(game: Participants): boolean {
   const aiId = getAiUserId();
   return game.black_user_id === aiId || game.white_user_id === aiId;
+}
+
+function getClockState(game: GameRow, color: Color): ClockState {
+  return {
+    remainingMs: (color === 'black' ? game.black_time_remaining_ms : game.white_time_remaining_ms) ?? 0,
+    periodsLeft: (color === 'black' ? game.black_periods_left : game.white_periods_left) ?? 0,
+  };
+}
+
+// Lazily resolves a timed-out game: called at the top of every route that
+// reads or acts on a game, so nobody needs an active connection watching a
+// clock tick down in real time for a timeout to actually take effect — the
+// next request against this game (from anyone, for any reason) will catch
+// it. A periodic sweep (below) additionally catches games nobody happens to
+// be looking at.
+function withTimeoutCheck(game: GameRow): GameRow {
+  if (game.status !== 'in_progress' || game.main_time_seconds === null) {
+    return game;
+  }
+
+  const moveNumber = getNextMoveNumber(game.id);
+  const currentColor = getCurrentColor(turnMoveNumber(moveNumber, game.handicap));
+  const state = getClockState(game, currentColor);
+  const elapsedMs = Date.now() - (game.turn_started_at ?? Date.now());
+
+  if (!hasTimedOut(state, game.byoyomi_seconds ?? 0, elapsedMs)) {
+    return game;
+  }
+
+  const winner: Color = currentColor === 'black' ? 'white' : 'black';
+  const winnerLabel = winner === 'black' ? 'Black' : 'White';
+  const loserLabel = currentColor === 'black' ? 'Black' : 'White';
+  const result = `${winnerLabel} wins on time (${loserLabel} ran out)`;
+  const now = Date.now();
+
+  db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
+    .run('finished', result, now, game.id);
+
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
+
+  return { ...game, status: 'finished', result };
+}
+
+// Periodically catches timeouts in games nobody is actively viewing —
+// otherwise a clock could visibly show 0:00 to nobody, forever, since
+// withTimeoutCheck only runs when a request touches that specific game.
+function sweepTimeouts(): void {
+  const rows = db.prepare(`
+    SELECT id FROM games WHERE status = 'in_progress' AND main_time_seconds IS NOT NULL
+  `).all() as { id: string }[];
+
+  for (const row of rows) {
+    const game = getGameRow(row.id);
+    if (game) {
+      withTimeoutCheck(game);
+    }
+  }
 }
 
 const MAX_TITLE_LENGTH = 100;
@@ -391,6 +464,26 @@ interface MoveApplyResult {
   captures: Captures;
 }
 
+// Deducts the mover's thinking time from their clock and resets the turn
+// timer for whoever moves next. A no-op for untimed games. `game` is
+// expected to have already passed withTimeoutCheck, so elapsedMs here is
+// guaranteed to fit their budget.
+function advanceClock(game: GameRow, color: Color, now: number): void {
+  if (game.main_time_seconds === null) {
+    return;
+  }
+  const elapsedMs = now - (game.turn_started_at ?? now);
+  const next = deductClock(getClockState(game, color), game.byoyomi_seconds ?? 0, elapsedMs);
+
+  if (color === 'black') {
+    db.prepare('UPDATE games SET black_time_remaining_ms = ?, black_periods_left = ?, turn_started_at = ? WHERE id = ?')
+      .run(next.remainingMs, next.periodsLeft, now, game.id);
+  } else {
+    db.prepare('UPDATE games SET white_time_remaining_ms = ?, white_periods_left = ?, turn_started_at = ? WHERE id = ?')
+      .run(next.remainingMs, next.periodsLeft, now, game.id);
+  }
+}
+
 // Shared by the human-facing /moves endpoint and the AI trigger below, so
 // there's exactly one place that writes a MOVE event to the log.
 function applyMoveToGame(
@@ -421,6 +514,8 @@ function applyMoveToGame(
     VALUES (?, ?, ?, ?, ?)
   `).run(game.id, moveNumber, 'MOVE', JSON.stringify({ x, y, color, capturedPoints }), now);
 
+  advanceClock(game, color, now);
+
   db.prepare('UPDATE games SET updated_at = ? WHERE id = ?').run(now, game.id);
 
   broadcastGameUpdate(game.id);
@@ -446,6 +541,8 @@ function applyPassToGame(game: GameRow, color: Color): { status: string; nextCol
     INSERT INTO events (game_id, move_number, event_type, payload, created_at)
     VALUES (?, ?, ?, ?, ?)
   `).run(game.id, moveNumber, 'PASS', JSON.stringify({ color }), now);
+
+  advanceClock(game, color, now);
 
   // Two consecutive passes end play and move into the scoring phase, where
   // dead stones get marked before the final result is computed — see
@@ -481,12 +578,25 @@ function applyResignToGame(game: GameRow, color: Color): string {
   return gameResult;
 }
 
+// Lower level = faster and weaker (GNU Go's own description) — the main
+// lever against the deep-reading blowups that make some positions slow.
+// Trading some strength for reliability by default; both tunable without a
+// code change if you want to dial strength back up (more hang risk) or
+// down further (less).
+const GNUGO_LEVEL = Number(process.env.GNUGO_LEVEL) || 5;
+const GNUGO_RETRY_LEVEL = Number(process.env.GNUGO_RETRY_LEVEL) || 1;
+const GNUGO_RETRY_TIMEOUT_MS = 5000;
+
 // Called (fire-and-forget) after any action that might hand the turn to
 // the AI — a human move/pass, or game creation when the AI plays first.
 // No-ops immediately unless it's actually the AI's turn.
 async function maybeTriggerAiMove(gameId: string): Promise<void> {
-  const game = getGameRow(gameId);
+  let game = getGameRow(gameId);
   if (!game || game.status !== 'in_progress') {
+    return;
+  }
+  game = withTimeoutCheck(game);
+  if (game.status !== 'in_progress') {
     return;
   }
 
@@ -498,34 +608,55 @@ async function maybeTriggerAiMove(gameId: string): Promise<void> {
     return;
   }
 
-  try {
-    const moves = getReplayMoves(game.id);
-    const aiResult = await generateAiMove({
-      size: game.size,
-      komi: getKomi(game.handicap),
-      moves,
-      colorToMove: currentColor,
-    });
+  const baseRequest = {
+    size: game.size,
+    komi: getKomi(game.handicap),
+    moves: getReplayMoves(game.id),
+    colorToMove: currentColor,
+  };
 
-    // Re-check: state may have moved on (e.g. an undo) while GNU Go was thinking.
-    const freshGame = getGameRow(game.id);
-    if (!freshGame || freshGame.status !== 'in_progress') {
+  // Never a random move: on failure, retry once at a much lower level —
+  // still a genuine GNU Go move, just faster and weaker, which is also far
+  // less likely to hit the same reading blowup a second time. If that also
+  // fails, the game is left waiting rather than forcing a move through —
+  // the human can still Undo and play something else in the meantime.
+  let aiResult: AiMoveResult;
+  try {
+    aiResult = await generateAiMove({ ...baseRequest, level: GNUGO_LEVEL });
+  } catch (err) {
+    console.error(
+      `GNU Go (level ${GNUGO_LEVEL}) failed to respond (${(err as Error).message}) — retrying at level ${GNUGO_RETRY_LEVEL}.`,
+    );
+    try {
+      aiResult = await generateAiMove({ ...baseRequest, level: GNUGO_RETRY_LEVEL }, GNUGO_RETRY_TIMEOUT_MS);
+    } catch (retryErr) {
+      console.error(
+        `GNU Go retry at level ${GNUGO_RETRY_LEVEL} also failed (${(retryErr as Error).message}) — giving up for now.`,
+      );
       return;
     }
+  }
 
-    if (aiResult.type === 'move') {
-      const applied = applyMoveToGame(freshGame, aiResult.point.x, aiResult.point.y, currentColor);
-      if (!applied.ok) {
-        console.error(`GNU Go proposed an illegal move (${applied.error}) — passing instead.`);
-        applyPassToGame(freshGame, currentColor);
-      }
-    } else if (aiResult.type === 'resign') {
-      applyResignToGame(freshGame, currentColor);
-    } else {
-      applyPassToGame(freshGame, currentColor);
+  // Re-check: state may have moved on (e.g. an undo), or the AI's own clock
+  // may have run out, while GNU Go was thinking.
+  let freshGame = getGameRow(game.id);
+  if (!freshGame || freshGame.status !== 'in_progress') {
+    return;
+  }
+  freshGame = withTimeoutCheck(freshGame);
+  if (freshGame.status !== 'in_progress') {
+    return;
+  }
+
+  if (aiResult.type === 'move') {
+    const applied = applyMoveToGame(freshGame, aiResult.point.x, aiResult.point.y, currentColor);
+    if (!applied.ok) {
+      console.error(`GNU Go proposed an illegal move (${applied.error}).`);
     }
-  } catch (err) {
-    console.error('AI move generation failed:', err);
+  } else if (aiResult.type === 'resign') {
+    applyResignToGame(freshGame, currentColor);
+  } else {
+    applyPassToGame(freshGame, currentColor);
   }
 }
 
@@ -591,25 +722,10 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ user: getSessionUser(req) });
 });
 
-interface GameListRow {
-  id: string;
-  size: number;
-  status: string;
-  result: string | null;
-  handicap: number;
-  title: string | null;
-  created_at: number;
-  updated_at: number;
-  black_user_id: string | null;
-  white_user_id: string | null;
-}
-
 app.get('/api/games', (req, res) => {
   const currentUser = getSessionUser(req);
-  const rows = db.prepare(`
-    SELECT id, size, status, result, handicap, title, created_at, updated_at, black_user_id, white_user_id FROM games
-    ORDER BY updated_at DESC
-  `).all() as GameListRow[];
+  const ids = db.prepare('SELECT id FROM games ORDER BY updated_at DESC').all() as { id: string }[];
+  const rows = ids.map((row) => withTimeoutCheck(getGameRow(row.id)!));
 
   res.json(rows.map((row) => ({
     id: row.id,
@@ -624,6 +740,7 @@ app.get('/api/games', (req, res) => {
     whiteUsername: getUsername(row.white_user_id),
     myColor: getMyColor(row, currentUser?.id ?? null),
     isAiOpponent: isAiOpponentGame(row),
+    timeControl: row.time_control,
   })));
 });
 
@@ -637,19 +754,22 @@ app.post('/api/games', async (req, res) => {
   // Handicap placement is only defined for boards with a known star-point layout
   const handicap = STAR_POINTS[size] ? Math.max(0, Number(req.body?.handicap) || 0) : 0;
   const title = sanitizeTitle(req.body?.title);
+  const timeControlName: TimeControlName = req.body?.timeControl === 'standard' || req.body?.timeControl === 'correspondence'
+    ? req.body.timeControl
+    : 'unlimited';
+  const preset = resolveTimeControl(timeControlName);
 
   let blackUserId = user.id;
   let whiteUserId = user.id;
 
+  // Nigiri: which color you get is randomized, same as the stone-guessing
+  // convention it's named after — there's no "choose your color" input.
+  const nigiri = (): Color => (Math.random() < 0.5 ? 'black' : 'white');
+
   if (req.body?.mode === 'remote') {
-    const color = req.body?.color === 'white' ? 'white' : req.body?.color === 'black' ? 'black' : null;
     const opponentUsername =
       typeof req.body?.opponentUsername === 'string' ? req.body.opponentUsername.trim() : '';
 
-    if (!color) {
-      res.status(400).json({ error: 'Choose which color you will play' });
-      return;
-    }
     if (!opponentUsername) {
       res.status(400).json({ error: "Opponent's username is required for a remote game" });
       return;
@@ -667,6 +787,7 @@ app.post('/api/games', async (req, res) => {
       return;
     }
 
+    const color = nigiri();
     blackUserId = color === 'black' ? user.id : opponent.id;
     whiteUserId = color === 'white' ? user.id : opponent.id;
   } else if (req.body?.mode === 'gnugo') {
@@ -674,7 +795,7 @@ app.post('/api/games', async (req, res) => {
       res.status(400).json({ error: 'GNU Go is not installed on the server — AI games are unavailable.' });
       return;
     }
-    const color = req.body?.color === 'white' ? 'white' : 'black';
+    const color = nigiri();
     const aiId = getAiUserId();
     blackUserId = color === 'black' ? user.id : aiId;
     whiteUserId = color === 'white' ? user.id : aiId;
@@ -682,11 +803,24 @@ app.post('/api/games', async (req, res) => {
 
   const id = randomUUID();
   const now = Date.now();
+  const initialTimeMs = preset ? preset.mainTimeSeconds * 1000 : null;
+  const initialPeriods = preset ? preset.byoyomiPeriods : null;
 
   db.prepare(`
-    INSERT INTO games (id, size, handicap, title, created_at, updated_at, status, black_user_id, white_user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, size, handicap, title, now, now, 'in_progress', blackUserId, whiteUserId);
+    INSERT INTO games (
+      id, size, handicap, title, created_at, updated_at, status, black_user_id, white_user_id,
+      time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
+      black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, size, handicap, title, now, now, 'in_progress', blackUserId, whiteUserId,
+    preset ? timeControlName : null,
+    preset ? preset.mainTimeSeconds : null,
+    preset ? preset.byoyomiSeconds : null,
+    initialPeriods,
+    initialTimeMs, initialTimeMs, initialPeriods, initialPeriods, now,
+  );
 
   const board = createEmptyBoard(size);
   const handicapPoints = getHandicapPoints(size, handicap);
@@ -725,11 +859,12 @@ app.post('/api/games', async (req, res) => {
 });
 
 app.get('/api/games/:id', (req, res) => {
-  const game = getGameRow(req.params.id);
+  let game = getGameRow(req.params.id);
   if (!game) {
     res.status(404).json({ error: 'Game not found' });
     return;
   }
+  game = withTimeoutCheck(game);
 
   const board = getCurrentBoard(game.id, game.size);
   const moveNumber = getNextMoveNumber(game.id);
@@ -750,6 +885,15 @@ app.get('/api/games/:id', (req, res) => {
     myColor: getMyColor(game, currentUser?.id ?? null),
     pendingUndoBy: game.pending_undo_by,
     isAiOpponent: isAiOpponentGame(game),
+    timeControl: game.time_control,
+    mainTimeSeconds: game.main_time_seconds,
+    byoyomiSeconds: game.byoyomi_seconds,
+    byoyomiPeriods: game.byoyomi_periods,
+    blackTimeRemainingMs: game.black_time_remaining_ms,
+    whiteTimeRemainingMs: game.white_time_remaining_ms,
+    blackPeriodsLeft: game.black_periods_left,
+    whitePeriodsLeft: game.white_periods_left,
+    turnStartedAt: game.turn_started_at,
   });
 });
 
@@ -815,7 +959,7 @@ app.delete('/api/games/:id', (req, res) => {
 });
 
 app.post('/api/games/:id/moves', (req, res) => {
-  const game = getGameRow(req.params.id);
+  let game = getGameRow(req.params.id);
   if (!game) {
     res.status(404).json({ error: 'Game not found' });
     return;
@@ -826,6 +970,7 @@ app.post('/api/games/:id/moves', (req, res) => {
     return;
   }
 
+  game = withTimeoutCheck(game);
   if (game.status !== 'in_progress') {
     res.status(400).json({ error: 'Game is not in progress' });
     return;
@@ -857,7 +1002,7 @@ app.post('/api/games/:id/moves', (req, res) => {
 });
 
 app.post('/api/games/:id/pass', (req, res) => {
-  const game = getGameRow(req.params.id);
+  let game = getGameRow(req.params.id);
   if (!game) {
     res.status(404).json({ error: 'Game not found' });
     return;
@@ -868,6 +1013,7 @@ app.post('/api/games/:id/pass', (req, res) => {
     return;
   }
 
+  game = withTimeoutCheck(game);
   if (game.status !== 'in_progress') {
     res.status(400).json({ error: 'Game is not in progress' });
     return;
@@ -970,7 +1116,7 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
 // player must call this same endpoint to confirm it — calling it again as
 // the original requester cancels the request instead.
 app.post('/api/games/:id/undo', (req, res) => {
-  const game = getGameRow(req.params.id);
+  let game = getGameRow(req.params.id);
   if (!game) {
     res.status(404).json({ error: 'Game not found' });
     return;
@@ -982,6 +1128,17 @@ app.post('/api/games/:id/undo', (req, res) => {
   }
   if (!isParticipant(game, user.id)) {
     res.status(403).json({ error: 'Only players in this game can undo moves' });
+    return;
+  }
+
+  // Undo is otherwise allowed regardless of status (e.g. undoing a
+  // resignation), so only block it here if the clock just now — as of this
+  // very check — ran out and ended the game; a pre-existing finished/scoring
+  // status should fall through exactly as before.
+  const statusBeforeTimeoutCheck = game.status;
+  game = withTimeoutCheck(game);
+  if (statusBeforeTimeoutCheck === 'in_progress' && game.status === 'finished') {
+    res.status(400).json({ error: 'Game is not in progress' });
     return;
   }
 
@@ -1018,8 +1175,10 @@ app.post('/api/games/:id/undo', (req, res) => {
   const now = Date.now();
   db.prepare('DELETE FROM events WHERE game_id = ? AND move_number = ?').run(game.id, lastEvent.move_number);
   db.prepare('DELETE FROM snapshots WHERE game_id = ? AND move_number = ?').run(game.id, lastEvent.move_number);
-  db.prepare('UPDATE games SET status = ?, result = ?, pending_undo_by = NULL, updated_at = ? WHERE id = ?')
-    .run('in_progress', null, now, game.id);
+  // Whoever's turn it now is gets a freshly-started clock reading from this
+  // moment — there's no historical timing to restore for an undone move.
+  db.prepare('UPDATE games SET status = ?, result = ?, pending_undo_by = NULL, updated_at = ?, turn_started_at = ? WHERE id = ?')
+    .run('in_progress', null, now, now, game.id);
 
   broadcastGameUpdate(game.id);
   broadcastGamesListUpdate();
@@ -1043,7 +1202,7 @@ app.post('/api/games/:id/undo', (req, res) => {
 });
 
 app.post('/api/games/:id/resign', (req, res) => {
-  const game = getGameRow(req.params.id);
+  let game = getGameRow(req.params.id);
   if (!game) {
     res.status(404).json({ error: 'Game not found' });
     return;
@@ -1054,6 +1213,7 @@ app.post('/api/games/:id/resign', (req, res) => {
     return;
   }
 
+  game = withTimeoutCheck(game);
   if (game.status !== 'in_progress') {
     res.status(400).json({ error: 'Game is not in progress' });
     return;
@@ -1085,6 +1245,9 @@ app.get('/{*path}', (req, res) => {
 
 const httpServer = createServer(app);
 attachWebSocketServer(httpServer);
+
+const TIMEOUT_SWEEP_INTERVAL_MS = 10_000;
+setInterval(sweepTimeouts, TIMEOUT_SWEEP_INTERVAL_MS);
 
 httpServer.listen(port, () => {
   console.log(`Server running on port ${port}; db path: ${dbPath}`);

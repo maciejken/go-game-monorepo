@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
 import type { Captures, HistoryEntry, MyColor } from '../services/api';
+import { computeLiveClock, formatClock } from '../utils/clock';
 
 // Go board columns skip the letter "I" to avoid confusion with the numeral 1
 const COLUMN_LABELS = 'ABCDEFGHJKLMNOPQRST';
@@ -129,6 +130,14 @@ function GameView({ gameId }: GameViewProps) {
     myColor,
     pendingUndoBy,
     isAiOpponent,
+    mainTimeSeconds,
+    byoyomiSeconds,
+    byoyomiPeriods,
+    blackTimeRemainingMs,
+    whiteTimeRemainingMs,
+    blackPeriodsLeft,
+    whitePeriodsLeft,
+    turnStartedAt,
     error,
     play,
     pass,
@@ -148,10 +157,22 @@ function GameView({ gameId }: GameViewProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingDead, setPendingDead] = useState<Set<string>>(new Set());
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const menuRef = useRef<HTMLDivElement>(null);
 
   const moveParam = searchParams.get('move');
   const isReviewing = moveParam !== null;
+  const isTimed = mainTimeSeconds !== null;
+
+  // Ticks the displayed clocks once a second — a preview only, the server
+  // remains authoritative and resolves an actual timeout lazily on its own.
+  useEffect(() => {
+    if (!isTimed || status !== 'in_progress' || isReviewing) {
+      return;
+    }
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [isTimed, status, isReviewing]);
 
   // Close the header dropdown on any click outside it.
   useEffect(() => {
@@ -228,6 +249,35 @@ function GameView({ gameId }: GameViewProps) {
     const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
     provisionalResult = `${winnerLabel} wins by ${score.margin.toFixed(1)} (B: ${score.black}, W: ${score.white})`;
   }
+
+  const blackClock = isTimed
+    ? computeLiveClock(
+        !isReviewing && status === 'in_progress' && currentColor === 'black',
+        blackTimeRemainingMs ?? 0,
+        blackPeriodsLeft ?? 0,
+        byoyomiSeconds ?? 0,
+        turnStartedAt,
+        nowMs,
+      )
+    : null;
+  const whiteClock = isTimed
+    ? computeLiveClock(
+        !isReviewing && status === 'in_progress' && currentColor === 'white',
+        whiteTimeRemainingMs ?? 0,
+        whitePeriodsLeft ?? 0,
+        byoyomiSeconds ?? 0,
+        turnStartedAt,
+        nowMs,
+      )
+    : null;
+
+  const clockLabel = (clock: NonNullable<typeof blackClock>) => {
+    if (!clock.inByoyomi) {
+      return formatClock(clock.mainMs);
+    }
+    const showPeriods = byoyomiPeriods !== null && byoyomiPeriods > 1;
+    return `${formatClock(clock.periodMs)}${showPeriods ? ` (${clock.periodsLeft} left)` : ''}`;
+  };
 
   const goToMove = (n: number) => {
     setSearchParams({ move: String(n) }, { replace: true });
@@ -363,6 +413,16 @@ function GameView({ gameId }: GameViewProps) {
           <p>
             Black: {blackUsername ?? '—'} · White: {whiteUsername ?? '—'}
           </p>
+        )}
+        {blackClock && whiteClock && (
+          <div className="go-clocks">
+            <span className={`go-clock${currentColor === 'black' && status === 'in_progress' ? ' go-clock--active' : ''}`}>
+              B {clockLabel(blackClock)}
+            </span>
+            <span className={`go-clock${currentColor === 'white' && status === 'in_progress' ? ' go-clock--active' : ''}`}>
+              W {clockLabel(whiteClock)}
+            </span>
+          </div>
         )}
         <div
           className={`go-board-frame${showCoords ? '' : ' go-board-frame--no-coords'}`}

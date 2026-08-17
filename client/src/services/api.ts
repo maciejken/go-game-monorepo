@@ -6,6 +6,24 @@ const API_BASE = '/api';
 
 export type MyColor = Color | 'both' | null;
 
+// Mirrors server/src/clock.ts: null on a stored game means "unlimited" (no
+// time control at all); on a create request, 'unlimited' is the explicit
+// choice that produces that null.
+export type TimeControlName = 'unlimited' | 'standard' | 'correspondence';
+export type StoredTimeControl = Exclude<TimeControlName, 'unlimited'> | null;
+
+export interface ClockFields {
+  timeControl: StoredTimeControl;
+  mainTimeSeconds: number | null;
+  byoyomiSeconds: number | null;
+  byoyomiPeriods: number | null;
+  blackTimeRemainingMs: number | null;
+  whiteTimeRemainingMs: number | null;
+  blackPeriodsLeft: number | null;
+  whitePeriodsLeft: number | null;
+  turnStartedAt: number | null;
+}
+
 export interface AuthUser {
   id: string;
   username: string;
@@ -22,7 +40,7 @@ export interface GameResponse {
   whiteUsername: string | null;
 }
 
-export interface GameStateResponse extends GameResponse {
+export interface GameStateResponse extends GameResponse, ClockFields {
   currentColor: Color;
   result: string | null;
   captures: Captures;
@@ -44,6 +62,7 @@ export interface GameSummary {
   whiteUsername: string | null;
   myColor: MyColor;
   isAiOpponent: boolean;
+  timeControl: StoredTimeControl;
 }
 
 export interface MoveResponse {
@@ -127,7 +146,7 @@ export interface CreateGameOptions {
   handicap?: number;
   title?: string;
   mode?: 'local' | 'remote' | 'gnugo';
-  color?: Color;
+  timeControl?: TimeControlName;
   opponentUsername?: string;
 }
 
