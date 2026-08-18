@@ -764,6 +764,11 @@ app.post('/api/games', async (req, res) => {
   let blackUserId = user.id;
   let whiteUserId = user.id;
 
+  // 'random' is nigiri — the traditional stone-guessing method — for anyone
+  // who doesn't care which color they get.
+  const resolveColor = (requested: unknown): Color =>
+    requested === 'random' ? (Math.random() < 0.5 ? 'black' : 'white') : requested === 'white' ? 'white' : 'black';
+
   if (req.body?.mode === 'remote') {
     const opponentUsername =
       typeof req.body?.opponentUsername === 'string' ? req.body.opponentUsername.trim() : '';
@@ -772,7 +777,7 @@ app.post('/api/games', async (req, res) => {
       res.status(400).json({ error: "Opponent's username is required for a remote game" });
       return;
     }
-    if (req.body?.color !== 'black' && req.body?.color !== 'white') {
+    if (req.body?.color !== 'black' && req.body?.color !== 'white' && req.body?.color !== 'random') {
       res.status(400).json({ error: 'Choose which color you will play' });
       return;
     }
@@ -789,7 +794,7 @@ app.post('/api/games', async (req, res) => {
       return;
     }
 
-    const color: Color = req.body.color;
+    const color = resolveColor(req.body.color);
     blackUserId = color === 'black' ? user.id : opponent.id;
     whiteUserId = color === 'white' ? user.id : opponent.id;
   } else if (req.body?.mode === 'gnugo') {
@@ -797,7 +802,7 @@ app.post('/api/games', async (req, res) => {
       res.status(400).json({ error: 'GNU Go is not installed on the server — AI games are unavailable.' });
       return;
     }
-    const color: Color = req.body?.color === 'white' ? 'white' : 'black';
+    const color = resolveColor(req.body?.color);
     const aiId = getAiUserId();
     blackUserId = color === 'black' ? user.id : aiId;
     whiteUserId = color === 'white' ? user.id : aiId;

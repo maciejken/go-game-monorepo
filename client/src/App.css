@@ -106,8 +106,7 @@
   cursor: pointer;
 }
 
-.modal-close {
-  align-self: flex-end;
+.modal-action {
   appearance: none;
   background: none;
   color: inherit;
@@ -187,7 +186,6 @@
   font: inherit;
   font-size: 20px;
   line-height: 1;
-  width: 40px;
   height: 40px;
   border: 1px solid var(--border);
   border-radius: 50%;
@@ -197,17 +195,21 @@
 }
 
 .new-game-modal {
-  width: 100%;
-  max-width: 360px;
+  max-width: 300px;
 }
 
 .modal-form-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 12px;
   font-size: 13px;
   color: var(--text);
+  text-align: left;
+}
+
+.modal-form-label {
+  width: 90px;
+  flex-shrink: 0;
 }
 
 .modal-form-row select,
@@ -335,6 +337,7 @@
   opacity: 0.7;
   font-variant-numeric: tabular-nums;
   font-size: 12px;
+  margin: 0 6px;
 }
 
 .go-clock--active {

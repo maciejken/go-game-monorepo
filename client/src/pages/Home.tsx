@@ -34,7 +34,7 @@ function Home() {
   const [mode, setMode] = useState<'local' | 'remote' | 'gnugo'>('local');
   const [timeControl, setTimeControl] = useState<TimeControlName>('unlimited');
   const [opponentUsername, setOpponentUsername] = useState('');
-  const [color, setColor] = useState<Color>('black');
+  const [color, setColor] = useState<Color | 'random'>('black');
   const [newGameOpen, setNewGameOpen] = useState(false);
 
   const refresh = useCallback(() => {
@@ -114,7 +114,7 @@ function Home() {
           <form className="modal new-game-modal" onClick={(e) => e.stopPropagation()} onSubmit={startNewGame}>
             <h3>New game</h3>
             <label className="modal-form-row">
-              Title
+              <span className="modal-form-label">Title</span>
               <input
                 type="text"
                 value={title}
@@ -124,7 +124,7 @@ function Home() {
               />
             </label>
             <label className="modal-form-row">
-              Board size
+              <span className="modal-form-label">Board size</span>
               <select value={size} onChange={(e) => handleSizeChange(Number(e.target.value))}>
                 {BOARD_SIZES.map((s) => (
                   <option key={s} value={s}>
@@ -134,7 +134,7 @@ function Home() {
               </select>
             </label>
             <label className="modal-form-row">
-              Handicap
+              <span className="modal-form-label">Handicap</span>
               <select value={handicap} onChange={(e) => setHandicap(Number(e.target.value))}>
                 {handicapOptions.map((h) => (
                   <option key={h} value={h}>
@@ -144,25 +144,26 @@ function Home() {
               </select>
             </label>
             <label className="modal-form-row">
-              Mode
+              <span className="modal-form-label">Mode</span>
               <select value={mode} onChange={(e) => setMode(e.target.value as 'local' | 'remote' | 'gnugo')}>
-                <option value="local">Local (play both sides)</option>
-                <option value="remote">Remote (invite a player)</option>
-                <option value="gnugo">Vs. computer (GNU Go)</option>
+                <option value="local">Local</option>
+                <option value="remote">Remote</option>
+                <option value="gnugo">Vs. computer</option>
               </select>
             </label>
             {(mode === 'remote' || mode === 'gnugo') && (
               <label className="modal-form-row">
-                Your color
-                <select value={color} onChange={(e) => setColor(e.target.value as Color)}>
+                <span className="modal-form-label">Your color</span>
+                <select value={color} onChange={(e) => setColor(e.target.value as Color | 'random')}>
                   <option value="black">Black</option>
                   <option value="white">White</option>
+                  <option value="random">Random</option>
                 </select>
               </label>
             )}
             {mode === 'remote' && (
               <label className="modal-form-row">
-                Opponent
+                <span className="modal-form-label">Opponent</span>
                 <input
                   type="text"
                   value={opponentUsername}
@@ -173,19 +174,21 @@ function Home() {
               </label>
             )}
             <label className="modal-form-row">
-              Time control
+              <span className="modal-form-label">Time control</span>
               <select value={timeControl} onChange={(e) => setTimeControl(e.target.value as TimeControlName)}>
                 <option value="unlimited">Unlimited</option>
-                <option value="standard">10 minutes + standard byoyomi</option>
+                <option value="standard">10 minutes</option>
                 <option value="correspondence">24h per move</option>
               </select>
             </label>
             {error && <p className="error">{error}</p>}
             <div className="modal-actions">
-              <button type="button" className="modal-close" onClick={() => setNewGameOpen(false)}>
+              <button type="button" className="modal-action" onClick={() => setNewGameOpen(false)}>
                 Cancel
               </button>
-              <button type="submit">Start</button>
+              <button type="submit" className="modal-action">
+                Start
+              </button>
             </div>
           </form>
         </div>

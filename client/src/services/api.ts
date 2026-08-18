@@ -160,7 +160,7 @@ export interface CreateGameOptions {
   title?: string;
   mode?: 'local' | 'remote' | 'gnugo';
   timeControl?: TimeControlName;
-  color?: Color;
+  color?: Color | 'random';
   opponentUsername?: string;
 }
 
