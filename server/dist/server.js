@@ -854,7 +854,11 @@ app.get('/api/games/:id/sgf', (req, res) => {
     }
     const safeName = game.title?.replace(/[^a-zA-Z0-9-_ ]/g, '').trim();
     const filename = `${safeName || game.id}.sgf`;
-    res.setHeader('Content-Type', 'application/x-go-sgf; charset=utf-8');
+    // application/x-go-sgf isn't a MIME type browsers recognize, which made
+    // Chrome flag the download as an "unconfirmed"/potentially dangerous file
+    // even though the header was present — text/plain is universally trusted
+    // and SGF is plain text anyway.
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(generateSgf(game));
 });
