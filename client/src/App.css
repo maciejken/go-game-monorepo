@@ -182,19 +182,43 @@
   cursor: pointer;
 }
 
-.new-game-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
+.new-game-trigger {
+  appearance: none;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
 }
 
-.new-game-form label {
+.new-game-modal {
+  width: 100%;
+  max-width: 360px;
+}
+
+.modal-form-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   font-size: 13px;
   color: var(--text);
+}
+
+.modal-form-row select,
+.modal-form-row input {
+  font: inherit;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .game-list {
@@ -307,14 +331,10 @@
   }
 }
 
-.go-clocks {
-  display: flex;
-  gap: 16px;
-  font-variant-numeric: tabular-nums;
-}
-
 .go-clock {
   opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
 }
 
 .go-clock--active {

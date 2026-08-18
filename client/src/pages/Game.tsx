@@ -443,16 +443,6 @@ function GameView({ gameId }: GameViewProps) {
             Black: {blackUsername ?? '—'} · White: {whiteUsername ?? '—'}
           </p>
         )}
-        {blackClock && whiteClock && (
-          <div className="go-clocks">
-            <span className={`go-clock${currentColor === 'black' && status === 'in_progress' ? ' go-clock--active' : ''}`}>
-              B {clockLabel(blackClock)}
-            </span>
-            <span className={`go-clock${currentColor === 'white' && status === 'in_progress' ? ' go-clock--active' : ''}`}>
-              W {clockLabel(whiteClock)}
-            </span>
-          </div>
-        )}
         <div
           className={`go-board-frame${showCoords ? '' : ' go-board-frame--no-coords'}`}
           style={{ '--size': size } as React.CSSProperties}
@@ -544,6 +534,11 @@ function GameView({ gameId }: GameViewProps) {
         <div className="footer-row">
           <span className="capture-label">
             B: <span className="capture-count capture-count--white">{displayedCaptures.black}</span>
+            {!isReviewing && blackClock && (
+              <span className={`go-clock${currentColor === 'black' && status === 'in_progress' ? ' go-clock--active' : ''}`}>
+                {clockLabel(blackClock)}
+              </span>
+            )}
           </span>
           <div className="footer-buttons">
             {status === 'in_progress' && !isReviewing && isParticipant && (
@@ -602,6 +597,11 @@ function GameView({ gameId }: GameViewProps) {
             )}
           </div>
           <span className="capture-label">
+            {!isReviewing && whiteClock && (
+              <span className={`go-clock${currentColor === 'white' && status === 'in_progress' ? ' go-clock--active' : ''}`}>
+                {clockLabel(whiteClock)}
+              </span>
+            )}
             W: <span className="capture-count capture-count--black">{displayedCaptures.white}</span>
           </span>
         </div>
