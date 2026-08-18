@@ -39,6 +39,7 @@ export function useGame(gameId: string) {
   const [blackPeriodsLeft, setBlackPeriodsLeft] = useState<number | null>(null);
   const [whitePeriodsLeft, setWhitePeriodsLeft] = useState<number | null>(null);
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
+  const [lastMove, setLastMove] = useState<Point | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -67,6 +68,7 @@ export function useGame(gameId: string) {
         setBlackPeriodsLeft(game.blackPeriodsLeft);
         setWhitePeriodsLeft(game.whitePeriodsLeft);
         setTurnStartedAt(game.turnStartedAt);
+        setLastMove(game.lastMove);
       })
       .catch((err: Error) => setError(err.message));
   }, [gameId]);
@@ -200,6 +202,7 @@ export function useGame(gameId: string) {
     blackPeriodsLeft,
     whitePeriodsLeft,
     turnStartedAt,
+    lastMove,
     error,
     play,
     pass,

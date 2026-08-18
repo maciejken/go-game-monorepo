@@ -106,15 +106,15 @@ function describeUndoAction(
 // scoring-finished game to re-mark dead stones.
 function describeReopenAction(myColor: MyColor, pendingReopenBy: Color | null, isAiOpponent: boolean): string {
   if (myColor === 'both' || isAiOpponent) {
-    return 'Redo Scoring';
+    return 'Reopen scoring';
   }
   if (pendingReopenBy === null) {
-    return 'Request Redo Scoring';
+    return 'Request reopen scoring';
   }
   if (pendingReopenBy === myColor) {
-    return 'Cancel Redo-Scoring Request';
+    return 'Cancel reopen scoring request';
   }
-  return 'Confirm Redo Scoring';
+  return 'Confirm reopen scoring';
 }
 
 function Game() {
@@ -155,6 +155,7 @@ function GameView({ gameId }: GameViewProps) {
     blackPeriodsLeft,
     whitePeriodsLeft,
     turnStartedAt,
+    lastMove,
     error,
     play,
     pass,
@@ -174,9 +175,11 @@ function GameView({ gameId }: GameViewProps) {
   const [showUndo, setShowUndo] = useState(() => localStorage.getItem(SHOW_UNDO_KEY) !== 'false');
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [turnMenuOpen, setTurnMenuOpen] = useState(false);
   const [pendingDead, setPendingDead] = useState<Set<string>>(new Set());
   const [nowMs, setNowMs] = useState(() => Date.now());
   const menuRef = useRef<HTMLDivElement>(null);
+  const turnMenuRef = useRef<HTMLDivElement>(null);
 
   const moveParam = searchParams.get('move');
   const isReviewing = moveParam !== null;
@@ -205,6 +208,20 @@ function GameView({ gameId }: GameViewProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
+
+  // Close the turn-actions balloon on any click outside it.
+  useEffect(() => {
+    if (!turnMenuOpen) {
+      return;
+    }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (turnMenuRef.current && !turnMenuRef.current.contains(e.target as Node)) {
+        setTurnMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [turnMenuOpen]);
 
   // Close the settings modal on Escape.
   useEffect(() => {
@@ -248,6 +265,7 @@ function GameView({ gameId }: GameViewProps) {
   const reviewEntry = history && reviewMoveNumber !== null ? history[reviewMoveNumber] : null;
 
   const displayedBoard = isReviewing && reviewEntry ? reviewEntry.board : liveBoard;
+  const highlightedPoint = isReviewing ? (reviewEntry?.point ?? null) : lastMove;
   const displayedCaptures =
     isReviewing && history && reviewMoveNumber !== null ? sumCaptures(history, reviewMoveNumber) : captures;
   const isParticipant = myColor !== null;
@@ -485,7 +503,7 @@ function GameView({ gameId }: GameViewProps) {
                     {stone && (
                       <span
                         className={`go-stone go-stone--${stone}${
-                          reviewEntry?.point?.x === x && reviewEntry?.point?.y === y ? ' go-stone--last' : ''
+                          highlightedPoint?.x === x && highlightedPoint?.y === y ? ' go-stone--last' : ''
                         }${pendingDead.has(pointKey({ x, y })) ? ' go-stone--dead' : ''}`}
                       />
                     )}
@@ -512,8 +530,8 @@ function GameView({ gameId }: GameViewProps) {
         {!isReviewing && isParticipant && pendingReopenBy && myColor !== 'both' && (
           <p>
             {pendingReopenBy === myColor
-              ? 'Waiting for the other player to confirm redoing scoring.'
-              : `${colorLabel(pendingReopenBy)} requested to redo scoring.`}
+              ? 'Waiting for the other player to confirm reopening scoring.'
+              : `${colorLabel(pendingReopenBy)} requested to reopen scoring.`}
           </p>
         )}
         {!isReviewing && status === 'in_progress' && isParticipant && !isMyTurn && !pendingUndoBy && (
@@ -542,19 +560,49 @@ function GameView({ gameId }: GameViewProps) {
           </span>
           <div className="footer-buttons">
             {status === 'in_progress' && !isReviewing && isParticipant && (
-              <div className="go-actions" style={{ '--cell': '24px' } as React.CSSProperties}>
-                <span className={`go-stone go-stone--${currentColor}`} />
-                {showUndo && (
-                  <button type="button" onClick={undo}>
-                    {describeUndoAction(myColor, pendingUndoBy, false, isAiOpponent)}
-                  </button>
+              <div className="go-turn-menu" ref={turnMenuRef} style={{ '--cell': '24px' } as React.CSSProperties}>
+                <button
+                  type="button"
+                  className="go-turn-toggle"
+                  aria-label="Game actions"
+                  onClick={() => setTurnMenuOpen((open) => !open)}
+                >
+                  <span className={`go-stone go-stone--${currentColor}`} />
+                </button>
+                {turnMenuOpen && (
+                  <div className="go-turn-balloon">
+                    {showUndo && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTurnMenuOpen(false);
+                          undo();
+                        }}
+                      >
+                        {describeUndoAction(myColor, pendingUndoBy, false, isAiOpponent)}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTurnMenuOpen(false);
+                        pass();
+                      }}
+                      disabled={!isMyTurn}
+                    >
+                      Pass
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTurnMenuOpen(false);
+                        resign();
+                      }}
+                    >
+                      Resign
+                    </button>
+                  </div>
                 )}
-                <button type="button" onClick={pass} disabled={!isMyTurn}>
-                  Pass
-                </button>
-                <button type="button" onClick={resign}>
-                  Resign
-                </button>
               </div>
             )}
             {scoring && !isReviewing && isParticipant && (
@@ -619,7 +667,7 @@ function GameView({ gameId }: GameViewProps) {
               <input type="checkbox" checked={showUndo} onChange={toggleUndo} />
               Show Undo button
             </label>
-            <button type="button" className="modal-close" onClick={() => setSettingsOpen(false)}>
+            <button type="button" className="modal-action" onClick={() => setSettingsOpen(false)}>
               Close
             </button>
           </div>

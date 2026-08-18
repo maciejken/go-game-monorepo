@@ -53,6 +53,7 @@ export interface GameStateResponse extends GameResponse, ClockFields {
   endReason: EndReason;
   pendingReopenBy: Color | null;
   isAiOpponent: boolean;
+  lastMove: Point | null;
 }
 
 export interface GameSummary {

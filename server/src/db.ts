@@ -122,7 +122,7 @@ if (!gamesColumns.has('turn_started_at')) {
   db.exec('ALTER TABLE games ADD COLUMN turn_started_at INTEGER');
 }
 // How a finished game ended ('scoring' | 'resign' | 'timeout') — lets the
-// "redo scoring" feature offer itself only for games that actually went
+// "reopen scoring" feature offer itself only for games that actually went
 // through the scoring phase, not ones that ended by resignation or timeout.
 if (!gamesColumns.has('end_reason')) {
   db.exec('ALTER TABLE games ADD COLUMN end_reason TEXT');

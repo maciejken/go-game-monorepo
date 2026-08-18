@@ -271,6 +271,20 @@ function getCumulativeCaptures(gameId) {
     }
     return captures;
 }
+// The most recent stone placed, for the live board's "last move" marker —
+// review mode already gets this per-move from the history endpoint, but the
+// live view has no reason to load the whole history just for this.
+function getLastMovePoint(gameId) {
+    const row = db.prepare(`
+    SELECT payload FROM events WHERE game_id = ? AND event_type = 'MOVE'
+    ORDER BY move_number DESC LIMIT 1
+  `).get(gameId);
+    if (!row) {
+        return null;
+    }
+    const payload = JSON.parse(row.payload);
+    return { x: payload.x, y: payload.y };
+}
 // The full move-by-move record for the "review" feature: every event the
 // game has logged, paired with the board as it stood right after. Passes
 // and resigns don't have their own snapshot, so their board is carried
@@ -658,6 +672,7 @@ app.get('/api/games/:id', (req, res) => {
         board,
         currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
         captures: getCumulativeCaptures(game.id),
+        lastMove: getLastMovePoint(game.id),
         blackUsername: getUsername(game.black_user_id),
         whiteUsername: getUsername(game.white_user_id),
         myColor: getMyColor(game, currentUser?.id ?? null),
@@ -862,7 +877,7 @@ app.post('/api/games/:id/reopen-scoring', (req, res) => {
         return;
     }
     if (!isParticipant(game, user.id)) {
-        res.status(403).json({ error: 'Only players in this game can redo scoring' });
+        res.status(403).json({ error: 'Only players in this game can reopen scoring' });
         return;
     }
     if (game.status !== 'finished' || game.end_reason !== 'scoring') {

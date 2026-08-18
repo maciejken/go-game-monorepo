@@ -184,11 +184,9 @@
 .new-game-trigger {
   appearance: none;
   font: inherit;
-  font-size: 20px;
-  line-height: 1;
-  height: 40px;
   border: 1px solid var(--border);
-  border-radius: 50%;
+  border-radius: 4px;
+  padding: 6px 14px;
   background: var(--bg);
   color: inherit;
   cursor: pointer;
@@ -333,6 +331,60 @@
   }
 }
 
+/* Tapping the turn-marker stone opens a balloon with the turn actions
+   (Undo/Pass/Resign) instead of showing them inline — keeps the footer
+   compact on narrow/mobile screens. */
+.go-turn-menu {
+  position: relative;
+}
+
+.go-turn-toggle {
+  appearance: none;
+  background: none;
+  border: none;
+  display: flex;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.go-turn-balloon {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 170px;
+  padding: 6px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+}
+
+.go-turn-balloon button {
+  appearance: none;
+  background: none;
+  color: #0a0a0a;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 12px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: #f0f0f0;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.4;
+  }
+}
+
 .go-clock {
   opacity: 0.7;
   font-variant-numeric: tabular-nums;
@@ -383,7 +435,10 @@
 }
 
 .go-board-frame {
-  --cell-base: 28px;
+  /* Capped at 28px (the desktop size) but shrinks on narrow screens so the
+     board's total width — roughly (size + 1) * cell, plus the 20px coord
+     column and the page's 20px side padding — never exceeds the viewport. */
+  --cell-base: min(28px, calc((100vw - 60px) / (var(--size) + 1)));
   --cell: var(--cell-base);
   --pad: calc((var(--cell) - 4px) / 2);
   --coord-width: 20px;
