@@ -74,6 +74,14 @@ function isAiOpponentGame(game) {
     const aiId = getAiUserId();
     return game.black_user_id === aiId || game.white_user_id === aiId;
 }
+function isStarred(gameId, userId) {
+    if (!userId) {
+        return false;
+    }
+    return db
+        .prepare('SELECT 1 FROM stars WHERE user_id = ? AND game_id = ?')
+        .get(userId, gameId) !== undefined;
+}
 function getClockState(game, color) {
     return {
         remainingMs: (color === 'black' ? game.black_time_remaining_ms : game.white_time_remaining_ms) ?? 0,
@@ -541,8 +549,14 @@ app.get('/api/auth/me', (req, res) => {
 });
 app.get('/api/games', (req, res) => {
     const currentUser = getSessionUser(req);
+    // "mine" is meaningless without an identity to filter by — fall back to
+    // the unfiltered list rather than showing an anonymous visitor nothing.
+    const scope = req.query.scope === 'mine' && currentUser ? 'mine' : 'all';
     const ids = db.prepare('SELECT id FROM games ORDER BY updated_at DESC').all();
-    const rows = ids.map((row) => withTimeoutCheck(getGameRow(row.id)));
+    let rows = ids.map((row) => withTimeoutCheck(getGameRow(row.id)));
+    if (scope === 'mine' && currentUser) {
+        rows = rows.filter((row) => isParticipant(row, currentUser.id) || isStarred(row.id, currentUser.id));
+    }
     res.json(rows.map((row) => ({
         id: row.id,
         size: row.size,
@@ -557,6 +571,7 @@ app.get('/api/games', (req, res) => {
         myColor: getMyColor(row, currentUser?.id ?? null),
         isAiOpponent: isAiOpponentGame(row),
         timeControl: row.time_control,
+        starred: isStarred(row.id, currentUser?.id ?? null),
     })));
 });
 app.post('/api/games', async (req, res) => {
@@ -711,6 +726,37 @@ app.patch('/api/games/:id', (req, res) => {
     broadcastGamesListUpdate();
     res.json({ title });
 });
+// Anyone can star a game they're not playing in — it's how a game they're
+// just watching ends up in their "my games" list alongside ones they're
+// actually a player in.
+app.post('/api/games/:id/star', (req, res) => {
+    const game = getGameRow(req.params.id);
+    if (!game) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+    }
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    db.prepare('INSERT OR IGNORE INTO stars (user_id, game_id, created_at) VALUES (?, ?, ?)').run(user.id, game.id, Date.now());
+    broadcastGamesListUpdate();
+    res.json({ starred: true });
+});
+app.delete('/api/games/:id/star', (req, res) => {
+    const game = getGameRow(req.params.id);
+    if (!game) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+    }
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    db.prepare('DELETE FROM stars WHERE user_id = ? AND game_id = ?').run(user.id, game.id);
+    broadcastGamesListUpdate();
+    res.json({ starred: false });
+});
 app.get('/api/games/:id/history', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
@@ -735,6 +781,7 @@ app.delete('/api/games/:id', (req, res) => {
     }
     db.prepare('DELETE FROM events WHERE game_id = ?').run(game.id);
     db.prepare('DELETE FROM snapshots WHERE game_id = ?').run(game.id);
+    db.prepare('DELETE FROM stars WHERE game_id = ?').run(game.id);
     db.prepare('DELETE FROM games WHERE id = ?').run(game.id);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();

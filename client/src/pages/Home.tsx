@@ -5,7 +5,10 @@ import {
   createGame,
   deleteGame,
   listGames,
+  starGame,
+  unstarGame,
   updateGameTitle,
+  type GameListScope,
   type GameSummary,
   type TimeControlName,
 } from '../services/api';
@@ -56,12 +59,13 @@ function Home() {
   const [opponentUsername, setOpponentUsername] = useState('');
   const [color, setColor] = useState<Color | 'random'>('black');
   const [newGameOpen, setNewGameOpen] = useState(false);
+  const [scope, setScope] = useState<GameListScope>('mine');
 
   const refresh = useCallback(() => {
-    listGames()
+    listGames(scope)
       .then(setGames)
       .catch((err: Error) => setError(err.message));
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     refresh();
@@ -139,9 +143,18 @@ function Home() {
         )}
       </div>
       {user ? (
-        <button type="button" className="new-game-trigger" onClick={() => setNewGameOpen(true)}>
-          New game
-        </button>
+        <div className="home-toolbar">
+          <button type="button" className="new-game-trigger" onClick={() => setNewGameOpen(true)}>
+            New game
+          </button>
+          <button
+            type="button"
+            className="new-game-trigger"
+            onClick={() => setScope((s) => (s === 'mine' ? 'all' : 'mine'))}
+          >
+            {scope === 'mine' ? 'All games' : 'My games'}
+          </button>
+        </div>
       ) : (
         <p>
           <Link to="/login">Log in</Link> to start a new game.
@@ -284,7 +297,7 @@ function Home() {
       ) : (
         <ul className="game-list">
           {games.map((game) => (
-            <GameListItem key={game.id} game={game} onDelete={handleDelete} onRename={refresh} />
+            <GameListItem key={game.id} game={game} onDelete={handleDelete} onRename={refresh} onStarChange={refresh} />
           ))}
         </ul>
       )}
@@ -296,13 +309,23 @@ interface GameListItemProps {
   game: GameSummary;
   onDelete: (id: string) => void;
   onRename: () => void;
+  onStarChange: () => void;
 }
 
-function GameListItem({ game, onDelete, onRename }: GameListItemProps) {
+function GameListItem({ game, onDelete, onRename, onStarChange }: GameListItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [titleInput, setTitleInput] = useState(game.title ?? '');
   const [error, setError] = useState<string | null>(null);
   const canEdit = game.myColor !== null;
+
+  const toggleStar = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setError(null);
+    (game.starred ? unstarGame(game.id) : starGame(game.id))
+      .then(onStarChange)
+      .catch((err: Error) => setError(err.message));
+  };
 
   const startEdit = () => {
     setError(null);
@@ -387,7 +410,24 @@ function GameListItem({ game, onDelete, onRename }: GameListItemProps) {
         </svg>
       </button>
     </div>
-  ) : null;
+  ) : (
+    <div className="game-card-actions">
+      <button
+        type="button"
+        className={`star-button${game.starred ? ' star-button--active' : ''}`}
+        aria-label={game.starred ? 'Unstar game' : 'Star game'}
+        aria-pressed={game.starred}
+        onClick={toggleStar}
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+          />
+        </svg>
+      </button>
+    </div>
+  );
 
   return (
     <li>

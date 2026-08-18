@@ -61,6 +61,15 @@ db.exec(`
     user_id TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
+
+  -- A user expressing interest in a game they're not playing in, so it
+  -- still shows up in their filtered ("my games") home list.
+  CREATE TABLE IF NOT EXISTS stars (
+    user_id TEXT NOT NULL,
+    game_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, game_id)
+  );
 `);
 
 // Migrate older `games` tables that predate the `size`/`result` columns

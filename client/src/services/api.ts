@@ -70,6 +70,7 @@ export interface GameSummary {
   myColor: MyColor;
   isAiOpponent: boolean;
   timeControl: StoredTimeControl;
+  starred: boolean;
 }
 
 export interface MoveResponse {
@@ -143,8 +144,22 @@ async function handle<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-export function listGames(): Promise<GameSummary[]> {
-  return fetch(`${API_BASE}/games`).then((res) => handle<GameSummary[]>(res));
+export type GameListScope = 'mine' | 'all';
+
+export function listGames(scope: GameListScope = 'mine'): Promise<GameSummary[]> {
+  return fetch(`${API_BASE}/games?scope=${scope}`).then((res) => handle<GameSummary[]>(res));
+}
+
+export function starGame(id: string): Promise<{ starred: true }> {
+  return fetch(`${API_BASE}/games/${id}/star`, { method: 'POST' }).then((res) =>
+    handle<{ starred: true }>(res),
+  );
+}
+
+export function unstarGame(id: string): Promise<{ starred: false }> {
+  return fetch(`${API_BASE}/games/${id}/star`, { method: 'DELETE' }).then((res) =>
+    handle<{ starred: false }>(res),
+  );
 }
 
 export async function deleteGame(id: string): Promise<void> {
