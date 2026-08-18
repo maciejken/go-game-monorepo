@@ -617,29 +617,37 @@ function GameView({ gameId }: GameViewProps) {
             )}
             {isReviewing && (
               <div className="review-controls">
-                <button type="button" onClick={() => goToMove(0)} disabled={navDisabled || reviewMoveNumber === 0}>
-                  ⏮ First
+                <button
+                  type="button"
+                  aria-label="First move"
+                  onClick={() => goToMove(0)}
+                  disabled={navDisabled || reviewMoveNumber === 0}
+                >
+                  ⏮
                 </button>
                 <button
                   type="button"
+                  aria-label="Previous move"
                   onClick={() => goToMove((reviewMoveNumber ?? 0) - 1)}
                   disabled={navDisabled || reviewMoveNumber === 0}
                 >
-                  ◀ Prev
+                  ◀
                 </button>
                 <button
                   type="button"
+                  aria-label="Next move"
                   onClick={() => goToMove((reviewMoveNumber ?? 0) + 1)}
                   disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
                 >
-                  Next ▶
+                  ▶
                 </button>
                 <button
                   type="button"
+                  aria-label="Last move"
                   onClick={() => goToMove(latestMoveNumber ?? 0)}
                   disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
                 >
-                  Last ⏭
+                  ⏭
                 </button>
               </div>
             )}

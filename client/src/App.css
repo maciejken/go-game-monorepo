@@ -331,6 +331,14 @@
   }
 }
 
+/* Icon-only (⏮ ◀ ▶ ⏭), so a squarer, tighter button suits them better than
+   the text buttons' wide horizontal padding. */
+.review-controls button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
 /* Tapping the turn-marker stone opens a balloon with the turn actions
    (Undo/Pass/Resign) instead of showing them inline — keeps the footer
    compact on narrow/mobile screens. */
