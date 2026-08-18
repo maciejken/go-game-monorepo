@@ -215,6 +215,94 @@
   font: inherit;
 }
 
+/* Board size, handicap, and color: full-width controls stacked under their
+   label instead of squeezed beside it, so the slider/stones get the whole
+   row rather than whatever's left after a fixed-width label column. */
+.modal-wide-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+}
+
+.modal-wide-row-label {
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.modal-slider-wrap {
+  position: relative;
+}
+
+/* A plain overlay rather than <input list> datalist ticks, which Safari/iOS
+   doesn't render at all — visible but subtle, one per step. */
+.modal-slider-ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 8px;
+  margin-top: -3px;
+  pointer-events: none;
+}
+
+.modal-slider-ticks span {
+  width: 2px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--text);
+  opacity: 0.3;
+}
+
+.color-radio-group {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 2px;
+}
+
+.color-stone {
+  display: block;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.color-stone input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.color-stone--black {
+  background: radial-gradient(circle at 35% 30%, #5c5c5c, #0a0a0a 70%);
+}
+
+.color-stone--white {
+  background: radial-gradient(circle at 35% 30%, #ffffff, #dcdcdc 70%);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.color-stone--random {
+  background: linear-gradient(to right, #0a0a0a 50%, #dcdcdc 50%);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.color-stone--selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

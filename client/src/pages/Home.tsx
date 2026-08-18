@@ -15,12 +15,32 @@ import { timeControlLabel } from '../utils/clock';
 
 const BOARD_SIZES = [9, 13, 19];
 
+// Ascending "how much time you get", ending at unlimited — matches the
+// board-size/handicap sliders' low-to-high feel.
+const TIME_CONTROL_STEPS: { value: TimeControlName; label: string }[] = [
+  { value: 'standard', label: '10 minutes' },
+  { value: 'correspondence', label: '24h per move' },
+  { value: 'unlimited', label: 'Unlimited' },
+];
+
 function getMaxHandicap(size: number): number {
   return size === 19 ? 9 : 5;
 }
 
 function formatDate(ms: number): string {
   return new Date(ms).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+}
+
+// Subtle step markers under a slider — a plain CSS overlay rather than
+// <input list> datalist ticks, since Safari/iOS doesn't render those at all.
+function SliderTicks({ count }: { count: number }) {
+  return (
+    <div className="modal-slider-ticks" aria-hidden="true">
+      {Array.from({ length: count }, (_, i) => (
+        <span key={i} />
+      ))}
+    </div>
+  );
 }
 
 function Home() {
@@ -143,26 +163,6 @@ function Home() {
               />
             </label>
             <label className="modal-form-row">
-              <span className="modal-form-label">Board size</span>
-              <select value={size} onChange={(e) => handleSizeChange(Number(e.target.value))}>
-                {BOARD_SIZES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}x{s}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="modal-form-row">
-              <span className="modal-form-label">Handicap</span>
-              <select value={handicap} onChange={(e) => handleHandicapChange(Number(e.target.value))}>
-                {handicapOptions.map((h) => (
-                  <option key={h} value={h}>
-                    {h === 0 ? 'None' : h}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="modal-form-row">
               <span className="modal-form-label">Mode</span>
               <select value={mode} onChange={(e) => handleModeChange(e.target.value as 'local' | 'remote' | 'gnugo')}>
                 <option value="local">Local</option>
@@ -170,16 +170,6 @@ function Home() {
                 <option value="gnugo">Vs. computer</option>
               </select>
             </label>
-            {(mode === 'remote' || mode === 'gnugo') && (
-              <label className="modal-form-row">
-                <span className="modal-form-label">Your color</span>
-                <select value={color} onChange={(e) => setColor(e.target.value as Color | 'random')}>
-                  <option value="black">Black</option>
-                  <option value="white">White</option>
-                  <option value="random">Random</option>
-                </select>
-              </label>
-            )}
             {mode === 'remote' && (
               <label className="modal-form-row">
                 <span className="modal-form-label">Opponent</span>
@@ -192,14 +182,89 @@ function Home() {
                 />
               </label>
             )}
-            <label className="modal-form-row">
-              <span className="modal-form-label">Time control</span>
-              <select value={timeControl} onChange={(e) => setTimeControl(e.target.value as TimeControlName)}>
-                <option value="unlimited">Unlimited</option>
-                <option value="standard">10 minutes</option>
-                <option value="correspondence">24h per move</option>
-              </select>
-            </label>
+            {(mode === 'remote' || mode === 'gnugo') && (
+              <div className="modal-wide-row">
+                <div className="modal-wide-row-label">
+                  <span className="modal-form-label">Your color</span>
+                  <span>{color === 'black' ? 'Black' : color === 'white' ? 'White' : 'Random'}</span>
+                </div>
+                <div className="color-radio-group" role="radiogroup" aria-label="Your color">
+                  {(['black', 'white', 'random'] as const).map((option) => (
+                    <label
+                      key={option}
+                      className={`color-stone color-stone--${option}${
+                        color === option ? ' color-stone--selected' : ''
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="color"
+                        value={option}
+                        checked={color === option}
+                        onChange={() => setColor(option)}
+                        aria-label={option === 'black' ? 'Black' : option === 'white' ? 'White' : 'Random'}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="modal-wide-row">
+              <div className="modal-wide-row-label">
+                <span className="modal-form-label">Board size</span>
+                <span>
+                  {size}x{size}
+                </span>
+              </div>
+              <div className="modal-slider-wrap">
+                <input
+                  type="range"
+                  className="modal-slider"
+                  min={0}
+                  max={BOARD_SIZES.length - 1}
+                  step={1}
+                  value={BOARD_SIZES.indexOf(size)}
+                  onChange={(e) => handleSizeChange(BOARD_SIZES[Number(e.target.value)])}
+                />
+                <SliderTicks count={BOARD_SIZES.length} />
+              </div>
+            </div>
+            <div className="modal-wide-row">
+              <div className="modal-wide-row-label">
+                <span className="modal-form-label">Handicap</span>
+                <span>{handicap === 0 ? 'None' : handicap}</span>
+              </div>
+              <div className="modal-slider-wrap">
+                <input
+                  type="range"
+                  className="modal-slider"
+                  min={0}
+                  max={handicapOptions.length - 1}
+                  step={1}
+                  value={handicapOptions.indexOf(handicap)}
+                  onChange={(e) => handleHandicapChange(handicapOptions[Number(e.target.value)])}
+                />
+                <SliderTicks count={handicapOptions.length} />
+              </div>
+            </div>
+            <div className="modal-wide-row">
+              <div className="modal-wide-row-label">
+                <span className="modal-form-label">Time control</span>
+                <span>{TIME_CONTROL_STEPS[TIME_CONTROL_STEPS.findIndex((s) => s.value === timeControl)].label}</span>
+              </div>
+              <div className="modal-slider-wrap">
+                <input
+                  type="range"
+                  className="modal-slider"
+                  min={0}
+                  max={TIME_CONTROL_STEPS.length - 1}
+                  step={1}
+                  value={TIME_CONTROL_STEPS.findIndex((s) => s.value === timeControl)}
+                  onChange={(e) => setTimeControl(TIME_CONTROL_STEPS[Number(e.target.value)].value)}
+                />
+                <SliderTicks count={TIME_CONTROL_STEPS.length} />
+              </div>
+            </div>
             {error && <p className="error">{error}</p>}
             <div className="modal-actions">
               <button type="button" className="modal-action" onClick={() => setNewGameOpen(false)}>
