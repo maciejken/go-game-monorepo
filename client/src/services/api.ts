@@ -54,6 +54,7 @@ export interface GameStateResponse extends GameResponse, ClockFields {
   pendingReopenBy: Color | null;
   isAiOpponent: boolean;
   lastMove: Point | null;
+  canUndo: boolean;
 }
 
 export interface GameSummary {
@@ -202,6 +203,13 @@ export function updateGameTitle(id: string, title: string): Promise<{ title: str
 
 export function getGameHistory(id: string): Promise<GameHistoryResponse> {
   return fetch(`${API_BASE}/games/${id}/history`).then((res) => handle<GameHistoryResponse>(res));
+}
+
+// A plain GET the browser downloads directly (the server sets
+// Content-Disposition: attachment) — no auth required, so this works for
+// spectators too.
+export function sgfExportUrl(id: string): string {
+  return `${API_BASE}/games/${id}/sgf`;
 }
 
 export function makeMove(id: string, x: number, y: number, color: Color): Promise<MoveResponse> {

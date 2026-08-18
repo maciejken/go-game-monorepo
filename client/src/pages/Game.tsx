@@ -4,7 +4,7 @@ import { applyDeadStones, getGroup, getKomi, scoreBoard, type Color, type Point 
 import { useAuth } from '../hooks/useAuth';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
-import type { Captures, HistoryEntry, MyColor } from '../services/api';
+import { sgfExportUrl, type Captures, type HistoryEntry, type MyColor } from '../services/api';
 import { computeLiveClock, formatClock } from '../utils/clock';
 
 // Go board columns skip the letter "I" to avoid confusion with the numeral 1
@@ -156,6 +156,7 @@ function GameView({ gameId }: GameViewProps) {
     whitePeriodsLeft,
     turnStartedAt,
     lastMove,
+    canUndo,
     error,
     play,
     pass,
@@ -273,6 +274,9 @@ function GameView({ gameId }: GameViewProps) {
   const canInteract = !isReviewing && status === 'in_progress' && isMyTurn;
   const canToggleDead = !isReviewing && scoring && isParticipant;
   const navDisabled = latestMoveNumber === null || reviewMoveNumber === null;
+  // Local games and AI games undo immediately (no negotiation) — same split
+  // describeUndoAction uses to pick a label.
+  const isImmediateUndo = myColor === 'both' || isAiOpponent;
 
   // Live preview of the final result as dead stones are marked, computed
   // client-side with the same shared scoring logic the server uses at
@@ -405,6 +409,15 @@ function GameView({ gameId }: GameViewProps) {
                 }}
               >
                 {isReviewing ? 'Live' : 'Review'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  window.location.href = sgfExportUrl(gameId);
+                }}
+              >
+                Export SGF
               </button>
               {finished && endReason === 'scoring' && isParticipant && (
                 <button
@@ -559,21 +572,23 @@ function GameView({ gameId }: GameViewProps) {
             )}
           </span>
           <div className="footer-buttons">
-            {status === 'in_progress' && !isReviewing && isParticipant && (
+            {status === 'in_progress' && !isReviewing && (
               <div className="go-turn-menu" ref={turnMenuRef} style={{ '--cell': '24px' } as React.CSSProperties}>
                 <button
                   type="button"
                   className="go-turn-toggle"
                   aria-label="Game actions"
+                  disabled={!isParticipant}
                   onClick={() => setTurnMenuOpen((open) => !open)}
                 >
                   <span className={`go-stone go-stone--${currentColor}`} />
                 </button>
-                {turnMenuOpen && (
+                {isParticipant && turnMenuOpen && (
                   <div className="go-turn-balloon">
-                    {showUndo && (
+                    {showUndo && (isImmediateUndo || canUndo) && (
                       <button
                         type="button"
+                        disabled={isImmediateUndo && !canUndo}
                         onClick={() => {
                           setTurnMenuOpen(false);
                           undo();

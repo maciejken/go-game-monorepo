@@ -293,6 +293,14 @@ function getLastMovePoint(gameId) {
     const payload = JSON.parse(row.payload);
     return { x: payload.x, y: payload.y };
 }
+// Whether there's a player action to undo at all — false at the very start
+// of a game, where the only event so far (if any) is the handicap setup.
+function hasUndoableEvent(gameId) {
+    const lastEvent = db.prepare(`
+    SELECT event_type FROM events WHERE game_id = ? ORDER BY move_number DESC LIMIT 1
+  `).get(gameId);
+    return lastEvent !== undefined && lastEvent.event_type !== 'HANDICAP';
+}
 // The full move-by-move record for the "review" feature: every event the
 // game has logged, paired with the board as it stood right after. Passes
 // and resigns don't have their own snapshot, so their board is carried
@@ -335,6 +343,77 @@ function getMoveHistory(gameId, size) {
         });
     }
     return history;
+}
+const SGF_LETTERS = 'abcdefghijklmnopqrstuvwxyz';
+function toSgfCoord(x, y) {
+    return `${SGF_LETTERS[x]}${SGF_LETTERS[y]}`;
+}
+function escapeSgfText(text) {
+    return text.replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
+}
+// Parses our own free-text `result` strings (see applyResignToGame,
+// withTimeoutCheck, and the finalize-scoring handler) back into the
+// standard SGF RE[] convention (e.g. "B+R", "W+T", "B+6.5") — there's no
+// structured winner/margin stored separately, only the composed sentence.
+function deriveSgfResult(game) {
+    if (!game.result) {
+        return null;
+    }
+    if (game.end_reason === 'resign') {
+        const match = /^(Black|White) resigned/.exec(game.result);
+        return match ? `${match[1] === 'Black' ? 'W' : 'B'}+R` : null;
+    }
+    if (game.end_reason === 'timeout') {
+        const match = /^(Black|White) wins on time/.exec(game.result);
+        return match ? `${match[1] === 'Black' ? 'B' : 'W'}+T` : null;
+    }
+    if (game.end_reason === 'scoring') {
+        const match = /^(Black|White) wins by ([\d.]+)/.exec(game.result);
+        return match ? `${match[1] === 'Black' ? 'B' : 'W'}+${match[2]}` : null;
+    }
+    return null;
+}
+// Handicap stones are SGF setup properties (AB[]) on the root node, not
+// moves — the real move sequence starts with White, same as in the app.
+function generateSgf(game) {
+    const events = db.prepare(`
+    SELECT event_type, payload FROM events WHERE game_id = ? ORDER BY move_number ASC
+  `).all(game.id);
+    const rootProps = ['GM[1]', 'FF[4]', 'CA[UTF-8]', `SZ[${game.size}]`, `KM[${getKomi(game.handicap)}]`];
+    if (game.handicap > 0) {
+        rootProps.push(`HA[${game.handicap}]`);
+    }
+    if (game.title) {
+        rootProps.push(`GN[${escapeSgfText(game.title)}]`);
+    }
+    const blackName = getUsername(game.black_user_id);
+    const whiteName = getUsername(game.white_user_id);
+    if (blackName) {
+        rootProps.push(`PB[${escapeSgfText(blackName)}]`);
+    }
+    if (whiteName) {
+        rootProps.push(`PW[${escapeSgfText(whiteName)}]`);
+    }
+    const re = deriveSgfResult(game);
+    if (re) {
+        rootProps.push(`RE[${re}]`);
+    }
+    let moveNodes = '';
+    for (const event of events) {
+        const payload = JSON.parse(event.payload);
+        if (event.event_type === 'HANDICAP' && payload.points) {
+            const stones = payload.points.map(([x, y]) => `[${toSgfCoord(x, y)}]`).join('');
+            rootProps.push(`AB${stones}`);
+        }
+        else if (event.event_type === 'MOVE' && payload.color && payload.x !== undefined && payload.y !== undefined) {
+            moveNodes += `;${payload.color === 'black' ? 'B' : 'W'}[${toSgfCoord(payload.x, payload.y)}]`;
+        }
+        else if (event.event_type === 'PASS' && payload.color) {
+            moveNodes += `;${payload.color === 'black' ? 'B' : 'W'}[]`;
+        }
+        // RESIGN adds no move node — it's already reflected in RE[] above.
+    }
+    return `(;${rootProps.join('')}${moveNodes})`;
 }
 // Deducts the mover's thinking time from their clock and resets the turn
 // timer for whoever moves next. A no-op for untimed games. `game` is
@@ -688,6 +767,7 @@ app.get('/api/games/:id', (req, res) => {
         currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
         captures: getCumulativeCaptures(game.id),
         lastMove: getLastMovePoint(game.id),
+        canUndo: hasUndoableEvent(game.id),
         blackUsername: getUsername(game.black_user_id),
         whiteUsername: getUsername(game.white_user_id),
         myColor: getMyColor(game, currentUser?.id ?? null),
@@ -764,6 +844,19 @@ app.get('/api/games/:id/history', (req, res) => {
         return;
     }
     res.json({ size: game.size, moves: getMoveHistory(game.id, game.size) });
+});
+// No auth required — same spectator model as viewing the game itself.
+app.get('/api/games/:id/sgf', (req, res) => {
+    const game = getGameRow(req.params.id);
+    if (!game) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+    }
+    const safeName = game.title?.replace(/[^a-zA-Z0-9-_ ]/g, '').trim();
+    const filename = `${safeName || game.id}.sgf`;
+    res.setHeader('Content-Type', 'application/x-go-sgf; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(generateSgf(game));
 });
 app.delete('/api/games/:id', (req, res) => {
     const game = getGameRow(req.params.id);

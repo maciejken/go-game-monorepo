@@ -455,6 +455,12 @@
   display: flex;
   padding: 6px;
   cursor: pointer;
+
+  /* Spectators still see whose turn it is — the stone just isn't a button
+     for them, since there's nothing they could do from its menu anyway. */
+  &:disabled {
+    cursor: default;
+  }
 }
 
 .go-turn-balloon {
