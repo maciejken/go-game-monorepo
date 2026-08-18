@@ -59,6 +59,25 @@ function Home() {
     setHandicap((h) => Math.min(h, getMaxHandicap(newSize)));
   };
 
+  const handleModeChange = (newMode: 'local' | 'remote' | 'gnugo') => {
+    setMode(newMode);
+    if (newMode === 'gnugo') {
+      // 10-min defaults for a computer opponent; a handicap game only makes
+      // sense if the human — not GNU Go — receives the free stones.
+      setTimeControl('standard');
+      if (handicap > 0) {
+        setColor('black');
+      }
+    }
+  };
+
+  const handleHandicapChange = (newHandicap: number) => {
+    setHandicap(newHandicap);
+    if (mode === 'gnugo' && newHandicap > 0) {
+      setColor('black');
+    }
+  };
+
   const startNewGame = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -135,7 +154,7 @@ function Home() {
             </label>
             <label className="modal-form-row">
               <span className="modal-form-label">Handicap</span>
-              <select value={handicap} onChange={(e) => setHandicap(Number(e.target.value))}>
+              <select value={handicap} onChange={(e) => handleHandicapChange(Number(e.target.value))}>
                 {handicapOptions.map((h) => (
                   <option key={h} value={h}>
                     {h === 0 ? 'None' : h}
@@ -145,7 +164,7 @@ function Home() {
             </label>
             <label className="modal-form-row">
               <span className="modal-form-label">Mode</span>
-              <select value={mode} onChange={(e) => setMode(e.target.value as 'local' | 'remote' | 'gnugo')}>
+              <select value={mode} onChange={(e) => handleModeChange(e.target.value as 'local' | 'remote' | 'gnugo')}>
                 <option value="local">Local</option>
                 <option value="remote">Remote</option>
                 <option value="gnugo">Vs. computer</option>
