@@ -45,6 +45,9 @@ const __dirname = path.dirname(__filename)
 const app = express();
 app.use(express.json());
 
+// Lets certbot verify domain ownership in webroot mode.
+app.use('/.well-known/acme-challenge', express.static('/etc/certbot-webroot/.well-known/acme-challenge'));
+
 app.use(express.static(path.resolve(__dirname, '../../client/dist')));
 
 app.get('/', (req, res) => {
