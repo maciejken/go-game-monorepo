@@ -4,6 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 import { createServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
+import fs from 'fs';
 import {
   applyDeadStones,
   createEmptyBoard,
@@ -19,7 +21,7 @@ import {
   type PositionRecord,
 } from 'shared';
 
-import { dbPath, port } from './config.js';
+import { dbPath, port, httpsPort, keyPath, certPath } from './config.js';
 import {
   clearSessionCookie,
   createSession,
@@ -1519,3 +1521,20 @@ setInterval(sweepTimeouts, TIMEOUT_SWEEP_INTERVAL_MS);
 httpServer.listen(port, () => {
   console.log(`Server running on port ${port}; db path: ${dbPath}`);
 });
+
+// Optional — only starts when HTTPS_PORT/KEY_PATH/CERT_PATH are all set and
+// the cert files actually exist, so local dev without certs isn't affected.
+if (httpsPort && keyPath && certPath) {
+  if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+    const httpsServer = createHttpsServer(
+      { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) },
+      app,
+    );
+    attachWebSocketServer(httpsServer);
+    httpsServer.listen(Number(httpsPort), () => {
+      console.log(`HTTPS server running on port ${httpsPort}`);
+    });
+  } else {
+    console.warn(`KEY_PATH/CERT_PATH set but not found at ${keyPath} / ${certPath} — skipping HTTPS server.`);
+  }
+}
