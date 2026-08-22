@@ -133,6 +133,11 @@ if (!gamesColumns.has('end_reason')) {
 if (!gamesColumns.has('pending_reopen_by')) {
     db.exec('ALTER TABLE games ADD COLUMN pending_reopen_by TEXT');
 }
+// Per-game GNU Go difficulty (1-10, GTP --level) — NULL means "use the
+// server's GNUGO_LEVEL default" (irrelevant for non-gnugo games).
+if (!gamesColumns.has('gnugo_level')) {
+    db.exec('ALTER TABLE games ADD COLUMN gnugo_level INTEGER');
+}
 // Migrate older `snapshots` tables that predate the `hash` column (used for
 // situational superko checks), backfilling it for any existing rows.
 const snapshotsColumns = new Set(db.prepare('PRAGMA table_info(snapshots)').all().map((column) => column.name));

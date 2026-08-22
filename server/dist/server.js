@@ -42,7 +42,8 @@ function getGameRow(id) {
     SELECT id, size, status, result, handicap, title, created_at, updated_at,
            black_user_id, white_user_id, pending_undo_by, end_reason, pending_reopen_by,
            time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
-           black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at
+           black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at,
+           gnugo_level
     FROM games WHERE id = ?
   `).get(id);
 }
@@ -540,6 +541,10 @@ async function maybeTriggerAiMove(gameId) {
         moves: getReplayMoves(game.id),
         colorToMove: currentColor,
     };
+    // Per-game difficulty, chosen at creation time — falls back to the
+    // server's own default when the game predates this setting or didn't
+    // specify one.
+    const level = game.gnugo_level ?? GNUGO_LEVEL;
     // Never a random move: on failure, retry once at a much lower level —
     // still a genuine GNU Go move, just faster and weaker, which is also far
     // less likely to hit the same reading blowup a second time. If that also
@@ -547,10 +552,10 @@ async function maybeTriggerAiMove(gameId) {
     // the human can still Undo and play something else in the meantime.
     let aiResult;
     try {
-        aiResult = await generateAiMove({ ...baseRequest, level: GNUGO_LEVEL });
+        aiResult = await generateAiMove({ ...baseRequest, level });
     }
     catch (err) {
-        console.error(`GNU Go (level ${GNUGO_LEVEL}) failed to respond (${err.message}) — retrying at level ${GNUGO_RETRY_LEVEL}.`);
+        console.error(`GNU Go (level ${level}) failed to respond (${err.message}) — retrying at level ${GNUGO_RETRY_LEVEL}.`);
         try {
             aiResult = await generateAiMove({ ...baseRequest, level: GNUGO_RETRY_LEVEL }, GNUGO_RETRY_TIMEOUT_MS);
         }
@@ -672,6 +677,7 @@ app.post('/api/games', async (req, res) => {
     const preset = resolveTimeControl(timeControlName);
     let blackUserId = user.id;
     let whiteUserId = user.id;
+    let gnugoLevel = null;
     // 'random' is nigiri — the traditional stone-guessing method — for anyone
     // who doesn't care which color they get.
     const resolveColor = (requested) => requested === 'random' ? (Math.random() < 0.5 ? 'black' : 'white') : requested === 'white' ? 'white' : 'black';
@@ -707,6 +713,10 @@ app.post('/api/games', async (req, res) => {
         const aiId = getAiUserId();
         blackUserId = color === 'black' ? user.id : aiId;
         whiteUserId = color === 'white' ? user.id : aiId;
+        const requestedLevel = Number(req.body?.level);
+        if (Number.isInteger(requestedLevel) && requestedLevel >= 1 && requestedLevel <= 10) {
+            gnugoLevel = requestedLevel;
+        }
     }
     const id = randomUUID();
     const now = Date.now();
@@ -716,10 +726,11 @@ app.post('/api/games', async (req, res) => {
     INSERT INTO games (
       id, size, handicap, title, created_at, updated_at, status, black_user_id, white_user_id,
       time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
-      black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at
+      black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at,
+      gnugo_level
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, size, handicap, title, now, now, 'in_progress', blackUserId, whiteUserId, preset ? timeControlName : null, preset ? preset.mainTimeSeconds : null, preset ? preset.byoyomiSeconds : null, initialPeriods, initialTimeMs, initialTimeMs, initialPeriods, initialPeriods, now);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, size, handicap, title, now, now, 'in_progress', blackUserId, whiteUserId, preset ? timeControlName : null, preset ? preset.mainTimeSeconds : null, preset ? preset.byoyomiSeconds : null, initialPeriods, initialTimeMs, initialTimeMs, initialPeriods, initialPeriods, now, gnugoLevel);
     const board = createEmptyBoard(size);
     const handicapPoints = getHandicapPoints(size, handicap);
     for (const [x, y] of handicapPoints) {
@@ -1095,7 +1106,7 @@ app.post('/api/games/:id/undo', (req, res) => {
         return;
     }
     const lastEvent = db.prepare(`
-    SELECT move_number, event_type FROM events WHERE game_id = ?
+    SELECT move_number, event_type, payload FROM events WHERE game_id = ?
     ORDER BY move_number DESC LIMIT 1
   `).get(game.id);
     // move_number 0 is the handicap setup, not a player action — nothing to undo past it.
@@ -1121,8 +1132,31 @@ app.post('/api/games/:id/undo', (req, res) => {
         // Otherwise myColor is the other player, confirming — fall through and perform the undo.
     }
     const now = Date.now();
-    db.prepare('DELETE FROM events WHERE game_id = ? AND move_number = ?').run(game.id, lastEvent.move_number);
-    db.prepare('DELETE FROM snapshots WHERE game_id = ? AND move_number = ?').run(game.id, lastEvent.move_number);
+    const moveNumbersToDelete = [lastEvent.move_number];
+    // If GNU Go already answered the human's move before Undo was clicked —
+    // a real race, since maybeTriggerAiMove fires immediately after every
+    // move — a plain "undo the last event" would only remove GNU Go's reply
+    // and leave the human's own move in place. Undo both together instead,
+    // landing back at the human's own turn, which is what they actually
+    // wanted to reconsider.
+    if (isAiOpponentGame(game) && lastEvent.event_type === 'MOVE') {
+        const aiId = getAiUserId();
+        const aiColor = game.black_user_id === aiId ? 'black' : 'white';
+        const lastColor = JSON.parse(lastEvent.payload).color;
+        if (lastColor === aiColor) {
+            const precedingEvent = db.prepare(`
+        SELECT event_type FROM events WHERE game_id = ? AND move_number = ?
+      `).get(game.id, lastEvent.move_number - 1);
+            // Don't reach past the human's very first move into the handicap setup.
+            if (precedingEvent && precedingEvent.event_type !== 'HANDICAP') {
+                moveNumbersToDelete.push(lastEvent.move_number - 1);
+            }
+        }
+    }
+    for (const moveNumber of moveNumbersToDelete) {
+        db.prepare('DELETE FROM events WHERE game_id = ? AND move_number = ?').run(game.id, moveNumber);
+        db.prepare('DELETE FROM snapshots WHERE game_id = ? AND move_number = ?').run(game.id, moveNumber);
+    }
     // Whoever's turn it now is gets a freshly-started clock reading from this
     // moment — there's no historical timing to restore for an undone move.
     db.prepare('UPDATE games SET status = ?, result = ?, pending_undo_by = NULL, updated_at = ?, turn_started_at = ? WHERE id = ?')

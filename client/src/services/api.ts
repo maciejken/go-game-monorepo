@@ -179,6 +179,7 @@ export interface CreateGameOptions {
   timeControl?: TimeControlName;
   color?: Color | 'random';
   opponentUsername?: string;
+  level?: number;
 }
 
 export function createGame(options: CreateGameOptions = {}): Promise<GameResponse> {

@@ -18,6 +18,11 @@ import { timeControlLabel } from '../utils/clock';
 
 const BOARD_SIZES = [9, 13, 19];
 
+// Matches the server's own default (GNUGO_LEVEL) and GTP --level's range.
+const GNUGO_LEVEL_DEFAULT = 5;
+const GNUGO_LEVEL_MIN = 1;
+const GNUGO_LEVEL_MAX = 10;
+
 // Ascending "how much time you get", ending at unlimited — matches the
 // board-size/handicap sliders' low-to-high feel.
 const TIME_CONTROL_STEPS: { value: TimeControlName; label: string }[] = [
@@ -58,6 +63,7 @@ function Home() {
   const [timeControl, setTimeControl] = useState<TimeControlName>('unlimited');
   const [opponentUsername, setOpponentUsername] = useState('');
   const [color, setColor] = useState<Color | 'random'>('black');
+  const [gnugoLevel, setGnugoLevel] = useState(GNUGO_LEVEL_DEFAULT);
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [scope, setScope] = useState<GameListScope>('mine');
 
@@ -112,7 +118,7 @@ function Home() {
       mode,
       timeControl,
       ...(mode === 'remote' ? { color, opponentUsername: opponentUsername.trim() } : {}),
-      ...(mode === 'gnugo' ? { color } : {}),
+      ...(mode === 'gnugo' ? { color, level: gnugoLevel } : {}),
     })
       .then((game) => navigate(`/games/${game.id}`))
       .catch((err: Error) => setError(err.message));
@@ -242,6 +248,26 @@ function Home() {
                 <SliderTicks count={BOARD_SIZES.length} />
               </div>
             </div>
+            {mode === 'gnugo' && (
+              <div className="modal-wide-row">
+                <div className="modal-wide-row-label">
+                  <span className="modal-form-label">GNU Go level</span>
+                  <span>{gnugoLevel}</span>
+                </div>
+                <div className="modal-slider-wrap">
+                  <input
+                    type="range"
+                    className="modal-slider"
+                    min={GNUGO_LEVEL_MIN}
+                    max={GNUGO_LEVEL_MAX}
+                    step={1}
+                    value={gnugoLevel}
+                    onChange={(e) => setGnugoLevel(Number(e.target.value))}
+                  />
+                  <SliderTicks count={GNUGO_LEVEL_MAX - GNUGO_LEVEL_MIN + 1} />
+                </div>
+              </div>
+            )}
             <div className="modal-wide-row">
               <div className="modal-wide-row-label">
                 <span className="modal-form-label">Handicap</span>
