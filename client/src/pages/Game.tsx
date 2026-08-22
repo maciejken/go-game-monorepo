@@ -157,6 +157,7 @@ function GameView({ gameId }: GameViewProps) {
     turnStartedAt,
     lastMove,
     canUndo,
+    shortResult,
     error,
     play,
     pass,
@@ -622,14 +623,26 @@ function GameView({ gameId }: GameViewProps) {
             )}
             {scoring && !isReviewing && isParticipant && (
               <div className="go-actions">
-                <button type="button" onClick={resume}>
-                  {describeUndoAction(myColor, pendingUndoBy, true, isAiOpponent)}
-                </button>
-                <button type="button" onClick={finalize}>
-                  Finalize scoring
+                {(() => {
+                  const resumeLabel = describeUndoAction(myColor, pendingUndoBy, true, isAiOpponent);
+                  return resumeLabel === 'Resume' ? (
+                    <button type="button" className="icon-action-button" aria-label="Resume" onClick={resume}>
+                      ▶
+                    </button>
+                  ) : (
+                    <button type="button" onClick={resume}>
+                      {resumeLabel}
+                    </button>
+                  );
+                })()}
+                <button type="button" className="icon-action-button" aria-label="Finalize scoring" onClick={finalize}>
+                  <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+                    <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                  </svg>
                 </button>
               </div>
             )}
+            {finished && !isReviewing && shortResult && <span className="footer-result">{shortResult}</span>}
             {isReviewing && (
               <div className="review-controls">
                 <button

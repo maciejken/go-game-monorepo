@@ -41,6 +41,7 @@ export function useGame(gameId: string) {
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const [lastMove, setLastMove] = useState<Point | null>(null);
   const [canUndo, setCanUndo] = useState(false);
+  const [shortResult, setShortResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -71,6 +72,7 @@ export function useGame(gameId: string) {
         setTurnStartedAt(game.turnStartedAt);
         setLastMove(game.lastMove);
         setCanUndo(game.canUndo);
+        setShortResult(game.shortResult);
       })
       .catch((err: Error) => setError(err.message));
   }, [gameId]);
@@ -124,9 +126,11 @@ export function useGame(gameId: string) {
         setStatus(res.status);
         setResult(res.result);
         setEndReason('resign');
+        // The response doesn't carry shortResult — refresh to pick it up.
+        return refresh();
       })
       .catch((err: Error) => setError(err.message));
-  }, [gameId, currentColor, myColor]);
+  }, [gameId, currentColor, myColor, refresh]);
 
   const undo = useCallback(() => {
     setError(null);
@@ -169,13 +173,15 @@ export function useGame(gameId: string) {
           setResult(res.result);
           setCaptures(res.captures);
           setEndReason('scoring');
+          // The response doesn't carry shortResult — refresh to pick it up.
+          return refresh();
         })
         .catch((err: Error) => {
           setError(err.message);
           throw err;
         });
     },
-    [gameId],
+    [gameId, refresh],
   );
 
   const clearError = useCallback(() => setError(null), []);
@@ -206,6 +212,7 @@ export function useGame(gameId: string) {
     turnStartedAt,
     lastMove,
     canUndo,
+    shortResult,
     error,
     play,
     pass,

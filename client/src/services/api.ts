@@ -55,6 +55,7 @@ export interface GameStateResponse extends GameResponse, ClockFields {
   isAiOpponent: boolean;
   lastMove: Point | null;
   canUndo: boolean;
+  shortResult: string | null;
 }
 
 export interface GameSummary {

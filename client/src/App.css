@@ -433,12 +433,18 @@
   }
 }
 
-/* Icon-only (⏮ ◀ ▶ ⏭), so a squarer, tighter button suits them better than
-   the text buttons' wide horizontal padding. */
-.review-controls button {
-  width: 32px;
-  height: 32px;
+/* Icon-only (⏮ ◀ ▶ ⏭ and the scoring-phase Resume/Finalize icons), so a
+   squarer, tighter button suits them better than the text buttons' wide
+   horizontal padding — kept the same size across both for consistency. */
+.review-controls button,
+.icon-action-button {
+  width: 44px;
+  height: 44px;
   padding: 0;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Tapping the turn-marker stone opens a balloon with the turn actions
@@ -525,6 +531,13 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Compact standard-notation result (e.g. "W+6.5") — the longer sentence
+   under the board stays as-is and covers the details. */
+.footer-result {
+  font-weight: 600;
+  font-size: 16px;
 }
 
 .capture-count {
@@ -672,6 +685,7 @@
 }
 
 .go-stone {
+  position: relative;
   width: calc(var(--cell) - 4px);
   height: calc(var(--cell) - 4px);
   border-radius: 50%;
@@ -687,9 +701,26 @@
   border: 1px solid rgba(0, 0, 0, 0.3);
 }
 
-.go-stone--last {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+/* A contrasting dot at the stone's center — more visible at a glance (in
+   both live and review mode) than an outline, especially at small cell
+   sizes on narrow screens. */
+.go-stone--last::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32%;
+  height: 32%;
+  border-radius: 50%;
+}
+
+.go-stone--black.go-stone--last::after {
+  background: #ffffff;
+}
+
+.go-stone--white.go-stone--last::after {
+  background: #0a0a0a;
 }
 
 .go-stone--dead {

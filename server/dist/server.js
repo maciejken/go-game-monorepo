@@ -782,6 +782,10 @@ app.get('/api/games/:id', (req, res) => {
         currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
         captures: getCumulativeCaptures(game.id),
         lastMove: getLastMovePoint(game.id),
+        // Standard-notation result (e.g. "W+6.5", "B+R") — same derivation the
+        // SGF export uses, for a compact footer display next to the longer
+        // free-text `result` sentence shown under the board.
+        shortResult: deriveSgfResult(game),
         canUndo: hasUndoableEvent(game.id),
         blackUsername: getUsername(game.black_user_id),
         whiteUsername: getUsername(game.white_user_id),
