@@ -13,6 +13,7 @@ import {
   type TimeControlName,
 } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { useDialog } from '../hooks/useDialog';
 import { useLiveSocket } from '../hooks/useLiveSocket';
 import { timeControlLabel } from '../utils/clock';
 
@@ -53,6 +54,7 @@ function SliderTicks({ count }: { count: number }) {
 
 function Home() {
   const { user, logout } = useAuth();
+  const { confirm: confirmDialog } = useDialog();
   const navigate = useNavigate();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -125,13 +127,15 @@ function Home() {
   };
 
   const handleDelete = (id: string) => {
-    if (!window.confirm('Delete this game and all its moves? This cannot be undone.')) {
-      return;
-    }
-    setError(null);
-    deleteGame(id)
-      .then(refresh)
-      .catch((err: Error) => setError(err.message));
+    confirmDialog('Delete this game and all its moves? This cannot be undone.', 'Delete').then((confirmed) => {
+      if (!confirmed) {
+        return;
+      }
+      setError(null);
+      deleteGame(id)
+        .then(refresh)
+        .catch((err: Error) => setError(err.message));
+    });
   };
 
   return (

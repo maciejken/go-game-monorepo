@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Board, Color, Point } from 'shared';
 import {
+  ApiError,
   finalizeScoring as finalizeScoringRequest,
   getGame,
   makeMove,
@@ -42,6 +43,7 @@ export function useGame(gameId: string) {
   const [lastMove, setLastMove] = useState<Point | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [shortResult, setShortResult] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -74,7 +76,13 @@ export function useGame(gameId: string) {
         setCanUndo(game.canUndo);
         setShortResult(game.shortResult);
       })
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) => {
+        if (err instanceof ApiError && err.status === 404) {
+          setNotFound(true);
+        } else {
+          setError(err.message);
+        }
+      });
   }, [gameId]);
 
   useEffect(() => {
@@ -213,6 +221,7 @@ export function useGame(gameId: string) {
     lastMove,
     canUndo,
     shortResult,
+    notFound,
     error,
     play,
     pass,

@@ -138,10 +138,22 @@ export interface GameHistoryResponse {
   moves: HistoryEntry[];
 }
 
+// Carries the HTTP status alongside the server's error message, so callers
+// can distinguish e.g. a 404 (the resource doesn't exist) from other
+// failures without string-matching the message.
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function handle<T>(res: Response): Promise<T> {
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error ?? 'Request failed');
+    throw new ApiError(data.error ?? 'Request failed', res.status);
   }
   return data as T;
 }

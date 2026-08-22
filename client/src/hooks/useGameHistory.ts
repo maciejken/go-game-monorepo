@@ -17,5 +17,7 @@ export function useGameHistory(gameId: string) {
       });
   }, [gameId]);
 
-  return { history, error, load };
+  const clearError = useCallback(() => setError(null), []);
+
+  return { history, error, load, clearError };
 }

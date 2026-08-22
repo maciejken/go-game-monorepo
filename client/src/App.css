@@ -73,6 +73,15 @@
   background: var(--code-bg);
 }
 
+/* Separates game-specific actions (Review, Export SGF, Delete game, ...)
+   from the more general options below (Settings, Log in/out). */
+.go-menu-divider {
+  width: 100%;
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -115,6 +124,27 @@
   border-radius: 4px;
   padding: 6px 14px;
   cursor: pointer;
+}
+
+/* Replaces window.confirm/window.alert (see DialogProvider) — styled like
+   the other modals, with a fixed max width since it's just a sentence or
+   two rather than a form. */
+.dialog-modal {
+  max-width: 320px;
+}
+
+.dialog-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.dialog-message svg {
+  flex-shrink: 0;
+}
+
+.dialog-message p {
+  margin: 0;
 }
 
 .go-footer {
@@ -409,6 +439,42 @@
   color: #d1242f;
 }
 
+/* A toast above the footer rather than inline text, so it doesn't shift
+   other footer/board content and reads clearly regardless of where in the
+   game view it was triggered from. Auto-dismisses after 5s (see the
+   useEffect in Game.tsx) or closes on click. */
+.error-toast {
+  position: fixed;
+  bottom: 71px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(90vw, 360px);
+  padding: 10px 12px;
+  background: #fff;
+  color: #0a0a0a;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 25;
+}
+
+.error-toast span {
+  flex: 1;
+}
+
+.error-toast button {
+  appearance: none;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
 .go-actions,
 .review-controls {
   display: flex;
@@ -536,8 +602,26 @@
 /* Compact standard-notation result (e.g. "W+6.5") — the longer sentence
    under the board stays as-is and covers the details. */
 .footer-result {
+  appearance: none;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
   font-weight: 600;
   font-size: 16px;
+  cursor: pointer;
+}
+
+.go-result-balloon {
+  color: #0a0a0a;
+  padding: 10px 12px;
+  text-align: left;
+  max-width: 220px;
+}
+
+.go-result-balloon-title {
+  font-weight: 600;
+  margin-bottom: 2px;
 }
 
 .capture-count {
@@ -582,6 +666,20 @@
    (board width = (size + 1) * cell - 4, so solve for the cell delta). */
 .go-board-frame--no-coords {
   --cell: calc(var(--cell-base) + (2 * var(--coord-width)) / (var(--size) + 1));
+}
+
+/* Once the board is already shrinking to fit, the page's own side padding
+   is wasted space — the board's internal grid padding (--pad) is margin
+   enough on its own, so drop the page padding and let cells reclaim it. */
+@media (max-width: 600px) {
+  .go-board-wrap {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .go-board-frame {
+    --cell-base: min(28px, calc((100vw - 20px) / (var(--size) + 1)));
+  }
 }
 
 .game-title {

@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { applyDeadStones, getGroup, getKomi, scoreBoard, type Color, type Point } from 'shared';
 import { useAuth } from '../hooks/useAuth';
+import { useDialog } from '../hooks/useDialog';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
-import { sgfExportUrl, type Captures, type HistoryEntry, type MyColor } from '../services/api';
+import { deleteGame, sgfExportUrl, type Captures, type HistoryEntry, type MyColor } from '../services/api';
 import { computeLiveClock, formatClock } from '../utils/clock';
 
 // Go board columns skip the letter "I" to avoid confusion with the numeral 1
@@ -158,6 +159,7 @@ function GameView({ gameId }: GameViewProps) {
     lastMove,
     canUndo,
     shortResult,
+    notFound,
     error,
     play,
     pass,
@@ -167,8 +169,9 @@ function GameView({ gameId }: GameViewProps) {
     reopenScoring,
     clearError,
   } = useGame(gameId);
-  const { history, error: historyError, load: loadHistory } = useGameHistory(gameId);
+  const { history, error: historyError, load: loadHistory, clearError: clearHistoryError } = useGameHistory(gameId);
   const { user, logout } = useAuth();
+  const { confirm: confirmDialog, alert: alertDialog } = useDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -178,10 +181,12 @@ function GameView({ gameId }: GameViewProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [turnMenuOpen, setTurnMenuOpen] = useState(false);
+  const [resultBalloonOpen, setResultBalloonOpen] = useState(false);
   const [pendingDead, setPendingDead] = useState<Set<string>>(new Set());
   const [nowMs, setNowMs] = useState(() => Date.now());
   const menuRef = useRef<HTMLDivElement>(null);
   const turnMenuRef = useRef<HTMLDivElement>(null);
+  const resultBalloonRef = useRef<HTMLDivElement>(null);
 
   const moveParam = searchParams.get('move');
   const isReviewing = moveParam !== null;
@@ -225,6 +230,32 @@ function GameView({ gameId }: GameViewProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [turnMenuOpen]);
 
+  // Close the result balloon on any click outside it.
+  useEffect(() => {
+    if (!resultBalloonOpen) {
+      return;
+    }
+    const handleClickOutside = (e: MouseEvent) => {
+      if (resultBalloonRef.current && !resultBalloonRef.current.contains(e.target as Node)) {
+        setResultBalloonOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [resultBalloonOpen]);
+
+  // Auto-dismiss the error toast after 5s — it can also be closed early.
+  useEffect(() => {
+    if (!error && !historyError) {
+      return;
+    }
+    const timeout = setTimeout(() => {
+      clearError();
+      clearHistoryError();
+    }, 5000);
+    return () => clearTimeout(timeout);
+  }, [error, historyError, clearError, clearHistoryError]);
+
   // Close the settings modal on Escape.
   useEffect(() => {
     if (!settingsOpen) {
@@ -249,6 +280,10 @@ function GameView({ gameId }: GameViewProps) {
     wasReviewing.current = isReviewing;
   }, [isReviewing, loadHistory]);
 
+
+  if (notFound) {
+    return <p>Game not found.</p>;
+  }
 
   if (!liveBoard) {
     return <p>Loading game...</p>;
@@ -373,6 +408,17 @@ function GameView({ gameId }: GameViewProps) {
       .catch(() => {});
   };
 
+  const handleDeleteGame = () => {
+    confirmDialog('Delete this game and all its moves? This cannot be undone.', 'Delete').then((confirmed) => {
+      if (!confirmed) {
+        return;
+      }
+      deleteGame(gameId)
+        .then(() => navigate('/'))
+        .catch((err: Error) => alertDialog(err.message));
+    });
+  };
+
   const toggleCoords = () => {
     setShowCoords((prev) => {
       const next = !prev;
@@ -431,6 +477,18 @@ function GameView({ gameId }: GameViewProps) {
                   {describeReopenAction(myColor, pendingReopenBy, isAiOpponent)}
                 </button>
               )}
+              {isParticipant && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleDeleteGame();
+                  }}
+                >
+                  Delete game
+                </button>
+              )}
+              <hr className="go-menu-divider" />
               <button
                 type="button"
                 onClick={() => {
@@ -527,7 +585,6 @@ function GameView({ gameId }: GameViewProps) {
             ))}
           </div>
         </div>
-        {!isReviewing && finished && <p>{result}</p>}
         {!isReviewing && scoring && (
           <p>
             Marking dead stones — click a stone to toggle its group.
@@ -554,7 +611,6 @@ function GameView({ gameId }: GameViewProps) {
         {!isReviewing && !isParticipant && status !== 'finished' && (
           <p>You're viewing as a spectator — log in as a player in this game to make moves.</p>
         )}
-        {!isReviewing && error && <p className="error">{error}</p>}
         {isReviewing && (
           <p>
             {reviewEntry ? describeEntry(reviewEntry, size) : 'Loading history...'}
@@ -642,7 +698,25 @@ function GameView({ gameId }: GameViewProps) {
                 </button>
               </div>
             )}
-            {finished && !isReviewing && shortResult && <span className="footer-result">{shortResult}</span>}
+            {finished && !isReviewing && shortResult && (
+              <div className="go-turn-menu" ref={resultBalloonRef}>
+                <button
+                  type="button"
+                  className="footer-result"
+                  onClick={() => setResultBalloonOpen((open) => !open)}
+                >
+                  {shortResult}
+                </button>
+                {resultBalloonOpen && (
+                  <div className="go-turn-balloon go-result-balloon">
+                    {title && <div className="go-result-balloon-title">{title}</div>}
+                    <div>Black: {blackUsername ?? '—'}</div>
+                    <div>White: {whiteUsername ?? '—'}</div>
+                    <div>{result}</div>
+                  </div>
+                )}
+              </div>
+            )}
             {isReviewing && (
               <div className="review-controls">
                 <button
@@ -689,8 +763,28 @@ function GameView({ gameId }: GameViewProps) {
             W: <span className="capture-count capture-count--black">{displayedCaptures.white}</span>
           </span>
         </div>
-        {isReviewing && historyError && <p className="error">{historyError}</p>}
       </footer>
+      {(error || historyError) && (
+        <div className="error-toast">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              fill="#d1242f"
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+            />
+          </svg>
+          <span>{error || historyError}</span>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              clearError();
+              clearHistoryError();
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
       {settingsOpen && (
         <div className="modal-overlay" onClick={() => setSettingsOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
