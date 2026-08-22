@@ -682,6 +682,10 @@
   cursor: pointer;
 }
 
+.footer-result--static {
+  cursor: default;
+}
+
 .go-result-balloon {
   /* Overrides .go-turn-balloon's 170px min-width — this one should hug
      its longest line instead of leaving empty space for short content. */

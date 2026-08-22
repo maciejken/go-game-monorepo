@@ -42,7 +42,7 @@ export interface GameResponse {
 
 // How a finished game ended — only a 'scoring' finish can be reopened via
 // redo-scoring; resignations and timeouts have nothing to rescore.
-export type EndReason = 'scoring' | 'resign' | 'timeout' | null;
+export type EndReason = 'scoring' | 'resign' | 'timeout' | 'ended' | null;
 
 // Describable record of the most recent event (move/pass/resign), for
 // narrating live play to screen readers. Shares its shape with HistoryEntry
@@ -75,6 +75,7 @@ export interface GameSummary {
   id: string;
   size: number;
   handicap: number;
+  komi: number;
   title: string | null;
   status: string;
   result: string | null;
@@ -105,6 +106,11 @@ export interface PassResponse {
 export interface ResignResponse {
   status: string;
   result: string | null;
+}
+
+export interface EndGameResponse {
+  status: string;
+  result: null;
 }
 
 // A local game (one account playing both colors) always undoes immediately
@@ -262,6 +268,10 @@ export function resignGame(id: string, color: Color): Promise<ResignResponse> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ color }),
   }).then((res) => handle<ResignResponse>(res));
+}
+
+export function endGame(id: string): Promise<EndGameResponse> {
+  return fetch(`${API_BASE}/games/${id}/end`, { method: 'POST' }).then((res) => handle<EndGameResponse>(res));
 }
 
 export function undoMove(id: string): Promise<UndoResponse> {

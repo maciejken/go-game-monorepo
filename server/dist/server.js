@@ -710,6 +710,7 @@ app.get('/api/games', (req, res) => {
         status: row.status,
         result: row.result,
         handicap: row.handicap,
+        komi: resolveKomi(row),
         title: row.title,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -1289,6 +1290,36 @@ app.post('/api/games/:id/resign', (req, res) => {
     }
     const gameResult = applyResignToGame(game, color);
     res.json({ status: 'finished', result: gameResult });
+});
+// Immediately finishes a local game with no formal result — only makes
+// sense for a game the caller plays entirely alone (black_user_id and
+// white_user_id both their own id), since anyone else in the game would
+// have no say in ending it this way.
+app.post('/api/games/:id/end', (req, res) => {
+    let game = getGameRow(req.params.id);
+    if (!game) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+    }
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    game = withTimeoutCheck(game);
+    if (game.status === 'finished') {
+        res.status(400).json({ error: 'Game is already finished' });
+        return;
+    }
+    if (game.black_user_id !== user.id || game.white_user_id !== user.id) {
+        res.status(403).json({ error: 'Only a local game can be ended this way' });
+        return;
+    }
+    const now = Date.now();
+    db.prepare('UPDATE games SET status = ?, end_reason = ?, updated_at = ? WHERE id = ?')
+        .run('finished', 'ended', now, game.id);
+    broadcastGameUpdate(game.id);
+    broadcastGamesListUpdate();
+    res.json({ status: 'finished', result: null });
 });
 // For React Router — serve index.html for all non-API routes
 app.get('/{*path}', (req, res) => {

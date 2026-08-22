@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Board, Color, Point } from 'shared';
 import {
   ApiError,
+  endGame as endGameRequest,
   finalizeScoring as finalizeScoringRequest,
   getGame,
   makeMove,
@@ -147,6 +148,18 @@ export function useGame(gameId: string) {
       .catch((err: Error) => setError(err.message));
   }, [gameId, currentColor, myColor, refresh]);
 
+  const endGame = useCallback(() => {
+    setError(null);
+    endGameRequest(gameId)
+      .then((res) => {
+        setStatus(res.status);
+        setResult(res.result);
+        setEndReason('ended');
+        return refresh();
+      })
+      .catch((err: Error) => setError(err.message));
+  }, [gameId, refresh]);
+
   const undo = useCallback(() => {
     setError(null);
     undoMove(gameId)
@@ -236,6 +249,7 @@ export function useGame(gameId: string) {
     play,
     pass,
     resign,
+    endGame,
     undo,
     finalizeScoring,
     reopenScoring,

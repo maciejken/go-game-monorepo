@@ -167,6 +167,7 @@ function GameView({ gameId }: GameViewProps) {
     play,
     pass,
     resign,
+    endGame,
     undo,
     finalizeScoring,
     reopenScoring,
@@ -427,6 +428,14 @@ function GameView({ gameId }: GameViewProps) {
       .catch(() => {});
   };
 
+  const handleEndGame = () => {
+    confirmDialog('End this game now? It will finish with no result.', 'End game').then((confirmed) => {
+      if (confirmed) {
+        endGame();
+      }
+    });
+  };
+
   const handleDeleteGame = () => {
     confirmDialog('Delete this game and all its moves? This cannot be undone.', 'Delete').then((confirmed) => {
       if (!confirmed) {
@@ -500,6 +509,17 @@ function GameView({ gameId }: GameViewProps) {
                   }}
                 >
                   {describeReopenAction(myColor, pendingReopenBy, isAiOpponent)}
+                </button>
+              )}
+              {myColor === 'both' && !finished && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleEndGame();
+                  }}
+                >
+                  End game
                 </button>
               )}
               {isParticipant && (
@@ -749,10 +769,14 @@ function GameView({ gameId }: GameViewProps) {
                   <div className="go-turn-balloon go-result-balloon">
                     {title && <div className="go-result-balloon-title">{title}</div>}
                     {handicap > 0 && <div>Handicap: {handicap}</div>}
+                    <div>{komi === 0 ? 'No komi' : `Komi: ${komi}`}</div>
                     <div>{resultSummary}</div>
                   </div>
                 )}
               </div>
+            )}
+            {finished && !isReviewing && !shortResult && endReason === 'ended' && (
+              <span className="footer-result footer-result--static">No result</span>
             )}
             {isReviewing && (
               <div className="review-controls">
