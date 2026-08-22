@@ -43,6 +43,7 @@ export function useGame(gameId: string) {
   const [lastMove, setLastMove] = useState<Point | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [shortResult, setShortResult] = useState<string | null>(null);
+  const [resultBreakdown, setResultBreakdown] = useState<{ black: number; white: number } | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,6 +76,7 @@ export function useGame(gameId: string) {
         setLastMove(game.lastMove);
         setCanUndo(game.canUndo);
         setShortResult(game.shortResult);
+        setResultBreakdown(game.resultBreakdown);
       })
       .catch((err: Error) => {
         if (err instanceof ApiError && err.status === 404) {
@@ -221,6 +223,7 @@ export function useGame(gameId: string) {
     lastMove,
     canUndo,
     shortResult,
+    resultBreakdown,
     notFound,
     error,
     play,

@@ -159,6 +159,7 @@ function GameView({ gameId }: GameViewProps) {
     lastMove,
     canUndo,
     shortResult,
+    resultBreakdown,
     notFound,
     error,
     play,
@@ -313,6 +314,14 @@ function GameView({ gameId }: GameViewProps) {
   // Local games and AI games undo immediately (no negotiation) — same split
   // describeUndoAction uses to pick a label.
   const isImmediateUndo = myColor === 'both' || isAiOpponent;
+  // The result balloon shows each player's own point total on their own
+  // row when there's a breakdown to show, so the "(B: x, W: y)" suffix on
+  // the summary sentence itself would just repeat it — drop it there.
+  const resultSummary = resultBreakdown ? result?.replace(/\s*\(B: [\d.]+, W: [\d.]+\)\s*$/, '') : result;
+  // shortResult's leading letter names the winner regardless of how the
+  // game ended (scored, resigned, or timed out) — reused here so the star
+  // doesn't need its own separate parsing of `result`.
+  const winnerColor: Color | null = shortResult?.startsWith('B') ? 'black' : shortResult?.startsWith('W') ? 'white' : null;
 
   // Live preview of the final result as dead stones are marked, computed
   // client-side with the same shared scoring logic the server uses at
@@ -710,9 +719,33 @@ function GameView({ gameId }: GameViewProps) {
                 {resultBalloonOpen && (
                   <div className="go-turn-balloon go-result-balloon">
                     {title && <div className="go-result-balloon-title">{title}</div>}
-                    <div>Black: {blackUsername ?? '—'}</div>
-                    <div>White: {whiteUsername ?? '—'}</div>
-                    <div>{result}</div>
+                    <div className="go-result-player">
+                      <span className="capture-count capture-count--black" />
+                      {blackUsername ?? '—'}
+                      {resultBreakdown && ` ${resultBreakdown.black}`}
+                      {winnerColor === 'black' && (
+                        <svg className="go-result-winner-star" viewBox="0 0 24 24" width="16" height="16" aria-label="Winner">
+                          <path
+                            fill="currentColor"
+                            d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="go-result-player">
+                      <span className="capture-count capture-count--white" />
+                      {whiteUsername ?? '—'}
+                      {resultBreakdown && ` ${resultBreakdown.white}`}
+                      {winnerColor === 'white' && (
+                        <svg className="go-result-winner-star" viewBox="0 0 24 24" width="16" height="16" aria-label="Winner">
+                          <path
+                            fill="currentColor"
+                            d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <div>{resultSummary}</div>
                   </div>
                 )}
               </div>

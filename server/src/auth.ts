@@ -47,16 +47,17 @@ export interface SessionUser {
   username: string;
 }
 
-// No `secure` flag — this app is explicitly served over plain HTTP for now.
+// `Secure` — the app now supports HTTPS, so the session cookie should
+// never go over a plain connection.
 export function setSessionCookie(res: Response, token: string): void {
   res.setHeader(
     'Set-Cookie',
-    `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE_SECONDS}`,
+    `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE_SECONDS}`,
   );
 }
 
 export function clearSessionCookie(res: Response): void {
-  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
 }
 
 export function createSession(userId: string): string {

@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import db from './db.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -54,25 +55,6 @@ app.use(express.static(path.resolve(__dirname, '../../client/dist')));
 
 app.get('/', (req, res) => {
   res.json({ message: 'Go server is running!' });
-});
-
-app.get('/db-test', (req, res) => {
-  try {
-    db.prepare(`
-      INSERT INTO events (game_id, move_number, event_type, payload, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(
-      'perm-test',
-      1,
-      'TEST',
-      JSON.stringify({ ok: true }),
-      Date.now()
-    );
-
-    res.json({ ok: true });
-  } catch (error) {
-    res.json({ error });
-  }
 });
 
 interface GameRow {
@@ -258,6 +240,11 @@ const STAR_POINTS: Record<number, StarPoints> = {
     leftMid: [3, 9], rightMid: [15, 9], topMid: [9, 3], bottomMid: [9, 15],
   },
 };
+
+// The only board sizes the app actually supports — derived from
+// STAR_POINTS so there's one source of truth, and used to validate
+// client-supplied `size` on game creation (see POST /api/games).
+const ALLOWED_BOARD_SIZES = Object.keys(STAR_POINTS).map(Number);
 
 // Handicap stone placement order, per the standard table: corners fill
 // upper-right, lower-left, lower-right, upper-left; center is included only
@@ -533,6 +520,18 @@ function deriveSgfResult(game: GameRow): string | null {
   return null;
 }
 
+// Each player's own point total for a scored finish (e.g. "White wins by
+// 6.5 (B: 0, W: 6.5)" -> { black: 0, white: 6.5 }) — parsed from the same
+// sentence rather than stored separately. Resignation/timeout finishes
+// have no per-player point total, so this is scoring-only.
+function deriveScoreBreakdown(game: GameRow): { black: number; white: number } | null {
+  if (!game.result || game.end_reason !== 'scoring') {
+    return null;
+  }
+  const match = /\(B: ([\d.]+), W: ([\d.]+)\)/.exec(game.result);
+  return match ? { black: Number(match[1]), white: Number(match[2]) } : null;
+}
+
 // Handicap stones are SGF setup properties (AB[]) on the root node, not
 // moves — the real move sequence starts with White, same as in the app.
 function generateSgf(game: GameRow): string {
@@ -791,18 +790,23 @@ async function maybeTriggerAiMove(gameId: string): Promise<void> {
 }
 
 const MIN_USERNAME_LENGTH = 3;
+const MAX_USERNAME_LENGTH = 12;
 const MIN_PASSWORD_LENGTH = 6;
+// Generous but bounded — an unbounded password lets a client force
+// expensive scrypt hashing over an arbitrarily large string on every
+// register/login attempt.
+const MAX_PASSWORD_LENGTH = 128;
 
 app.post('/api/auth/register', (req, res) => {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
 
-  if (username.length < MIN_USERNAME_LENGTH) {
-    res.status(400).json({ error: `Username must be at least ${MIN_USERNAME_LENGTH} characters` });
+  if (username.length < MIN_USERNAME_LENGTH || username.length > MAX_USERNAME_LENGTH) {
+    res.status(400).json({ error: `Username must be ${MIN_USERNAME_LENGTH}-${MAX_USERNAME_LENGTH} characters` });
     return;
   }
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+  if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+    res.status(400).json({ error: `Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` });
     return;
   }
 
@@ -821,9 +825,27 @@ app.post('/api/auth/register', (req, res) => {
   res.status(201).json({ id, username });
 });
 
-app.post('/api/auth/login', (req, res) => {
+// Standard login-throttling values (express-rate-limit's own canonical
+// example, matching common OWASP-style guidance): 5 attempts per 15
+// minutes per IP, to slow down password brute-forcing.
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts — try again later.' },
+});
+
+app.post('/api/auth/login', loginRateLimiter, (req, res) => {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+  // Reject oversized input before it ever reaches a DB lookup or a scrypt
+  // hash comparison — a valid credential can never be this long anyway.
+  if (username.length > MAX_USERNAME_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+    res.status(401).json({ error: 'Invalid username or password' });
+    return;
+  }
 
   const user = db.prepare('SELECT id, username, password_hash FROM users WHERE username = ?').get(username) as
     | { id: string; username: string; password_hash: string }
@@ -889,9 +911,15 @@ app.post('/api/games', async (req, res) => {
     return;
   }
 
-  const size = Number(req.body?.size) || 19;
+  // An unbounded size would let a client force an arbitrarily huge board
+  // allocation (createEmptyBoard(size) is O(size^2)) — only the sizes the
+  // client actually offers are valid, so anything else falls back to 19
+  // rather than trusting the request.
+  const requestedSize = Number(req.body?.size);
+  const size = ALLOWED_BOARD_SIZES.includes(requestedSize) ? requestedSize : 19;
   // Handicap placement is only defined for boards with a known star-point layout
-  const handicap = STAR_POINTS[size] ? Math.max(0, Number(req.body?.handicap) || 0) : 0;
+  const maxHandicap = size === 19 ? 9 : 5;
+  const handicap = STAR_POINTS[size] ? Math.min(Math.max(0, Number(req.body?.handicap) || 0), maxHandicap) : 0;
   const title = sanitizeTitle(req.body?.title);
   const timeControlName: TimeControlName = req.body?.timeControl === 'standard' || req.body?.timeControl === 'correspondence'
     ? req.body.timeControl
@@ -1037,6 +1065,7 @@ app.get('/api/games/:id', (req, res) => {
     // SGF export uses, for a compact footer display next to the longer
     // free-text `result` sentence shown under the board.
     shortResult: deriveSgfResult(game),
+    resultBreakdown: deriveScoreBreakdown(game),
     canUndo: hasUndoableEvent(game.id),
     blackUsername: getUsername(game.black_user_id),
     whiteUsername: getUsername(game.white_user_id),

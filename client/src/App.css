@@ -207,6 +207,32 @@
   color: var(--text);
 }
 
+.password-field {
+  position: relative;
+  display: flex;
+}
+
+.password-field input {
+  flex: 1;
+  padding-right: 32px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  cursor: pointer;
+}
+
 .auth-switch {
   appearance: none;
   background: none;
@@ -613,18 +639,43 @@
 }
 
 .go-result-balloon {
+  /* Overrides .go-turn-balloon's 170px min-width — this one should hug
+     its longest line instead of leaving empty space for short content. */
+  min-width: 0;
+  max-width: min(320px, 90vw);
   color: #0a0a0a;
   padding: 10px 12px;
   text-align: left;
-  max-width: 220px;
+  /* Flex items can shrink their text below its natural width by default,
+     which would let a line silently wrap during the shrink-to-fit sizing
+     pass and throw off the "widest line" width calculation — nowrap keeps
+     every line honest about its true width; the max-width/ellipsis above
+     and below are the fallback for a line so long it'd bust that width. */
+  white-space: nowrap;
 }
 
-.go-result-balloon-title {
-  font-weight: 600;
-  margin-bottom: 2px;
+.go-result-balloon-title,
+.go-result-balloon > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A row per player: the stone marker as a flex item alongside the text,
+   centered against it regardless of font metrics (more reliable here than
+   vertical-align on an inline element). */
+.go-result-player {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.go-result-winner-star {
+  color: #e3a008;
+  flex-shrink: 0;
 }
 
 .capture-count {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;

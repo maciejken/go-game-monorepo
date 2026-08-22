@@ -36,12 +36,13 @@ function parseCookies(header) {
     }
     return cookies;
 }
-// No `secure` flag — this app is explicitly served over plain HTTP for now.
+// `Secure` — the app now supports HTTPS, so the session cookie should
+// never go over a plain connection.
 export function setSessionCookie(res, token) {
-    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE_SECONDS}`);
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE_SECONDS}`);
 }
 export function clearSessionCookie(res) {
-    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
 }
 export function createSession(userId) {
     const token = randomUUID();
