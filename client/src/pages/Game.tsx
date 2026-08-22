@@ -331,7 +331,6 @@ function GameView({ gameId }: GameViewProps) {
   // shortResult's leading letter names the winner regardless of how the
   // game ended (scored, resigned, or timed out) — reused here so the star
   // doesn't need its own separate parsing of `result`.
-  const winnerColor: Color | null = shortResult?.startsWith('B') ? 'black' : shortResult?.startsWith('W') ? 'white' : null;
 
   // Live preview of the final result as dead stones are marked, computed
   // client-side with the same shared scoring logic the server uses at
@@ -460,7 +459,13 @@ function GameView({ gameId }: GameViewProps) {
         <button type="button" className="back-toggle" onClick={() => navigate(-1)}>
           Back
         </button>
-        {title ? <h2 className="game-title">{title}</h2> : <span />}
+        {myColor === 'both' ? (
+          title ? <h2 className="game-title">{title}</h2> : <span />
+        ) : (
+          <h2 className="game-title">
+            {blackUsername ?? '—'} vs {whiteUsername ?? '—'}
+          </h2>
+        )}
         <div className="go-menu" ref={menuRef}>
           <button type="button" className="go-menu-toggle" onClick={() => setMenuOpen((open) => !open)}>
             Menu ▾
@@ -549,12 +554,6 @@ function GameView({ gameId }: GameViewProps) {
         {liveAnnouncement}
       </div>
       <div className="go-board-wrap">
-        {handicap > 0 && <p>Handicap: {handicap}</p>}
-        {myColor !== 'both' && (blackUsername || whiteUsername) && (
-          <p>
-            Black: {blackUsername ?? '—'} · White: {whiteUsername ?? '—'}
-          </p>
-        )}
         <div
           className={`go-board-frame${showCoords ? '' : ' go-board-frame--no-coords'}`}
           style={{ '--size': size } as React.CSSProperties}
@@ -748,32 +747,7 @@ function GameView({ gameId }: GameViewProps) {
                 {resultBalloonOpen && (
                   <div className="go-turn-balloon go-result-balloon">
                     {title && <div className="go-result-balloon-title">{title}</div>}
-                    <div className="go-result-player">
-                      <span className="capture-count capture-count--black" />
-                      {blackUsername ?? '—'}
-                      {resultBreakdown && ` ${resultBreakdown.black}`}
-                      {winnerColor === 'black' && (
-                        <svg className="go-result-winner-star" viewBox="0 0 24 24" width="16" height="16" aria-label="Winner">
-                          <path
-                            fill="currentColor"
-                            d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
-                          />
-                        </svg>
-                      )}
-                    </div>
-                    <div className="go-result-player">
-                      <span className="capture-count capture-count--white" />
-                      {whiteUsername ?? '—'}
-                      {resultBreakdown && ` ${resultBreakdown.white}`}
-                      {winnerColor === 'white' && (
-                        <svg className="go-result-winner-star" viewBox="0 0 24 24" width="16" height="16" aria-label="Winner">
-                          <path
-                            fill="currentColor"
-                            d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
-                          />
-                        </svg>
-                      )}
-                    </div>
+                    {handicap > 0 && <div>Handicap: {handicap}</div>}
                     <div>{resultSummary}</div>
                   </div>
                 )}
