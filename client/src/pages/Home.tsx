@@ -19,6 +19,10 @@ import { timeControlLabel } from '../utils/clock';
 
 const BOARD_SIZES = [9, 13, 19];
 
+// Komi choices for an even (no handicap) game, supporting correct scoring
+// under each classic ruleset; a handicap game always uses 0.5 instead.
+const KOMI_OPTIONS = [6.5, 5.5, 0.5, 0];
+
 // Matches the server's own default (GNUGO_LEVEL) and GTP --level's range.
 const GNUGO_LEVEL_DEFAULT = 5;
 const GNUGO_LEVEL_MIN = 1;
@@ -60,6 +64,7 @@ function Home() {
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState(19);
   const [handicap, setHandicap] = useState(0);
+  const [komi, setKomi] = useState(KOMI_OPTIONS[0]);
   const [title, setTitle] = useState('');
   const [mode, setMode] = useState<'local' | 'remote' | 'gnugo'>('local');
   const [timeControl, setTimeControl] = useState<TimeControlName>('unlimited');
@@ -116,6 +121,10 @@ function Home() {
     createGame({
       size,
       handicap,
+      // A handicap game always uses 0.5 komi — the select is hidden in
+      // that case, so the last-picked even-game value would otherwise be
+      // sent stale.
+      komi: handicap > 0 ? 0.5 : komi,
       title: title.trim() || undefined,
       mode,
       timeControl,
@@ -203,6 +212,18 @@ function Home() {
                   placeholder="Username"
                   required
                 />
+              </label>
+            )}
+            {handicap === 0 && (
+              <label className="modal-form-row">
+                <span className="modal-form-label">Komi</span>
+                <select value={komi} onChange={(e) => setKomi(Number(e.target.value))}>
+                  {KOMI_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </label>
             )}
             {(mode === 'remote' || mode === 'gnugo') && (

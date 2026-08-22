@@ -81,6 +81,7 @@ interface GameRow {
   white_periods_left: number | null;
   turn_started_at: number | null;
   gnugo_level: number | null;
+  komi: number | null;
 }
 
 function getGameRow(id: string): GameRow | undefined {
@@ -89,9 +90,15 @@ function getGameRow(id: string): GameRow | undefined {
            black_user_id, white_user_id, pending_undo_by, end_reason, pending_reopen_by,
            time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
            black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at,
-           gnugo_level
+           gnugo_level, komi
     FROM games WHERE id = ?
   `).get(id) as GameRow | undefined;
+}
+
+// Falls back to the handicap-derived default for games created before the
+// explicit per-game komi setting existed.
+function resolveKomi(game: GameRow): number {
+  return game.komi ?? getKomi(game.handicap);
 }
 
 function getUsername(userId: string | null): string | null {
@@ -245,6 +252,14 @@ const STAR_POINTS: Record<number, StarPoints> = {
 // STAR_POINTS so there's one source of truth, and used to validate
 // client-supplied `size` on game creation (see POST /api/games).
 const ALLOWED_BOARD_SIZES = Object.keys(STAR_POINTS).map(Number);
+
+// Komi values that support correct classic scoring for an even (no
+// handicap) game: 6.5/5.5 for area/territory rulesets that use a
+// half-point komi to avoid ties, 0.5 for a minimal tie-breaker, and 0 for
+// the no-komi classical rule. A handicap game always uses 0.5 (see
+// POST /api/games) — that's still a valid choice here too, for an even
+// game that just wants to avoid draws.
+const ALLOWED_KOMI = [0, 0.5, 5.5, 6.5];
 
 // Handicap stone placement order, per the standard table: corners fill
 // upper-right, lower-left, lower-right, upper-left; center is included only
@@ -576,7 +591,7 @@ function generateSgf(game: GameRow): string {
     SELECT event_type, payload FROM events WHERE game_id = ? ORDER BY move_number ASC
   `).all(game.id) as { event_type: string; payload: string }[];
 
-  const rootProps = ['GM[1]', 'FF[4]', 'CA[UTF-8]', `SZ[${game.size}]`, `KM[${getKomi(game.handicap)}]`];
+  const rootProps = ['GM[1]', 'FF[4]', 'CA[UTF-8]', `SZ[${game.size}]`, `KM[${resolveKomi(game)}]`];
   if (game.handicap > 0) {
     rootProps.push(`HA[${game.handicap}]`);
   }
@@ -772,7 +787,7 @@ async function maybeTriggerAiMove(gameId: string): Promise<void> {
 
   const baseRequest = {
     size: game.size,
-    komi: getKomi(game.handicap),
+    komi: resolveKomi(game),
     moves: getReplayMoves(game.id),
     colorToMove: currentColor,
   };
@@ -957,6 +972,12 @@ app.post('/api/games', async (req, res) => {
   // Handicap placement is only defined for boards with a known star-point layout
   const maxHandicap = size === 19 ? 9 : 5;
   const handicap = STAR_POINTS[size] ? Math.min(Math.max(0, Number(req.body?.handicap) || 0), maxHandicap) : 0;
+  // A handicap game's komi is fixed at 0.5 (just enough to avoid a tie —
+  // the handicap stones are the real compensation); an even game picks
+  // from the values that support correct classic scoring under each rule
+  // set, ignoring anything else the client might send.
+  const requestedKomi = Number(req.body?.komi);
+  const komi = handicap > 0 ? 0.5 : ALLOWED_KOMI.includes(requestedKomi) ? requestedKomi : 6.5;
   const title = sanitizeTitle(req.body?.title);
   const timeControlName: TimeControlName = req.body?.timeControl === 'standard' || req.body?.timeControl === 'correspondence'
     ? req.body.timeControl
@@ -1026,9 +1047,9 @@ app.post('/api/games', async (req, res) => {
       id, size, handicap, title, created_at, updated_at, status, black_user_id, white_user_id,
       time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
       black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at,
-      gnugo_level
+      gnugo_level, komi
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, size, handicap, title, now, now, 'in_progress', blackUserId, whiteUserId,
     preset ? timeControlName : null,
@@ -1036,7 +1057,7 @@ app.post('/api/games', async (req, res) => {
     preset ? preset.byoyomiSeconds : null,
     initialPeriods,
     initialTimeMs, initialTimeMs, initialPeriods, initialPeriods, now,
-    gnugoLevel,
+    gnugoLevel, komi,
   );
 
   const board = createEmptyBoard(size);
@@ -1093,6 +1114,7 @@ app.get('/api/games/:id', (req, res) => {
     status: game.status,
     result: game.result,
     handicap: game.handicap,
+    komi: resolveKomi(game),
     title: game.title,
     board,
     currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
@@ -1389,7 +1411,7 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
     deadPoints,
   );
 
-  const score = scoreBoard(effectiveBoard, adjustedCaptures, getKomi(game.handicap));
+  const score = scoreBoard(effectiveBoard, adjustedCaptures, resolveKomi(game));
   const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
   const gameResult = `${winnerLabel} wins by ${score.margin.toFixed(1)} (B: ${score.black}, W: ${score.white})`;
 

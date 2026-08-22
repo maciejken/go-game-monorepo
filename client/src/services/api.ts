@@ -56,6 +56,7 @@ export interface LastEvent {
 
 export interface GameStateResponse extends GameResponse, ClockFields {
   currentColor: Color;
+  komi: number;
   result: string | null;
   captures: Captures;
   myColor: MyColor;
@@ -199,6 +200,7 @@ export async function deleteGame(id: string): Promise<void> {
 export interface CreateGameOptions {
   size?: number;
   handicap?: number;
+  komi?: number;
   title?: string;
   mode?: 'local' | 'remote' | 'gnugo';
   timeControl?: TimeControlName;

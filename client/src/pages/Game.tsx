@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { applyDeadStones, getGroup, getKomi, scoreBoard, type Color, type Point } from 'shared';
+import { applyDeadStones, getGroup, scoreBoard, type Color, type Point } from 'shared';
 import { useAuth } from '../hooks/useAuth';
 import { useDialog } from '../hooks/useDialog';
 import { useGame } from '../hooks/useGame';
@@ -139,6 +139,7 @@ function GameView({ gameId }: GameViewProps) {
     status,
     result,
     handicap,
+    komi,
     title,
     captures,
     blackUsername,
@@ -339,7 +340,7 @@ function GameView({ gameId }: GameViewProps) {
   if (scoring && !isReviewing) {
     const deadPointsArray = Array.from(pendingDead, parsePointKey);
     const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(liveBoard, captures, deadPointsArray);
-    const score = scoreBoard(effectiveBoard, adjustedCaptures, getKomi(handicap));
+    const score = scoreBoard(effectiveBoard, adjustedCaptures, komi);
     const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
     provisionalResult = `${winnerLabel} wins by ${score.margin.toFixed(1)} (B: ${score.black}, W: ${score.white})`;
   }

@@ -148,6 +148,12 @@ if (!gamesColumns.has('pending_reopen_by')) {
 if (!gamesColumns.has('gnugo_level')) {
   db.exec('ALTER TABLE games ADD COLUMN gnugo_level INTEGER');
 }
+// Explicit per-game komi, chosen at creation time (6.5/5.5/0 for an even
+// game, 0.5 for a handicap game) — NULL means "predates this setting",
+// falling back to the handicap-derived default (see getKomi).
+if (!gamesColumns.has('komi')) {
+  db.exec('ALTER TABLE games ADD COLUMN komi REAL');
+}
 
 // Migrate older `snapshots` tables that predate the `hash` column (used for
 // situational superko checks), backfilling it for any existing rows.

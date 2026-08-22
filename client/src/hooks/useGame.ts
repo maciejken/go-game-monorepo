@@ -23,6 +23,7 @@ export function useGame(gameId: string) {
   const [status, setStatus] = useState<string>('in_progress');
   const [result, setResult] = useState<string | null>(null);
   const [handicap, setHandicap] = useState(0);
+  const [komi, setKomi] = useState(6.5);
   const [title, setTitle] = useState<string | null>(null);
   const [captures, setCaptures] = useState<Captures>({ black: 0, white: 0 });
   const [blackUsername, setBlackUsername] = useState<string | null>(null);
@@ -57,6 +58,7 @@ export function useGame(gameId: string) {
         setStatus(game.status);
         setResult(game.result);
         setHandicap(game.handicap);
+        setKomi(game.komi);
         setTitle(game.title);
         setCaptures(game.captures);
         setBlackUsername(game.blackUsername);
@@ -205,6 +207,7 @@ export function useGame(gameId: string) {
     status,
     result,
     handicap,
+    komi,
     title,
     captures,
     blackUsername,
