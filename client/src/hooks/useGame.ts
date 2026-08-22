@@ -11,6 +11,7 @@ import {
   undoMove,
   type Captures,
   type EndReason,
+  type LastEvent,
   type MyColor,
   type StoredTimeControl,
 } from '../services/api';
@@ -41,6 +42,7 @@ export function useGame(gameId: string) {
   const [whitePeriodsLeft, setWhitePeriodsLeft] = useState<number | null>(null);
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const [lastMove, setLastMove] = useState<Point | null>(null);
+  const [lastEvent, setLastEvent] = useState<LastEvent | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [shortResult, setShortResult] = useState<string | null>(null);
   const [resultBreakdown, setResultBreakdown] = useState<{ black: number; white: number } | null>(null);
@@ -74,6 +76,7 @@ export function useGame(gameId: string) {
         setWhitePeriodsLeft(game.whitePeriodsLeft);
         setTurnStartedAt(game.turnStartedAt);
         setLastMove(game.lastMove);
+        setLastEvent(game.lastEvent);
         setCanUndo(game.canUndo);
         setShortResult(game.shortResult);
         setResultBreakdown(game.resultBreakdown);
@@ -221,6 +224,7 @@ export function useGame(gameId: string) {
     whitePeriodsLeft,
     turnStartedAt,
     lastMove,
+    lastEvent,
     canUndo,
     shortResult,
     resultBreakdown,

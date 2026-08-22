@@ -44,6 +44,16 @@ export interface GameResponse {
 // redo-scoring; resignations and timeouts have nothing to rescore.
 export type EndReason = 'scoring' | 'resign' | 'timeout' | null;
 
+// Describable record of the most recent event (move/pass/resign), for
+// narrating live play to screen readers. Shares its shape with HistoryEntry
+// so both can be passed to the same describeEntry() helper.
+export interface LastEvent {
+  eventType: string;
+  color: Color | null;
+  point: Point | null;
+  capturedPoints: Point[];
+}
+
 export interface GameStateResponse extends GameResponse, ClockFields {
   currentColor: Color;
   result: string | null;
@@ -54,6 +64,7 @@ export interface GameStateResponse extends GameResponse, ClockFields {
   pendingReopenBy: Color | null;
   isAiOpponent: boolean;
   lastMove: Point | null;
+  lastEvent: LastEvent | null;
   canUndo: boolean;
   shortResult: string | null;
   resultBreakdown: { black: number; white: number } | null;

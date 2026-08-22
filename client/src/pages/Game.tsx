@@ -30,7 +30,7 @@ function colorLabel(color: string | null): string {
   return color === 'black' ? 'Black' : color === 'white' ? 'White' : '';
 }
 
-function describeEntry(entry: HistoryEntry, size: number): string {
+function describeEntry(entry: Pick<HistoryEntry, 'eventType' | 'color' | 'point' | 'capturedPoints'>, size: number): string {
   switch (entry.eventType) {
     case 'START':
       return 'Start of game';
@@ -157,6 +157,7 @@ function GameView({ gameId }: GameViewProps) {
     whitePeriodsLeft,
     turnStartedAt,
     lastMove,
+    lastEvent,
     canUndo,
     shortResult,
     resultBreakdown,
@@ -291,6 +292,15 @@ function GameView({ gameId }: GameViewProps) {
   }
 
   const size = liveBoard.length;
+  // Narrates live play for screen readers — the visible board already shows
+  // this via the last-move marker and clocks, so it's announced but not
+  // displayed. Review mode gets its own move-by-move list instead.
+  const liveAnnouncement =
+    !isReviewing && status === 'finished' && result
+      ? result
+      : !isReviewing && lastEvent
+        ? describeEntry(lastEvent, size)
+        : '';
   const scoring = status === 'scoring';
   const finished = status === 'finished';
 
@@ -535,6 +545,9 @@ function GameView({ gameId }: GameViewProps) {
           )}
         </div>
       </header>
+      <div className="sr-only" aria-live="polite">
+        {liveAnnouncement}
+      </div>
       <div className="go-board-wrap">
         {handicap > 0 && <p>Handicap: {handicap}</p>}
         {myColor !== 'both' && (blackUsername || whiteUsername) && (
@@ -625,6 +638,22 @@ function GameView({ gameId }: GameViewProps) {
             {reviewEntry ? describeEntry(reviewEntry, size) : 'Loading history...'}
             {!navDisabled && <> — move {reviewMoveNumber} of {latestMoveNumber}</>}
           </p>
+        )}
+        {isReviewing && history && (
+          <ol className="go-move-history" aria-label="Move history">
+            {history.map((entry) => (
+              <li key={entry.moveNumber}>
+                <button
+                  type="button"
+                  className={entry.moveNumber === reviewMoveNumber ? 'go-move-history-current' : undefined}
+                  aria-current={entry.moveNumber === reviewMoveNumber ? 'step' : undefined}
+                  onClick={() => goToMove(entry.moveNumber)}
+                >
+                  {describeEntry(entry, size)}
+                </button>
+              </li>
+            ))}
+          </ol>
         )}
       </div>
       <footer className="go-footer">

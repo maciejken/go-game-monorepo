@@ -291,6 +291,28 @@ function getLastMovePoint(gameId) {
     const payload = JSON.parse(row.payload);
     return { x: payload.x, y: payload.y };
 }
+// The single most recent event of any type (move, pass, resign, handicap),
+// for narrating live play to screen readers — unlike getLastMovePoint,
+// this isn't limited to MOVE events, so a pass after the last stone is
+// still reflected here.
+function getLastEvent(gameId) {
+    const row = db.prepare(`
+    SELECT event_type, payload FROM events WHERE game_id = ?
+    ORDER BY move_number DESC LIMIT 1
+  `).get(gameId);
+    if (!row) {
+        return null;
+    }
+    const payload = JSON.parse(row.payload);
+    return {
+        eventType: row.event_type,
+        color: payload.color ?? null,
+        point: row.event_type === 'MOVE' && payload.x !== undefined && payload.y !== undefined
+            ? { x: payload.x, y: payload.y }
+            : null,
+        capturedPoints: payload.capturedPoints ?? [],
+    };
+}
 // Whether there's a player action to undo at all — false at the very start
 // of a game, where the only event so far (if any) is the handicap setup.
 function hasUndoableEvent(gameId) {
@@ -813,6 +835,10 @@ app.get('/api/games/:id', (req, res) => {
         currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
         captures: getCumulativeCaptures(game.id),
         lastMove: getLastMovePoint(game.id),
+        // For screen readers: a describable record of whatever happened most
+        // recently (move/pass/resign), independent of the stone-marker-only
+        // lastMove above.
+        lastEvent: getLastEvent(game.id),
         // Standard-notation result (e.g. "W+6.5", "B+R") — same derivation the
         // SGF export uses, for a compact footer display next to the longer
         // free-text `result` sentence shown under the board.
