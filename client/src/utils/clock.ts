@@ -1,7 +1,7 @@
 import type { StoredTimeControl } from '../services/api';
 
 export const TIME_CONTROL_LABELS: Record<Exclude<StoredTimeControl, null>, string> = {
-  standard: '10 min + byoyomi',
+  standard: '10 min',
   correspondence: '24h per move',
 };
 

@@ -397,20 +397,24 @@ function GameListItem({ game, onDelete, onRename, onStarChange }: GameListItemPr
       .catch((err: Error) => setError(err.message));
   };
 
-  const komiLabel = game.komi === 0 ? 'no komi' : `komi: ${game.komi}`;
-  const playersLine =
-    game.myColor === 'both'
-      ? `Local game, ${komiLabel}`
-      : `${game.blackUsername ?? '—'} vs ${game.whiteUsername ?? '—'}, ${komiLabel}`;
+  const metaParts = [`${game.size}x${game.size}`];
+  if (game.myColor !== 'both') {
+    metaParts.push(`${game.blackUsername ?? '—'} vs ${game.whiteUsername ?? '—'}`);
+  }
+  if (game.handicap > 0) {
+    metaParts.push(`handicap ${game.handicap}`);
+  }
+  metaParts.push(game.komi === 0 ? 'no komi' : `komi ${game.komi}`);
+  if (game.timeControl !== null) {
+    metaParts.push(timeControlLabel(game.timeControl));
+  }
+  if (game.status === 'finished') {
+    metaParts.push(game.shortResult ?? 'no result');
+  }
 
   const metaRows = (
     <>
-      <div className="game-card-row">
-        {game.size}x{game.size}
-        {game.handicap > 0 ? ` · Handicap ${game.handicap}` : ''} · {timeControlLabel(game.timeControl)} —{' '}
-        {game.result ?? game.status}
-      </div>
-      <div className="game-card-row">{playersLine}</div>
+      <div className="game-card-row">{metaParts.join(' · ')}</div>
       <div className="game-card-row">Created: {formatDate(game.createdAt)}</div>
       <div className="game-card-row">Updated: {formatDate(game.updatedAt)}</div>
     </>

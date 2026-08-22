@@ -709,6 +709,9 @@ app.get('/api/games', (req, res) => {
         size: row.size,
         status: row.status,
         result: row.result,
+        // Standard-notation result (e.g. "B+2", "W+R") for the compact list
+        // card — null for an unfinished game or one ended with no score.
+        shortResult: deriveSgfResult(row),
         handicap: row.handicap,
         komi: resolveKomi(row),
         title: row.title,

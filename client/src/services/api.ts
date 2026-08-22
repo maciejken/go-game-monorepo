@@ -79,6 +79,7 @@ export interface GameSummary {
   title: string | null;
   status: string;
   result: string | null;
+  shortResult: string | null;
   createdAt: number;
   updatedAt: number;
   blackUsername: string | null;
