@@ -20,8 +20,12 @@ import { timeControlLabel } from '../utils/clock';
 const BOARD_SIZES = [9, 13, 19];
 
 // Komi choices for an even (no handicap) game, supporting correct scoring
-// under each classic ruleset; a handicap game always uses 0.5 instead.
-const KOMI_OPTIONS = [6.5, 5.5, 0.5, 0];
+// under each classic ruleset.
+const KOMI_OPTIONS_EVEN = [6.5, 5.5, 0.5, 0];
+
+// A handicap game's stones are the real compensation, so komi there is
+// only ever a tie-breaker: the standard 0.5, or 0 for no tie-breaker at all.
+const KOMI_OPTIONS_HANDICAP = [0.5, 0];
 
 // Matches the server's own default (GNUGO_LEVEL) and GTP --level's range.
 const GNUGO_LEVEL_DEFAULT = 5;
@@ -64,7 +68,7 @@ function Home() {
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState(19);
   const [handicap, setHandicap] = useState(0);
-  const [komi, setKomi] = useState(KOMI_OPTIONS[0]);
+  const [komi, setKomi] = useState(KOMI_OPTIONS_EVEN[0]);
   const [title, setTitle] = useState('');
   const [mode, setMode] = useState<'local' | 'remote' | 'gnugo'>('local');
   const [timeControl, setTimeControl] = useState<TimeControlName>('unlimited');
@@ -113,6 +117,11 @@ function Home() {
     if (mode === 'gnugo' && newHandicap > 0) {
       setColor('black');
     }
+    // A handicap game only offers 0.5/0 — fall back to the default rather
+    // than submit a now-invalid even-game value like 6.5.
+    if (newHandicap > 0 && !(KOMI_OPTIONS_HANDICAP as number[]).includes(komi)) {
+      setKomi(0.5);
+    }
   };
 
   const startNewGame = (e: React.FormEvent) => {
@@ -121,10 +130,7 @@ function Home() {
     createGame({
       size,
       handicap,
-      // A handicap game always uses 0.5 komi — the select is hidden in
-      // that case, so the last-picked even-game value would otherwise be
-      // sent stale.
-      komi: handicap > 0 ? 0.5 : komi,
+      komi,
       title: title.trim() || undefined,
       mode,
       timeControl,
@@ -214,18 +220,16 @@ function Home() {
                 />
               </label>
             )}
-            {handicap === 0 && (
-              <label className="modal-form-row">
-                <span className="modal-form-label">Komi</span>
-                <select value={komi} onChange={(e) => setKomi(Number(e.target.value))}>
-                  {KOMI_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+            <label className="modal-form-row">
+              <span className="modal-form-label">Komi</span>
+              <select value={komi} onChange={(e) => setKomi(Number(e.target.value))}>
+                {(handicap > 0 ? KOMI_OPTIONS_HANDICAP : KOMI_OPTIONS_EVEN).map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
             {(mode === 'remote' || mode === 'gnugo') && (
               <div className="modal-wide-row">
                 <div className="modal-wide-row-label">

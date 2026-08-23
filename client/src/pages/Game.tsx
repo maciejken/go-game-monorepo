@@ -343,7 +343,8 @@ function GameView({ gameId }: GameViewProps) {
     const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(liveBoard, captures, deadPointsArray);
     const score = scoreBoard(effectiveBoard, adjustedCaptures, komi);
     const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
-    provisionalResult = `${winnerLabel} wins by ${score.margin.toFixed(1)} (B: ${score.black}, W: ${score.white})`;
+    const marginLabel = Number.isInteger(score.margin) ? String(score.margin) : score.margin.toFixed(1);
+    provisionalResult = `${winnerLabel} wins by ${marginLabel} (B: ${score.black}, W: ${score.white})`;
   }
 
   const blackClock = isTimed

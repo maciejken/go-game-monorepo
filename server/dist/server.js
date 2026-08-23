@@ -159,10 +159,11 @@ const ALLOWED_BOARD_SIZES = Object.keys(STAR_POINTS).map(Number);
 // Komi values that support correct classic scoring for an even (no
 // handicap) game: 6.5/5.5 for area/territory rulesets that use a
 // half-point komi to avoid ties, 0.5 for a minimal tie-breaker, and 0 for
-// the no-komi classical rule. A handicap game always uses 0.5 (see
-// POST /api/games) — that's still a valid choice here too, for an even
-// game that just wants to avoid draws.
-const ALLOWED_KOMI = [0, 0.5, 5.5, 6.5];
+// the no-komi classical rule.
+const ALLOWED_KOMI_EVEN = [0, 0.5, 5.5, 6.5];
+// A handicap game's stones are the real compensation, so komi there is
+// only ever a tie-breaker: the standard 0.5, or 0 for no tie-breaker at all.
+const ALLOWED_KOMI_HANDICAP = [0, 0.5];
 // Handicap stone placement order, per the standard table: corners fill
 // upper-right, lower-left, lower-right, upper-left; center is included only
 // for odd handicaps 5/7/9; side points are added as left+right at 6, then
@@ -739,12 +740,13 @@ app.post('/api/games', async (req, res) => {
     // Handicap placement is only defined for boards with a known star-point layout
     const maxHandicap = size === 19 ? 9 : 5;
     const handicap = STAR_POINTS[size] ? Math.min(Math.max(0, Number(req.body?.handicap) || 0), maxHandicap) : 0;
-    // A handicap game's komi is fixed at 0.5 (just enough to avoid a tie —
-    // the handicap stones are the real compensation); an even game picks
-    // from the values that support correct classic scoring under each rule
-    // set, ignoring anything else the client might send.
+    // A handicap game's komi is just a tie-breaker (0.5 or 0 — the handicap
+    // stones are the real compensation); an even game picks from the values
+    // that support correct classic scoring under each rule set. Anything
+    // else the client sends falls back to the default for that case.
     const requestedKomi = Number(req.body?.komi);
-    const komi = handicap > 0 ? 0.5 : ALLOWED_KOMI.includes(requestedKomi) ? requestedKomi : 6.5;
+    const allowedKomi = handicap > 0 ? ALLOWED_KOMI_HANDICAP : ALLOWED_KOMI_EVEN;
+    const komi = allowedKomi.includes(requestedKomi) ? requestedKomi : handicap > 0 ? 0.5 : 6.5;
     const title = sanitizeTitle(req.body?.title);
     const timeControlName = req.body?.timeControl === 'standard' || req.body?.timeControl === 'correspondence'
         ? req.body.timeControl
@@ -1096,7 +1098,10 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
     const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(board, getCumulativeCaptures(game.id), deadPoints);
     const score = scoreBoard(effectiveBoard, adjustedCaptures, resolveKomi(game));
     const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
-    const gameResult = `${winnerLabel} wins by ${score.margin.toFixed(1)} (B: ${score.black}, W: ${score.white})`;
+    // No komi means every count involved is a whole number — showing a
+    // trailing ".0" there would be noise rather than precision.
+    const marginLabel = Number.isInteger(score.margin) ? String(score.margin) : score.margin.toFixed(1);
+    const gameResult = `${winnerLabel} wins by ${marginLabel} (B: ${score.black}, W: ${score.white})`;
     const now = Date.now();
     db.prepare('UPDATE games SET status = ?, result = ?, end_reason = ?, updated_at = ? WHERE id = ?')
         .run('finished', gameResult, 'scoring', now, game.id);
