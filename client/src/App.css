@@ -513,36 +513,69 @@
   border: 0;
 }
 
-.go-move-history {
+.go-move-chain {
+  display: flex;
+  gap: 6px;
   list-style: none;
   margin: 8px 0 0;
-  padding: 0;
-  max-height: 180px;
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  padding: 8px 4px;
+  max-width: 100%;
+  overflow-x: auto;
+  cursor: grab;
+  user-select: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.go-move-history button {
-  display: block;
-  width: 100%;
-  text-align: left;
+.go-move-chain::-webkit-scrollbar {
+  display: none;
+}
+
+.go-move-chain li {
+  flex: 0 0 auto;
+  display: flex;
+}
+
+.go-move-chain-stone {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   appearance: none;
-  background: none;
-  border: none;
-  color: inherit;
+  padding: 0;
   font: inherit;
-  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.45);
 }
 
-.go-move-history button:hover {
-  background: var(--accent-bg);
+.go-move-chain-stone--black {
+  background: radial-gradient(circle at 35% 30%, #5c5c5c, #0a0a0a 70%);
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+  border: none;
 }
 
-.go-move-history-current {
-  background: var(--accent-bg);
-  font-weight: bold;
+.go-move-chain-stone--white {
+  background: radial-gradient(circle at 35% 30%, #ffffff, #dcdcdc 70%);
+  color: #1a1a1a;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.go-move-chain-stone--neutral {
+  background: none;
+  color: var(--text);
+  border: 1px dashed var(--border);
+}
+
+.go-move-chain-stone--current {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .go-actions,

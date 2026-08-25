@@ -193,6 +193,10 @@ function GameView({ gameId }: GameViewProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const turnMenuRef = useRef<HTMLDivElement>(null);
   const resultBalloonRef = useRef<HTMLDivElement>(null);
+  // Click-and-drag horizontal scrolling for the review move chain (touch
+  // already scrolls natively) — tracked via a ref rather than state so
+  // dragging doesn't trigger a re-render on every pointer move.
+  const chainDrag = useRef({ dragging: false, moved: false, startX: 0, startScrollLeft: 0 });
 
   const moveParam = searchParams.get('move');
   const isReviewing = moveParam !== null;
@@ -402,6 +406,38 @@ function GameView({ gameId }: GameViewProps) {
 
   const goToMove = (n: number) => {
     setSearchParams({ move: String(n) }, { replace: true });
+  };
+
+  const handleChainMouseDown = (e: React.MouseEvent<HTMLOListElement>) => {
+    const el = e.currentTarget;
+    chainDrag.current = { dragging: true, moved: false, startX: e.pageX, startScrollLeft: el.scrollLeft };
+    el.style.cursor = 'grabbing';
+  };
+
+  const handleChainMouseMove = (e: React.MouseEvent<HTMLOListElement>) => {
+    const drag = chainDrag.current;
+    if (!drag.dragging) {
+      return;
+    }
+    const delta = e.pageX - drag.startX;
+    if (Math.abs(delta) > 3) {
+      drag.moved = true;
+    }
+    e.currentTarget.scrollLeft = drag.startScrollLeft - delta;
+  };
+
+  const stopChainDrag = (e: React.MouseEvent<HTMLOListElement>) => {
+    chainDrag.current.dragging = false;
+    e.currentTarget.style.cursor = 'grab';
+  };
+
+  const handleStoneClick = (moveNumber: number) => {
+    // A drag that ended on a stone shouldn't also count as clicking it.
+    if (chainDrag.current.moved) {
+      chainDrag.current.moved = false;
+      return;
+    }
+    goToMove(moveNumber);
   };
 
   const enterReview = () => {
@@ -685,16 +721,26 @@ function GameView({ gameId }: GameViewProps) {
           </p>
         )}
         {isReviewing && history && (
-          <ol className="go-move-history" aria-label="Move history">
+          <ol
+            className="go-move-chain"
+            aria-label="Move history"
+            onMouseDown={handleChainMouseDown}
+            onMouseMove={handleChainMouseMove}
+            onMouseUp={stopChainDrag}
+            onMouseLeave={stopChainDrag}
+          >
             {history.map((entry) => (
               <li key={entry.moveNumber}>
                 <button
                   type="button"
-                  className={entry.moveNumber === reviewMoveNumber ? 'go-move-history-current' : undefined}
+                  className={`go-move-chain-stone go-move-chain-stone--${entry.color ?? 'neutral'}${
+                    entry.moveNumber === reviewMoveNumber ? ' go-move-chain-stone--current' : ''
+                  }`}
                   aria-current={entry.moveNumber === reviewMoveNumber ? 'step' : undefined}
-                  onClick={() => goToMove(entry.moveNumber)}
+                  aria-label={`${entry.moveNumber}: ${describeEntry(entry, size)}`}
+                  onClick={() => handleStoneClick(entry.moveNumber)}
                 >
-                  {describeEntry(entry, size)}
+                  {entry.moveNumber}
                 </button>
               </li>
             ))}
