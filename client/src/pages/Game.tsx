@@ -495,7 +495,7 @@ function GameView({ gameId }: GameViewProps) {
           Back
         </button>
         {myColor === 'both' ? (
-          title ? <h2 className="game-title">{title}</h2> : <span />
+          <h2 className="game-title">{title || `${blackUsername ?? '—'} (local)`}</h2>
         ) : (
           <h2 className="game-title">
             {blackUsername ?? '—'} vs {whiteUsername ?? '—'}
