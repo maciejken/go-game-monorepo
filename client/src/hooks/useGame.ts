@@ -34,6 +34,7 @@ export function useGame(gameId: string) {
   const [endReason, setEndReason] = useState<EndReason>(null);
   const [pendingReopenBy, setPendingReopenBy] = useState<Color | null>(null);
   const [isAiOpponent, setIsAiOpponent] = useState(false);
+  const [gnugoLevel, setGnugoLevel] = useState<number | null>(null);
   const [timeControl, setTimeControl] = useState<StoredTimeControl>(null);
   const [mainTimeSeconds, setMainTimeSeconds] = useState<number | null>(null);
   const [byoyomiSeconds, setByoyomiSeconds] = useState<number | null>(null);
@@ -69,6 +70,7 @@ export function useGame(gameId: string) {
         setEndReason(game.endReason);
         setPendingReopenBy(game.pendingReopenBy);
         setIsAiOpponent(game.isAiOpponent);
+        setGnugoLevel(game.gnugoLevel);
         setTimeControl(game.timeControl);
         setMainTimeSeconds(game.mainTimeSeconds);
         setByoyomiSeconds(game.byoyomiSeconds);
@@ -230,6 +232,7 @@ export function useGame(gameId: string) {
     endReason,
     pendingReopenBy,
     isAiOpponent,
+    gnugoLevel,
     timeControl,
     mainTimeSeconds,
     byoyomiSeconds,

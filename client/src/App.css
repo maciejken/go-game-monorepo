@@ -690,7 +690,7 @@
   /* Overrides .go-turn-balloon's 170px min-width — this one should hug
      its longest line instead of leaving empty space for short content. */
   min-width: 0;
-  max-width: min(320px, 90vw);
+  max-width: min(520px, 90vw);
   color: #0a0a0a;
   padding: 10px 12px;
   text-align: left;
@@ -706,6 +706,13 @@
 .go-result-balloon > div {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* A secondary detail line (mode/handicap/komi/time) next to the actual
+   result sentence — de-emphasized so it reads as a caption, not a peer. */
+.go-result-balloon-summary {
+  font-size: 0.85em;
+  color: #6b6b6b;
 }
 
 /* A row per player: the stone marker as a flex item alongside the text,

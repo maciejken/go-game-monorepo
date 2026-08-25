@@ -6,7 +6,7 @@ import { useDialog } from '../hooks/useDialog';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
 import { deleteGame, sgfExportUrl, type Captures, type HistoryEntry, type MyColor } from '../services/api';
-import { computeLiveClock, formatClock } from '../utils/clock';
+import { computeLiveClock, formatClock, timeControlLabel } from '../utils/clock';
 
 // Go board columns skip the letter "I" to avoid confusion with the numeral 1
 const COLUMN_LABELS = 'ABCDEFGHJKLMNOPQRST';
@@ -149,6 +149,8 @@ function GameView({ gameId }: GameViewProps) {
     endReason,
     pendingReopenBy,
     isAiOpponent,
+    gnugoLevel,
+    timeControl,
     mainTimeSeconds,
     byoyomiSeconds,
     byoyomiPeriods,
@@ -330,6 +332,28 @@ function GameView({ gameId }: GameViewProps) {
   // row when there's a breakdown to show, so the "(B: x, W: y)" suffix on
   // the summary sentence itself would just repeat it — drop it there.
   const resultSummary = resultBreakdown ? result?.replace(/\s*\(B: [\d.]+, W: [\d.]+\)\s*$/, '') : result;
+  // Same "size · players · level · handicap · komi · time" shape as a
+  // games-list card, minus what's already shown elsewhere in this view:
+  // board size (implied by the board itself), the short result (its own
+  // button), and player names when the header is already showing them
+  // (it only falls back to the title there when one is set).
+  const balloonSummaryParts: string[] = [];
+  if (title) {
+    balloonSummaryParts.push(
+      myColor === 'both' ? `${blackUsername ?? '—'} (local)` : `${blackUsername ?? '—'} vs ${whiteUsername ?? '—'}`,
+    );
+  }
+  if (isAiOpponent && gnugoLevel !== null) {
+    balloonSummaryParts.push(`level ${gnugoLevel}`);
+  }
+  if (handicap > 0) {
+    balloonSummaryParts.push(`handicap ${handicap}`);
+  }
+  balloonSummaryParts.push(komi === 0 ? 'no komi' : `komi ${komi}`);
+  if (timeControl !== null) {
+    balloonSummaryParts.push(timeControlLabel(timeControl));
+  }
+  const balloonSummary = balloonSummaryParts.join(' · ');
   // shortResult's leading letter names the winner regardless of how the
   // game ended (scored, resigned, or timed out) — reused here so the star
   // doesn't need its own separate parsing of `result`.
@@ -768,9 +792,7 @@ function GameView({ gameId }: GameViewProps) {
                 </button>
                 {resultBalloonOpen && (
                   <div className="go-turn-balloon go-result-balloon">
-                    {title && <div className="go-result-balloon-title">{title}</div>}
-                    {handicap > 0 && <div>Handicap: {handicap}</div>}
-                    <div>{komi === 0 ? 'No komi' : `Komi: ${komi}`}</div>
+                    <div className="go-result-balloon-summary">{balloonSummary}</div>
                     <div>{resultSummary}</div>
                   </div>
                 )}

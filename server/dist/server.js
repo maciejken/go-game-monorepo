@@ -106,8 +106,7 @@ function withTimeoutCheck(game) {
     }
     const winner = currentColor === 'black' ? 'white' : 'black';
     const winnerLabel = winner === 'black' ? 'Black' : 'White';
-    const loserLabel = currentColor === 'black' ? 'Black' : 'White';
-    const result = `${winnerLabel} wins on time (${loserLabel} ran out)`;
+    const result = `${winnerLabel} wins on time`;
     const now = Date.now();
     db.prepare('UPDATE games SET status = ?, result = ?, end_reason = ?, updated_at = ? WHERE id = ?')
         .run('finished', result, 'timeout', now, game.id);
@@ -878,6 +877,7 @@ app.get('/api/games/:id', (req, res) => {
         endReason: game.end_reason,
         pendingReopenBy: game.pending_reopen_by,
         isAiOpponent: isAiOpponentGame(game),
+        gnugoLevel: game.gnugo_level,
         timeControl: game.time_control,
         mainTimeSeconds: game.main_time_seconds,
         byoyomiSeconds: game.byoyomi_seconds,
