@@ -405,6 +405,9 @@ function GameListItem({ game, onDelete, onRename, onStarChange }: GameListItemPr
   if (game.myColor !== 'both') {
     metaParts.push(`${game.blackUsername ?? '—'} vs ${game.whiteUsername ?? '—'}`);
   }
+  if (game.isAiOpponent && game.gnugoLevel !== null) {
+    metaParts.push(`level ${game.gnugoLevel}`);
+  }
   if (game.handicap > 0) {
     metaParts.push(`handicap ${game.handicap}`);
   }

@@ -86,6 +86,7 @@ export interface GameSummary {
   whiteUsername: string | null;
   myColor: MyColor;
   isAiOpponent: boolean;
+  gnugoLevel: number | null;
   timeControl: StoredTimeControl;
   starred: boolean;
 }

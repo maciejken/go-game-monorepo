@@ -958,6 +958,7 @@ app.get('/api/games', (req, res) => {
     whiteUsername: getUsername(row.white_user_id),
     myColor: getMyColor(row, currentUser?.id ?? null),
     isAiOpponent: isAiOpponentGame(row),
+    gnugoLevel: row.gnugo_level,
     timeControl: row.time_control,
     starred: isStarred(row.id, currentUser?.id ?? null),
   })));
