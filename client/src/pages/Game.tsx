@@ -363,10 +363,18 @@ function GameView({ gameId }: GameViewProps) {
   // Local games and AI games undo immediately (no negotiation) — same split
   // describeUndoAction uses to pick a label.
   const isImmediateUndo = myColor === 'both' || isAiOpponent;
-  // The result balloon shows each player's own point total on their own
-  // row when there's a breakdown to show, so the "(B: x, W: y)" suffix on
-  // the summary sentence itself would just repeat it — drop it there.
-  const resultSummary = resultBreakdown ? result?.replace(/\s*\(B: [\d.]+, W: [\d.]+\)\s*$/, '') : result;
+  // Reformats the server's own "(B: x, W: y)" breakdown suffix into
+  // "(winner to loser)", e.g. "White wins by 34.5 (64.5 to 30)".
+  const resultSummary = (() => {
+    if (!resultBreakdown) {
+      return result;
+    }
+    const { black, white } = resultBreakdown;
+    const winnerScore = black > white ? black : white;
+    const loserScore = black > white ? white : black;
+    const base = result?.replace(/\s*\(B: [\d.]+, W: [\d.]+\)\s*$/, '');
+    return `${base} (${winnerScore} to ${loserScore})`;
+  })();
   // Same "size · players · level · handicap · komi · time" shape as a
   // games-list card, minus what's already shown elsewhere in this view:
   // board size (implied by the board itself), the short result (its own
