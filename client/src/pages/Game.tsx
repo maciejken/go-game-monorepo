@@ -5,7 +5,14 @@ import { useAuth } from '../hooks/useAuth';
 import { useDialog } from '../hooks/useDialog';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
-import { deleteGame, sgfExportUrl, type Captures, type HistoryEntry, type MyColor } from '../services/api';
+import {
+  deleteGame,
+  sgfExportUrl,
+  validateMoveRequest,
+  type Captures,
+  type HistoryEntry,
+  type MyColor,
+} from '../services/api';
 import { computeLiveClock, formatClock, timeControlLabel } from '../utils/clock';
 
 // Go board columns skip the letter "I" to avoid confusion with the numeral 1
@@ -72,6 +79,7 @@ function sumCaptures(entries: HistoryEntry[], upToMoveNumber: number): Captures 
 
 const SHOW_COORDS_KEY = 'go-show-coordinates';
 const SHOW_UNDO_KEY = 'go-show-undo';
+const CONFIRM_MOVES_KEY = 'go-confirm-moves';
 
 function pointKey(point: Point): string {
   return `${point.x},${point.y}`;
@@ -184,6 +192,9 @@ function GameView({ gameId }: GameViewProps) {
   const wasReviewing = useRef(false);
   const [showCoords, setShowCoords] = useState(() => localStorage.getItem(SHOW_COORDS_KEY) !== 'false');
   const [showUndo, setShowUndo] = useState(() => localStorage.getItem(SHOW_UNDO_KEY) !== 'false');
+  const [confirmMoves, setConfirmMoves] = useState(() => localStorage.getItem(CONFIRM_MOVES_KEY) === 'true');
+  const [pendingMove, setPendingMove] = useState<Point | null>(null);
+  const [invalidMoveError, setInvalidMoveError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [turnMenuOpen, setTurnMenuOpen] = useState(false);
@@ -257,15 +268,16 @@ function GameView({ gameId }: GameViewProps) {
 
   // Auto-dismiss the error toast after 5s — it can also be closed early.
   useEffect(() => {
-    if (!error && !historyError) {
+    if (!error && !historyError && !invalidMoveError) {
       return;
     }
     const timeout = setTimeout(() => {
       clearError();
       clearHistoryError();
+      setInvalidMoveError(null);
     }, 5000);
     return () => clearTimeout(timeout);
-  }, [error, historyError, clearError, clearHistoryError]);
+  }, [error, historyError, invalidMoveError, clearError, clearHistoryError]);
 
   // Close the settings modal on Escape.
   useEffect(() => {
@@ -301,6 +313,14 @@ function GameView({ gameId }: GameViewProps) {
     const current = moveChainRef.current?.querySelector<HTMLElement>('.go-move-chain-stone--current');
     current?.scrollIntoView({ inline: 'center', block: 'nearest' });
   }, [isReviewing, moveParam, history]);
+
+  // A pending (unconfirmed) move marker only makes sense for the turn it
+  // was placed on — clear it once that turn ends, one way or another (our
+  // own confirmed move, the opponent's move arriving live, or entering
+  // review), so it can't linger and mislead about whose turn it is.
+  useEffect(() => {
+    setPendingMove(null);
+  }, [currentColor, isReviewing]);
 
   if (notFound) {
     return <p>Game not found.</p>;
@@ -535,6 +555,48 @@ function GameView({ gameId }: GameViewProps) {
     });
   };
 
+  const toggleConfirmMoves = () => {
+    setConfirmMoves((prev) => {
+      const next = !prev;
+      localStorage.setItem(CONFIRM_MOVES_KEY, String(next));
+      return next;
+    });
+    setPendingMove(null);
+  };
+
+  // With "confirm moves" on: a first click on a valid point just marks it
+  // (like marking a dead group during scoring); clicking that same marked
+  // point again is what actually sends the move. Clicking a different
+  // valid point just moves the mark there instead. An invalid point never
+  // gets marked — it surfaces as an error instead. Validity is checked
+  // against the server (rather than replicated client-side) so checks that
+  // need the full position history — superko — are just as reliable as
+  // occupied/turn/suicide, instead of only surfacing on the confirm step.
+  const handlePointClick = (x: number, y: number) => {
+    if (canToggleDead) {
+      toggleDeadGroup(x, y);
+      return;
+    }
+    if (!confirmMoves) {
+      play(x, y);
+      return;
+    }
+    if (pendingMove && pendingMove.x === x && pendingMove.y === y) {
+      setPendingMove(null);
+      play(x, y);
+      return;
+    }
+    validateMoveRequest(gameId, x, y, currentColor)
+      .then((result) => {
+        if (result.valid) {
+          setPendingMove({ x, y });
+        } else {
+          setInvalidMoveError(result.error ?? 'Invalid move');
+        }
+      })
+      .catch((err: Error) => setInvalidMoveError(err.message));
+  };
+
   return (
     <>
       <header className="go-header">
@@ -682,7 +744,7 @@ function GameView({ gameId }: GameViewProps) {
                     key={x}
                     type="button"
                     className="go-point"
-                    onClick={() => (canToggleDead ? toggleDeadGroup(x, y) : play(x, y))}
+                    onClick={() => handlePointClick(x, y)}
                     disabled={canToggleDead ? stone === null : stone !== null || !canInteract}
                     aria-label={`Point ${COLUMN_LABELS[x]}${size - y}`}
                   >
@@ -692,6 +754,9 @@ function GameView({ gameId }: GameViewProps) {
                           highlightedPoint?.x === x && highlightedPoint?.y === y ? ' go-stone--last' : ''
                         }${pendingDead.has(pointKey({ x, y })) ? ' go-stone--dead' : ''}`}
                       />
+                    )}
+                    {!stone && pendingMove?.x === x && pendingMove?.y === y && (
+                      <span className={`go-stone go-stone--${currentColor} go-stone--pending`} />
                     )}
                   </button>
                 ))}
@@ -909,7 +974,7 @@ function GameView({ gameId }: GameViewProps) {
           </span>
         </div>
       </footer>
-      {(error || historyError) && (
+      {(error || historyError || invalidMoveError) && (
         <div className="error-toast">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path
@@ -917,13 +982,14 @@ function GameView({ gameId }: GameViewProps) {
               d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
             />
           </svg>
-          <span>{error || historyError}</span>
+          <span>{error || historyError || invalidMoveError}</span>
           <button
             type="button"
             aria-label="Dismiss"
             onClick={() => {
               clearError();
               clearHistoryError();
+              setInvalidMoveError(null);
             }}
           >
             ×
@@ -941,6 +1007,10 @@ function GameView({ gameId }: GameViewProps) {
             <label className="modal-checkbox-row">
               <input type="checkbox" checked={showUndo} onChange={toggleUndo} />
               Show Undo button
+            </label>
+            <label className="modal-checkbox-row">
+              <input type="checkbox" checked={confirmMoves} onChange={toggleConfirmMoves} />
+              Confirm moves before playing them
             </label>
             <button type="button" className="modal-action" onClick={() => setSettingsOpen(false)}>
               Close

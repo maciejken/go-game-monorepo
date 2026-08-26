@@ -1282,6 +1282,52 @@ app.delete('/api/games/:id', (req, res) => {
   res.status(204).end();
 });
 
+// Dry-runs the same check applyMoveToGame does, without writing anything —
+// the client's "confirm moves" setting uses this to show a move as valid
+// (a placeable marker) or invalid (an immediate error) before the player
+// actually commits it. This is the only way to include checks a client
+// can't run on its own, like superko, which needs the full position
+// history rather than just the current board.
+app.post('/api/games/:id/moves/validate', (req, res) => {
+  let game = getGameRow(req.params.id);
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
+  game = withTimeoutCheck(game);
+  if (game.status !== 'in_progress') {
+    res.status(400).json({ error: 'Game is not in progress' });
+    return;
+  }
+  if (game.pending_undo_by) {
+    res.status(400).json({ error: 'An undo request is pending confirmation' });
+    return;
+  }
+
+  const { x, y, color } = req.body ?? {};
+  if (typeof x !== 'number' || typeof y !== 'number' || (color !== 'black' && color !== 'white')) {
+    res.status(400).json({ error: 'Invalid move payload' });
+    return;
+  }
+  if (!canActAsColor(game, user.id, color)) {
+    res.status(403).json({ error: `You are not playing as ${color} in this game` });
+    return;
+  }
+
+  const board = getCurrentBoard(game.id, game.size);
+  const history = getGameHistory(game.id, game.size, game.handicap);
+  const moveNumber = getNextMoveNumber(game.id);
+  const validation = validateMove(board, { x, y }, color, turnMoveNumber(moveNumber, game.handicap), history);
+
+  res.json(validation.valid ? { valid: true } : { valid: false, error: validation.error });
+});
+
 app.post('/api/games/:id/moves', (req, res) => {
   let game = getGameRow(req.params.id);
   if (!game) {

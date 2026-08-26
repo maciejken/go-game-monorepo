@@ -963,3 +963,8 @@
 .go-stone--dead {
   opacity: 0.35;
 }
+
+.go-stone--pending {
+  opacity: 0.35;
+  pointer-events: none;
+}

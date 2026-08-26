@@ -257,6 +257,23 @@ export function makeMove(id: string, x: number, y: number, color: Color): Promis
   }).then((res) => handle<MoveResponse>(res));
 }
 
+export interface ValidateMoveResponse {
+  valid: boolean;
+  error?: string;
+}
+
+// Dry-run of the same server-side check makeMove applies — including
+// superko, which needs the full position history and so can't be checked
+// purely client-side. Always resolves (valid: true/false); it only rejects
+// for an actual request failure (network, auth, game not found, etc).
+export function validateMoveRequest(id: string, x: number, y: number, color: Color): Promise<ValidateMoveResponse> {
+  return fetch(`${API_BASE}/games/${id}/moves/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ x, y, color }),
+  }).then((res) => handle<ValidateMoveResponse>(res));
+}
+
 export function passTurn(id: string, color: Color): Promise<PassResponse> {
   return fetch(`${API_BASE}/games/${id}/pass`, {
     method: 'POST',
