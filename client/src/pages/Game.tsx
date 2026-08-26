@@ -193,6 +193,7 @@ function GameView({ gameId }: GameViewProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const turnMenuRef = useRef<HTMLDivElement>(null);
   const resultBalloonRef = useRef<HTMLDivElement>(null);
+  const moveChainRef = useRef<HTMLOListElement>(null);
   // Click-and-drag horizontal scrolling for the review move chain (touch
   // already scrolls natively) — tracked via a ref rather than state so
   // dragging doesn't trigger a re-render on every pointer move.
@@ -290,6 +291,16 @@ function GameView({ gameId }: GameViewProps) {
     wasReviewing.current = isReviewing;
   }, [isReviewing, loadHistory]);
 
+  // Keeps the currently-selected stone in view in the move chain — on
+  // footer-button navigation, on clicking a stone directly, and on first
+  // entering review (which jumps straight to the last move).
+  useEffect(() => {
+    if (!isReviewing) {
+      return;
+    }
+    const current = moveChainRef.current?.querySelector<HTMLElement>('.go-move-chain-stone--current');
+    current?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [isReviewing, moveParam, history]);
 
   if (notFound) {
     return <p>Game not found.</p>;
@@ -688,6 +699,9 @@ function GameView({ gameId }: GameViewProps) {
             ))}
           </div>
         </div>
+        {!isReviewing && status === 'in_progress' && lastEvent?.eventType === 'PASS' && (
+          <p>{colorLabel(lastEvent.color)} passed.</p>
+        )}
         {!isReviewing && scoring && (
           <p>
             Marking dead stones — click a stone to toggle its group.
@@ -722,6 +736,7 @@ function GameView({ gameId }: GameViewProps) {
         )}
         {isReviewing && history && (
           <ol
+            ref={moveChainRef}
             className="go-move-chain"
             aria-label="Move history"
             onMouseDown={handleChainMouseDown}
