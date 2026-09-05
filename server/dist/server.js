@@ -32,9 +32,13 @@ function getGameRow(id) {
            black_user_id, white_user_id, pending_undo_by, end_reason, pending_reopen_by,
            time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
            black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at,
-           gnugo_level, komi
+           gnugo_level, komi, ai_current_level
     FROM games WHERE id = ?
   `).get(id);
+}
+function setAiCurrentLevel(gameId, level) {
+    db.prepare('UPDATE games SET ai_current_level = ? WHERE id = ?').run(level, gameId);
+    broadcastGameUpdate(gameId);
 }
 // Falls back to the handicap-derived default for games created before the
 // explicit per-game komi setting existed.
@@ -68,6 +72,17 @@ function canActAsColor(game, userId, color) {
 }
 function isParticipant(game, userId) {
     return game.black_user_id === userId || game.white_user_id === userId;
+}
+// A vision-service token authorizes moves for one specific game only, as
+// either color — the camera identifies a move by stone color, not by which
+// player physically placed it, so there's no single color to scope it to.
+function isValidVisionToken(req, gameId) {
+    const token = req.header('X-Vision-Token');
+    if (!token) {
+        return false;
+    }
+    const row = db.prepare('SELECT game_id FROM vision_tokens WHERE token = ?').get(token);
+    return row?.game_id === gameId;
 }
 function isAiOpponentGame(game) {
     const aiId = getAiUserId();
@@ -552,7 +567,6 @@ function applyResignToGame(game, color) {
 // code change if you want to dial strength back up (more hang risk) or
 // down further (less).
 const GNUGO_LEVEL = Number(process.env.GNUGO_LEVEL) || 5;
-const GNUGO_RETRY_LEVEL = Number(process.env.GNUGO_RETRY_LEVEL) || 1;
 const GNUGO_RETRY_TIMEOUT_MS = 5000;
 // Called (fire-and-forget) after any action that might hand the turn to
 // the AI — a human move/pass, or game creation when the AI plays first.
@@ -582,24 +596,34 @@ async function maybeTriggerAiMove(gameId) {
     // Per-game difficulty, chosen at creation time — falls back to the
     // server's own default when the game predates this setting or didn't
     // specify one.
-    const level = game.gnugo_level ?? GNUGO_LEVEL;
-    // Never a random move: on failure, retry once at a much lower level —
-    // still a genuine GNU Go move, just faster and weaker, which is also far
-    // less likely to hit the same reading blowup a second time. If that also
-    // fails, the game is left waiting rather than forcing a move through —
-    // the human can still Undo and play something else in the meantime.
+    const configuredLevel = game.gnugo_level ?? GNUGO_LEVEL;
+    // Never a random move: on a timeout, step the level down by one (not
+    // straight to the floor) and try again with a shorter budget — still a
+    // genuine GNU Go move, just one step faster and weaker each time, which
+    // is also progressively less likely to hit the same reading blowup
+    // again. ai_current_level is updated (and broadcast) before every
+    // attempt, so a human watching the board sees the backoff happen live
+    // rather than a silent difficulty change. If level 1 itself fails, the
+    // game is left waiting rather than forcing a move through — the human
+    // can still Undo and play something else in the meantime.
+    let level = configuredLevel;
     let aiResult;
-    try {
-        aiResult = await generateAiMove({ ...baseRequest, level });
-    }
-    catch (err) {
-        console.error(`GNU Go (level ${level}) failed to respond (${err.message}) — retrying at level ${GNUGO_RETRY_LEVEL}.`);
+    for (;;) {
+        setAiCurrentLevel(game.id, level);
         try {
-            aiResult = await generateAiMove({ ...baseRequest, level: GNUGO_RETRY_LEVEL }, GNUGO_RETRY_TIMEOUT_MS);
+            aiResult =
+                level === configuredLevel
+                    ? await generateAiMove({ ...baseRequest, level })
+                    : await generateAiMove({ ...baseRequest, level }, GNUGO_RETRY_TIMEOUT_MS);
+            break;
         }
-        catch (retryErr) {
-            console.error(`GNU Go retry at level ${GNUGO_RETRY_LEVEL} also failed (${retryErr.message}) — giving up for now.`);
-            return;
+        catch (err) {
+            if (level <= 1) {
+                console.error(`GNU Go (level ${level}) failed to respond (${err.message}) — giving up for now.`);
+                return;
+            }
+            console.error(`GNU Go (level ${level}) failed to respond (${err.message}) — retrying at level ${level - 1}.`);
+            level -= 1;
         }
     }
     // Re-check: state may have moved on (e.g. an undo), or the AI's own clock
@@ -878,6 +902,7 @@ app.get('/api/games/:id', (req, res) => {
         pendingReopenBy: game.pending_reopen_by,
         isAiOpponent: isAiOpponentGame(game),
         gnugoLevel: game.gnugo_level,
+        aiCurrentLevel: game.ai_current_level,
         timeControl: game.time_control,
         mainTimeSeconds: game.main_time_seconds,
         byoyomiSeconds: game.byoyomi_seconds,
@@ -948,6 +973,26 @@ app.get('/api/games/:id/history', (req, res) => {
     }
     res.json({ size: game.size, moves: getMoveHistory(game.id, game.size) });
 });
+// Mints a token an external board-vision service can use to submit moves
+// for this one game (see isValidVisionToken) without a full player login.
+app.post('/api/games/:id/vision-token', (req, res) => {
+    const game = getGameRow(req.params.id);
+    if (!game) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+    }
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    if (!isParticipant(game, user.id)) {
+        res.status(403).json({ error: 'Only players in this game can create a vision token' });
+        return;
+    }
+    const token = randomUUID();
+    db.prepare('INSERT INTO vision_tokens (token, game_id, created_by, created_at) VALUES (?, ?, ?, ?)').run(token, game.id, user.id, Date.now());
+    res.status(201).json({ token });
+});
 // No auth required — same spectator model as viewing the game itself.
 app.get('/api/games/:id/sgf', (req, res) => {
     const game = getGameRow(req.params.id);
@@ -999,8 +1044,9 @@ app.post('/api/games/:id/moves/validate', (req, res) => {
         res.status(404).json({ error: 'Game not found' });
         return;
     }
-    const user = requireAuth(req, res);
-    if (!user) {
+    const visionAuthorized = isValidVisionToken(req, game.id);
+    const user = visionAuthorized ? null : requireAuth(req, res);
+    if (!visionAuthorized && !user) {
         return;
     }
     game = withTimeoutCheck(game);
@@ -1017,7 +1063,7 @@ app.post('/api/games/:id/moves/validate', (req, res) => {
         res.status(400).json({ error: 'Invalid move payload' });
         return;
     }
-    if (!canActAsColor(game, user.id, color)) {
+    if (!visionAuthorized && !canActAsColor(game, user.id, color)) {
         res.status(403).json({ error: `You are not playing as ${color} in this game` });
         return;
     }
@@ -1033,8 +1079,9 @@ app.post('/api/games/:id/moves', (req, res) => {
         res.status(404).json({ error: 'Game not found' });
         return;
     }
-    const user = requireAuth(req, res);
-    if (!user) {
+    const visionAuthorized = isValidVisionToken(req, game.id);
+    const user = visionAuthorized ? null : requireAuth(req, res);
+    if (!visionAuthorized && !user) {
         return;
     }
     game = withTimeoutCheck(game);
@@ -1051,7 +1098,7 @@ app.post('/api/games/:id/moves', (req, res) => {
         res.status(400).json({ error: 'Invalid move payload' });
         return;
     }
-    if (!canActAsColor(game, user.id, color)) {
+    if (!visionAuthorized && !canActAsColor(game, user.id, color)) {
         res.status(403).json({ error: `You are not playing as ${color} in this game` });
         return;
     }

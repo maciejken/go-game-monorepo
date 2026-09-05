@@ -6,6 +6,20 @@
   padding: 55px 20px 85px;
 }
 
+/* Stands in for the board (e.g. "Game not found") — sized to roughly the
+   same footprint so the page doesn't look broken/collapsed when there's
+   nothing to render there. */
+.go-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(400px, 100%);
+  min-height: min(400px, 70vh);
+  font-size: 1.5rem;
+  color: var(--text-h);
+  text-align: center;
+}
+
 .go-header,
 .go-footer {
   position: fixed;
@@ -958,6 +972,29 @@
 
 .go-stone--white.go-stone--last::after {
   background: #0a0a0a;
+}
+
+/* GNU Go's current search level, shown on the footer turn marker while
+   it's the AI's turn — normally just its configured difficulty, but a
+   slow position can force a step down (see ai_current_level server-side),
+   so this is the one place a human can see that happening live. */
+.go-stone-level {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.go-stone--black .go-stone-level {
+  color: #ffffff;
+}
+
+.go-stone--white .go-stone-level {
+  color: #0a0a0a;
 }
 
 .go-stone--dead {

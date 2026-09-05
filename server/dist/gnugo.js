@@ -66,7 +66,7 @@ function sendCommand(child, command) {
         child.stdin.write(`${command}\n`);
     });
 }
-const DEFAULT_TIMEOUT_MS = 20000;
+const DEFAULT_TIMEOUT_MS = 120000;
 // Stateless by design: a fresh gnugo process per request, replaying the
 // whole game into it via GTP `play` before asking it to move. Slightly more
 // work per call than keeping a process alive per game, but it means the
@@ -77,9 +77,9 @@ const DEFAULT_TIMEOUT_MS = 20000;
 // observed behavior, effectively never return) — the timeout forces the
 // process to die either way, and since sendCommand also listens for process
 // exit, that reliably turns into a rejected promise instead of a permanent
-// hang. The caller (server.ts) is expected to retry at a much lower level
-// on failure, since a lower level is both faster and far less likely to
-// hit that same reading blowup again.
+// hang. The caller (server.ts) is expected to retry at one level lower on
+// failure, since a lower level is both faster and far less likely to hit
+// that same reading blowup again.
 export async function generateAiMove(request, timeoutMs = DEFAULT_TIMEOUT_MS) {
     const child = spawn('gnugo', ['--mode', 'gtp', '--quiet', '--level', String(request.level)]);
     const timeout = setTimeout(() => child.kill(), timeoutMs);

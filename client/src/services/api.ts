@@ -65,6 +65,7 @@ export interface GameStateResponse extends GameResponse, ClockFields {
   pendingReopenBy: Color | null;
   isAiOpponent: boolean;
   gnugoLevel: number | null;
+  aiCurrentLevel: number | null;
   lastMove: Point | null;
   lastEvent: LastEvent | null;
   canUndo: boolean;

@@ -70,6 +70,17 @@ db.exec(`
     created_at INTEGER NOT NULL,
     PRIMARY KEY (user_id, game_id)
   );
+
+  -- Scoped credential for an external board-vision service: lets it submit
+  -- moves for one specific game without a full player login. Valid for
+  -- either color, since the camera identifies a move by stone color, not by
+  -- which player placed it.
+  CREATE TABLE IF NOT EXISTS vision_tokens (
+    token TEXT PRIMARY KEY,
+    game_id TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
 `);
 
 // Migrate older `games` tables that predate the `size`/`result` columns
@@ -153,6 +164,15 @@ if (!gamesColumns.has('gnugo_level')) {
 // falling back to the handicap-derived default (see getKomi).
 if (!gamesColumns.has('komi')) {
   db.exec('ALTER TABLE games ADD COLUMN komi REAL');
+}
+// The level GNU Go is currently attempting (or last attempted) for the
+// in-progress AI move — distinct from gnugo_level, the game's configured
+// difficulty. Normally equal to it; only differs while a slow position has
+// forced a step down in search of a response that returns in time (see
+// maybeTriggerAiMove) — surfaced to the client so a human watching the
+// board can see exactly when and how far that backoff happened.
+if (!gamesColumns.has('ai_current_level')) {
+  db.exec('ALTER TABLE games ADD COLUMN ai_current_level INTEGER');
 }
 
 // Migrate older `snapshots` tables that predate the `hash` column (used for

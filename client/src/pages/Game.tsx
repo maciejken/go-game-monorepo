@@ -158,6 +158,7 @@ function GameView({ gameId }: GameViewProps) {
     pendingReopenBy,
     isAiOpponent,
     gnugoLevel,
+    aiCurrentLevel,
     timeControl,
     mainTimeSeconds,
     byoyomiSeconds,
@@ -209,6 +210,107 @@ function GameView({ gameId }: GameViewProps) {
   // already scrolls natively) — tracked via a ref rather than state so
   // dragging doesn't trigger a re-render on every pointer move.
   const chainDrag = useRef({ dragging: false, moved: false, startX: 0, startScrollLeft: 0 });
+
+  // Declared up here (rather than alongside the board-interaction handlers
+  // further down) so the "game not found" early return below can use them
+  // too, for a working Settings modal even without a loaded game.
+  const toggleCoords = () => {
+    setShowCoords((prev) => {
+      const next = !prev;
+      localStorage.setItem(SHOW_COORDS_KEY, String(next));
+      return next;
+    });
+  };
+
+  const toggleUndo = () => {
+    setShowUndo((prev) => {
+      const next = !prev;
+      localStorage.setItem(SHOW_UNDO_KEY, String(next));
+      return next;
+    });
+  };
+
+  const toggleConfirmMoves = () => {
+    setConfirmMoves((prev) => {
+      const next = !prev;
+      localStorage.setItem(CONFIRM_MOVES_KEY, String(next));
+      return next;
+    });
+    setPendingMove(null);
+  };
+
+  // React Router sets location.key to 'default' only on the page's very
+  // first load in this tab — i.e. there's no in-app history to go back to
+  // (a direct link, a fresh tab). Falls back to the games list instead of
+  // navigate(-1), which would otherwise leave the app or do nothing.
+  const goBack = () => {
+    if (location.key === 'default') {
+      navigate('/');
+    } else {
+      navigate(-1);
+    }
+  };
+
+  const userMenuItems = (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setMenuOpen(false);
+          setSettingsOpen(true);
+        }}
+      >
+        Settings
+      </button>
+      {user ? (
+        <button
+          type="button"
+          onClick={() => {
+            setMenuOpen(false);
+            // Permissions (myColor, etc.) were fetched under the old
+            // session and won't update in place — leave the game view
+            // instead of showing stale, now-wrong controls.
+            logout().then(() => navigate('/'));
+          }}
+        >
+          Log out ({user.username})
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setMenuOpen(false);
+            navigate('/login', { state: { from: `${location.pathname}${location.search}` } });
+          }}
+        >
+          Log in
+        </button>
+      )}
+    </>
+  );
+
+  const settingsModal = settingsOpen && (
+    <div className="modal-overlay" onClick={() => setSettingsOpen(false)}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Settings</h3>
+        <label className="modal-checkbox-row">
+          <input type="checkbox" checked={showCoords} onChange={toggleCoords} />
+          Show coordinates
+        </label>
+        <label className="modal-checkbox-row">
+          <input type="checkbox" checked={showUndo} onChange={toggleUndo} />
+          Show Undo button
+        </label>
+        <label className="modal-checkbox-row">
+          <input type="checkbox" checked={confirmMoves} onChange={toggleConfirmMoves} />
+          Confirm moves before playing them
+        </label>
+        <button type="button" className="modal-action" onClick={() => setSettingsOpen(false)}>
+          Close
+        </button>
+      </div>
+    </div>
+  );
 
   const moveParam = searchParams.get('move');
   const isReviewing = moveParam !== null;
@@ -323,7 +425,26 @@ function GameView({ gameId }: GameViewProps) {
   }, [currentColor, isReviewing]);
 
   if (notFound) {
-    return <p>Game not found.</p>;
+    return (
+      <>
+        <header className="go-header">
+          <button type="button" className="back-toggle" onClick={goBack}>
+            Back
+          </button>
+          <span />
+          <div className="go-menu" ref={menuRef}>
+            <button type="button" className="go-menu-toggle" onClick={() => setMenuOpen((open) => !open)}>
+              Menu ▾
+            </button>
+            {menuOpen && <div className="go-menu-dropdown">{userMenuItems}</div>}
+          </div>
+        </header>
+        <div className="go-board-wrap">
+          <div className="go-empty-state">Game not found.</div>
+        </div>
+        {settingsModal}
+      </>
+    );
   }
 
   if (!liveBoard) {
@@ -547,31 +668,6 @@ function GameView({ gameId }: GameViewProps) {
     });
   };
 
-  const toggleCoords = () => {
-    setShowCoords((prev) => {
-      const next = !prev;
-      localStorage.setItem(SHOW_COORDS_KEY, String(next));
-      return next;
-    });
-  };
-
-  const toggleUndo = () => {
-    setShowUndo((prev) => {
-      const next = !prev;
-      localStorage.setItem(SHOW_UNDO_KEY, String(next));
-      return next;
-    });
-  };
-
-  const toggleConfirmMoves = () => {
-    setConfirmMoves((prev) => {
-      const next = !prev;
-      localStorage.setItem(CONFIRM_MOVES_KEY, String(next));
-      return next;
-    });
-    setPendingMove(null);
-  };
-
   // With "confirm moves" on: a first click on a valid point just marks it
   // (like marking a dead group during scoring); clicking that same marked
   // point again is what actually sends the move. Clicking a different
@@ -608,7 +704,7 @@ function GameView({ gameId }: GameViewProps) {
   return (
     <>
       <header className="go-header">
-        <button type="button" className="back-toggle" onClick={() => navigate(-1)}>
+        <button type="button" className="back-toggle" onClick={goBack}>
           Back
         </button>
         {myColor === 'both' ? (
@@ -676,39 +772,7 @@ function GameView({ gameId }: GameViewProps) {
                 </button>
               )}
               <hr className="go-menu-divider" />
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setSettingsOpen(true);
-                }}
-              >
-                Settings
-              </button>
-              {user ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    // Permissions (myColor, etc.) were fetched under the old
-                    // session and won't update in place — leave the game
-                    // view instead of showing stale, now-wrong controls.
-                    logout().then(() => navigate('/'));
-                  }}
-                >
-                  Log out ({user.username})
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    navigate('/login', { state: { from: `${location.pathname}${location.search}` } });
-                  }}
-                >
-                  Log in
-                </button>
-              )}
+              {userMenuItems}
             </div>
           )}
         </div>
@@ -855,7 +919,11 @@ function GameView({ gameId }: GameViewProps) {
                   disabled={!isParticipant}
                   onClick={() => setTurnMenuOpen((open) => !open)}
                 >
-                  <span className={`go-stone go-stone--${currentColor}`} />
+                  <span className={`go-stone go-stone--${currentColor}`}>
+                    {isAiOpponent && !isMyTurn && aiCurrentLevel !== null && (
+                      <span className="go-stone-level">{aiCurrentLevel}</span>
+                    )}
+                  </span>
                 </button>
                 {isParticipant && turnMenuOpen && (
                   <div className="go-turn-balloon">
@@ -1004,28 +1072,7 @@ function GameView({ gameId }: GameViewProps) {
           </button>
         </div>
       )}
-      {settingsOpen && (
-        <div className="modal-overlay" onClick={() => setSettingsOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Settings</h3>
-            <label className="modal-checkbox-row">
-              <input type="checkbox" checked={showCoords} onChange={toggleCoords} />
-              Show coordinates
-            </label>
-            <label className="modal-checkbox-row">
-              <input type="checkbox" checked={showUndo} onChange={toggleUndo} />
-              Show Undo button
-            </label>
-            <label className="modal-checkbox-row">
-              <input type="checkbox" checked={confirmMoves} onChange={toggleConfirmMoves} />
-              Confirm moves before playing them
-            </label>
-            <button type="button" className="modal-action" onClick={() => setSettingsOpen(false)}>
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      {settingsModal}
     </>
   );
 }
