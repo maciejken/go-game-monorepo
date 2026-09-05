@@ -1154,6 +1154,18 @@ app.post('/api/games/:id/pass', (req, res) => {
         maybeTriggerAiMove(game.id);
     }
 });
+// Validates an arbitrary request body value as a Point[] on this game's
+// board — anything malformed or out of bounds is silently dropped rather
+// than rejecting the whole request, same tolerance finalize-scoring already
+// had for deadPoints before this was pulled out to also validate sekiPoints.
+function parsePointArray(value, size) {
+    const raw = Array.isArray(value) ? value : [];
+    return raw
+        .map((p) => (p && typeof p === 'object' ? p : null))
+        .filter((p) => p !== null)
+        .map((p) => ({ x: Number(p.x), y: Number(p.y) }))
+        .filter((p) => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.x < size && p.y >= 0 && p.y < size);
+}
 app.post('/api/games/:id/finalize-scoring', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
@@ -1176,15 +1188,15 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
         res.status(400).json({ error: 'An undo request is pending confirmation' });
         return;
     }
-    const rawDeadPoints = Array.isArray(req.body?.deadPoints) ? req.body.deadPoints : [];
-    const deadPoints = rawDeadPoints
-        .map((p) => (p && typeof p === 'object' ? p : null))
-        .filter((p) => p !== null)
-        .map((p) => ({ x: Number(p.x), y: Number(p.y) }))
-        .filter((p) => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.x < game.size && p.y >= 0 && p.y < game.size);
+    const deadPoints = parsePointArray(req.body?.deadPoints, game.size);
+    // A group a player has directly declared to be in seki (a separate
+    // scoring action from marking it dead) — these stay on the board, not
+    // removed, but score nothing for either side. See scoreBoard/
+    // findDeclaredSekiRegions in shared for how marking one side is enough.
+    const sekiPoints = parsePointArray(req.body?.sekiPoints, game.size);
     const board = getCurrentBoard(game.id, game.size);
     const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(board, getCumulativeCaptures(game.id), deadPoints);
-    const score = scoreBoard(effectiveBoard, adjustedCaptures, resolveKomi(game));
+    const score = scoreBoard(effectiveBoard, adjustedCaptures, resolveKomi(game), sekiPoints);
     const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
     // No komi means every count involved is a whole number — showing a
     // trailing ".0" there would be noise rather than precision.

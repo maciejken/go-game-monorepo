@@ -630,6 +630,26 @@
   justify-content: center;
 }
 
+/* Which click-a-group action is currently active during scoring: mark it
+   dead (removed, credited as a prisoner) or mark it seki (stays on the
+   board, scores nothing for either side). */
+.go-mark-mode {
+  display: flex;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.go-mark-mode button {
+  border-radius: 0;
+  padding: 6px 10px;
+}
+
+.go-mark-mode button.go-mark-mode-active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
 /* Tapping the turn-marker stone opens a balloon with the turn actions
    (Undo/Pass/Resign) instead of showing them inline — keeps the footer
    compact on narrow/mobile screens. */
@@ -700,6 +720,31 @@
 .go-clock--active {
   opacity: 1;
   font-weight: 600;
+}
+
+/* Byoyomi periods left, as a bottom-anchored dot column instead of "(N
+   left)" text — the column's total height is fixed to the turn-marker
+   stone's diameter (20px = the 24px footer --cell minus its 4px margin)
+   regardless of the game's period count, so it never grows the footer.
+   Dots are removed from the top as periods are used, so the bottommost
+   (last remaining) dot never moves. */
+.byoyomi-dots {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1px;
+  height: 20px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.byoyomi-dot {
+  width: calc((20px - (var(--byoyomi-total) - 1) * 1px) / var(--byoyomi-total));
+  height: calc((20px - (var(--byoyomi-total) - 1) * 1px) / var(--byoyomi-total));
+  border-radius: 50%;
+  background: var(--text-h);
+  flex-shrink: 0;
 }
 
 .footer-row {
@@ -974,6 +1019,19 @@
   background: #0a0a0a;
 }
 
+/* Self-hosted DSEG7-Classic (SIL OFL 1.1 — see
+   public/fonts/dseg7-classic/LICENSE.txt), a seven-segment "digital clock"
+   style font used only for the level number below. */
+@font-face {
+  font-family: 'DSEG7-Classic';
+  src:
+    url('/fonts/dseg7-classic/DSEG7Classic-Regular.woff2') format('woff2'),
+    url('/fonts/dseg7-classic/DSEG7Classic-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* GNU Go's current search level, shown on the footer turn marker while
    it's the AI's turn — normally just its configured difficulty, but a
    slow position can force a step down (see ai_current_level server-side),
@@ -983,8 +1041,8 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 11px;
-  font-weight: 600;
+  font-family: 'DSEG7-Classic', monospace;
+  font-size: 13px;
   line-height: 1;
   pointer-events: none;
 }
@@ -999,6 +1057,14 @@
 
 .go-stone--dead {
   opacity: 0.35;
+}
+
+/* Marked seki, not dead — the stone stays exactly as visible/solid as a
+   normal one (it's alive), just ringed to show it's been declared settled
+   for scoring rather than dimmed like a captured group. */
+.go-stone--seki {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .go-stone--pending {

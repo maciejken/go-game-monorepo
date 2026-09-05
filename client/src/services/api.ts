@@ -305,11 +305,15 @@ export function reopenScoring(id: string): Promise<ReopenScoringResponse> {
   );
 }
 
-export function finalizeScoring(id: string, deadPoints: Point[]): Promise<FinalizeScoringResponse> {
+export function finalizeScoring(
+  id: string,
+  deadPoints: Point[],
+  sekiPoints: Point[] = [],
+): Promise<FinalizeScoringResponse> {
   return fetch(`${API_BASE}/games/${id}/finalize-scoring`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ deadPoints }),
+    body: JSON.stringify({ deadPoints, sekiPoints }),
   }).then((res) => handle<FinalizeScoringResponse>(res));
 }
 

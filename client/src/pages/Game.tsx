@@ -201,6 +201,13 @@ function GameView({ gameId }: GameViewProps) {
   const [turnMenuOpen, setTurnMenuOpen] = useState(false);
   const [resultBalloonOpen, setResultBalloonOpen] = useState(false);
   const [pendingDead, setPendingDead] = useState<Set<string>>(new Set());
+  // A group marked seki stays on the board (it's alive) but scores nothing
+  // for either side — a separate declaration from marking it dead, since
+  // that would otherwise remove it and credit prisoners, which is wrong
+  // for a group that isn't actually captured. See scoreBoard's
+  // declaredSekiPoints in shared.
+  const [pendingSeki, setPendingSeki] = useState<Set<string>>(new Set());
+  const [markMode, setMarkMode] = useState<'dead' | 'seki'>('dead');
   const [nowMs, setNowMs] = useState(() => Date.now());
   const menuRef = useRef<HTMLDivElement>(null);
   const turnMenuRef = useRef<HTMLDivElement>(null);
@@ -479,7 +486,8 @@ function GameView({ gameId }: GameViewProps) {
   const isParticipant = myColor !== null;
   const isMyTurn = myColor === 'both' || myColor === currentColor;
   const canInteract = !isReviewing && status === 'in_progress' && isMyTurn;
-  const canToggleDead = !isReviewing && scoring && isParticipant;
+  // Gates marking groups at all, regardless of which mode (dead vs seki).
+  const canMarkGroups = !isReviewing && scoring && isParticipant;
   const navDisabled = latestMoveNumber === null || reviewMoveNumber === null;
   // Local games and AI games undo immediately (no negotiation) — same split
   // describeUndoAction uses to pick a label.
@@ -522,14 +530,16 @@ function GameView({ gameId }: GameViewProps) {
   // game ended (scored, resigned, or timed out) — reused here so the star
   // doesn't need its own separate parsing of `result`.
 
-  // Live preview of the final result as dead stones are marked, computed
-  // client-side with the same shared scoring logic the server uses at
-  // finalize time — so what's previewed here is exactly what gets confirmed.
+  // Live preview of the final result as dead/seki groups are marked,
+  // computed client-side with the same shared scoring logic the server
+  // uses at finalize time — so what's previewed here is exactly what gets
+  // confirmed.
   let provisionalResult: string | null = null;
   if (scoring && !isReviewing) {
     const deadPointsArray = Array.from(pendingDead, parsePointKey);
+    const sekiPointsArray = Array.from(pendingSeki, parsePointKey);
     const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(liveBoard, captures, deadPointsArray);
-    const score = scoreBoard(effectiveBoard, adjustedCaptures, komi);
+    const score = scoreBoard(effectiveBoard, adjustedCaptures, komi, sekiPointsArray);
     const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
     const marginLabel = Number.isInteger(score.margin) ? String(score.margin) : score.margin.toFixed(1);
     provisionalResult = `${winnerLabel} wins by ${marginLabel} (B: ${score.black}, W: ${score.white})`;
@@ -557,11 +567,26 @@ function GameView({ gameId }: GameViewProps) {
     : null;
 
   const clockLabel = (clock: NonNullable<typeof blackClock>) => {
-    if (!clock.inByoyomi) {
-      return formatClock(clock.mainMs);
+    return clock.inByoyomi ? formatClock(clock.periodMs) : formatClock(clock.mainMs);
+  };
+
+  // Byoyomi periods left, as a bottom-anchored column of dots instead of
+  // "(N left)" text — narrow footer space is at a premium, especially on
+  // small screens. The column's height is fixed to the game's starting
+  // period count (so it never grows past the turn-marker stone's
+  // diameter), and dots disappear from the top as periods are used, so the
+  // last remaining one always stays anchored at the bottom.
+  const periodDots = (clock: NonNullable<typeof blackClock>) => {
+    if (!clock.inByoyomi || byoyomiPeriods === null || byoyomiPeriods <= 1) {
+      return null;
     }
-    const showPeriods = byoyomiPeriods !== null && byoyomiPeriods > 1;
-    return `${formatClock(clock.periodMs)}${showPeriods ? ` (${clock.periodsLeft} left)` : ''}`;
+    return (
+      <span className="byoyomi-dots" style={{ '--byoyomi-total': byoyomiPeriods } as React.CSSProperties}>
+        {Array.from({ length: clock.periodsLeft }, (_, i) => (
+          <span key={i} className="byoyomi-dot" />
+        ))}
+      </span>
+    );
   };
 
   const goToMove = (n: number) => {
@@ -615,20 +640,24 @@ function GameView({ gameId }: GameViewProps) {
     setSearchParams(searchParams, { replace: true });
   };
 
-  // Marking any stone in a group toggles the whole group together, since a
-  // group lives or dies as a unit — clicking a second stone in an
-  // already-marked group un-marks the whole group rather than adding to it.
-  const toggleDeadGroup = (x: number, y: number) => {
-    const group = getGroup(liveBoard, { x, y });
-    if (group.length === 0) {
-      return;
-    }
-    const keys = group.map(pointKey);
-    const alreadyDead = keys.some((key) => pendingDead.has(key));
-    setPendingDead((prev) => {
+  // Toggles every stone of a group in `set` together, since a group lives
+  // or dies (or is in seki) as a unit — clicking a second stone in an
+  // already-marked group un-marks the whole group rather than adding to
+  // it. A group can't be marked both dead and seki at once (that's a
+  // contradiction — dead means captured, seki means alive but neutral) —
+  // marking it in one clears it from the other.
+  const toggleGroupMembership = (
+    keys: string[],
+    set: Set<string>,
+    setSet: (updater: (prev: Set<string>) => Set<string>) => void,
+    otherSet: Set<string>,
+    setOtherSet: (updater: (prev: Set<string>) => Set<string>) => void,
+  ) => {
+    const alreadyMarked = keys.some((key) => set.has(key));
+    setSet((prev) => {
       const next = new Set(prev);
       for (const key of keys) {
-        if (alreadyDead) {
+        if (alreadyMarked) {
           next.delete(key);
         } else {
           next.add(key);
@@ -636,16 +665,42 @@ function GameView({ gameId }: GameViewProps) {
       }
       return next;
     });
+    if (!alreadyMarked && keys.some((key) => otherSet.has(key))) {
+      setOtherSet((prev) => {
+        const next = new Set(prev);
+        for (const key of keys) {
+          next.delete(key);
+        }
+        return next;
+      });
+    }
+  };
+
+  const toggleMarkedGroup = (x: number, y: number) => {
+    const group = getGroup(liveBoard, { x, y });
+    if (group.length === 0) {
+      return;
+    }
+    const keys = group.map(pointKey);
+    if (markMode === 'dead') {
+      toggleGroupMembership(keys, pendingDead, setPendingDead, pendingSeki, setPendingSeki);
+    } else {
+      toggleGroupMembership(keys, pendingSeki, setPendingSeki, pendingDead, setPendingDead);
+    }
   };
 
   const resume = () => {
     setPendingDead(new Set());
+    setPendingSeki(new Set());
     undo();
   };
 
   const finalize = () => {
-    finalizeScoring(Array.from(pendingDead, parsePointKey))
-      .then(() => setPendingDead(new Set()))
+    finalizeScoring(Array.from(pendingDead, parsePointKey), Array.from(pendingSeki, parsePointKey))
+      .then(() => {
+        setPendingDead(new Set());
+        setPendingSeki(new Set());
+      })
       .catch(() => {});
   };
 
@@ -677,8 +732,8 @@ function GameView({ gameId }: GameViewProps) {
   // need the full position history — superko — are just as reliable as
   // occupied/turn/suicide, instead of only surfacing on the confirm step.
   const handlePointClick = (x: number, y: number) => {
-    if (canToggleDead) {
-      toggleDeadGroup(x, y);
+    if (canMarkGroups) {
+      toggleMarkedGroup(x, y);
       return;
     }
     if (!confirmMoves) {
@@ -817,14 +872,16 @@ function GameView({ gameId }: GameViewProps) {
                     type="button"
                     className="go-point"
                     onClick={() => handlePointClick(x, y)}
-                    disabled={canToggleDead ? stone === null : stone !== null || !canInteract}
+                    disabled={canMarkGroups ? stone === null : stone !== null || !canInteract}
                     aria-label={`Point ${COLUMN_LABELS[x]}${size - y}`}
                   >
                     {stone && (
                       <span
                         className={`go-stone go-stone--${stone}${
                           highlightedPoint?.x === x && highlightedPoint?.y === y ? ' go-stone--last' : ''
-                        }${pendingDead.has(pointKey({ x, y })) ? ' go-stone--dead' : ''}`}
+                        }${pendingDead.has(pointKey({ x, y })) ? ' go-stone--dead' : ''}${
+                          pendingSeki.has(pointKey({ x, y })) ? ' go-stone--seki' : ''
+                        }`}
                       />
                     )}
                     {!stone && pendingMove?.x === x && pendingMove?.y === y && (
@@ -841,7 +898,9 @@ function GameView({ gameId }: GameViewProps) {
         )}
         {!isReviewing && scoring && (
           <p>
-            Marking dead stones — click a stone to toggle its group.
+            {markMode === 'dead'
+              ? 'Marking dead stones — click a stone to toggle its group.'
+              : 'Marking seki groups — click a stone to toggle its group. Stays on the board; scores nothing for either side.'}
             {provisionalResult && <> Estimated: {provisionalResult}</>}
           </p>
         )}
@@ -902,10 +961,13 @@ function GameView({ gameId }: GameViewProps) {
       <footer className="go-footer">
         <div className="footer-row">
           <span className="capture-label">
-            B: <span className="capture-count capture-count--white">{displayedCaptures.black}</span>
+            <span className="capture-count capture-count--white" aria-label={`Black's prisoners: ${displayedCaptures.black}`}>
+              {displayedCaptures.black}
+            </span>
             {!isReviewing && blackClock && (
               <span className={`go-clock${currentColor === 'black' && status === 'in_progress' ? ' go-clock--active' : ''}`}>
                 {clockLabel(blackClock)}
+                {periodDots(blackClock)}
               </span>
             )}
           </span>
@@ -976,6 +1038,24 @@ function GameView({ gameId }: GameViewProps) {
                     </button>
                   );
                 })()}
+                <div className="go-mark-mode" role="group" aria-label="Marking mode">
+                  <button
+                    type="button"
+                    className={markMode === 'dead' ? 'go-mark-mode-active' : ''}
+                    aria-pressed={markMode === 'dead'}
+                    onClick={() => setMarkMode('dead')}
+                  >
+                    Dead
+                  </button>
+                  <button
+                    type="button"
+                    className={markMode === 'seki' ? 'go-mark-mode-active' : ''}
+                    aria-pressed={markMode === 'seki'}
+                    onClick={() => setMarkMode('seki')}
+                  >
+                    Seki
+                  </button>
+                </div>
                 <button type="button" className="icon-action-button" aria-label="Finalize scoring" onClick={finalize}>
                   <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
                     <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
@@ -1044,9 +1124,12 @@ function GameView({ gameId }: GameViewProps) {
             {!isReviewing && whiteClock && (
               <span className={`go-clock${currentColor === 'white' && status === 'in_progress' ? ' go-clock--active' : ''}`}>
                 {clockLabel(whiteClock)}
+                {periodDots(whiteClock)}
               </span>
             )}
-            W: <span className="capture-count capture-count--black">{displayedCaptures.white}</span>
+            <span className="capture-count capture-count--black" aria-label={`White's prisoners: ${displayedCaptures.white}`}>
+              {displayedCaptures.white}
+            </span>
           </span>
         </div>
       </footer>

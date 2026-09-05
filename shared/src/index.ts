@@ -271,40 +271,65 @@ export interface ScoreResult {
   margin: number;
 }
 
-// Japanese-style territory scoring: surrounded empty territory (an empty
-// region counts for a color only if every stone bordering it is that color;
-// regions touching both, or neither, are neutral) plus prisoners — stones
-// each color has captured over the course of the game. This scores the
-// board exactly as it stands — it does not know which stones are "dead", so
-// it's only correct if the position has no stones left on it that both
-// players would agree are already captured in substance but not yet
-// removed.
-export function scoreBoard(board: Board, captures: Captures, komi: number): ScoreResult {
-  let blackTerritory = 0;
-  let whiteTerritory = 0;
+// Assigns a stable numeric id to every stone's group (flood-filled once),
+// so the region pass below can cross-reference "which specific group is
+// this" rather than just "which color" — needed to tell seki apart from an
+// ordinary dame point next to an already-alive group (see scoreBoard).
+function labelGroups(board: Board): { groupId: number[][]; groupColor: Map<number, Color> } {
+  const size = board.length;
+  const groupId: number[][] = Array.from({ length: size }, () => new Array<number>(size).fill(-1));
+  const groupColor = new Map<number, Color>();
+  let nextId = 0;
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const color = board[y][x];
+      if (color === null || groupId[y][x] !== -1) {
+        continue;
+      }
+      const id = nextId++;
+      groupColor.set(id, color);
+      for (const stone of getGroup(board, { x, y })) {
+        groupId[stone.y][stone.x] = id;
+      }
+    }
+  }
+
+  return { groupId, groupColor };
+}
+
+interface Region {
+  size: number;
+  colors: Set<Color>;
+  // Every stone group bordering this region, by id — a region can be
+  // "single-color" (colors.size === 1) yet still be bordered by more than
+  // one distinct group of that color.
+  groupIds: Set<number>;
+}
+
+// Flood-fills every connected empty region on the board, recording which
+// color(s) and which specific stone groups border each one.
+function findRegions(board: Board, groupId: number[][]): Region[] {
+  const regions: Region[] = [];
   const visited = new Set<string>();
 
   for (let y = 0; y < board.length; y++) {
     for (let x = 0; x < board[y].length; x++) {
-      const stone = board[y][x];
-      if (stone === 'black' || stone === 'white') {
+      if (board[y][x] !== null) {
         continue;
       }
-
       const key = `${x},${y}`;
       if (visited.has(key)) {
         continue;
       }
 
-      // Flood-fill this empty region, tracking which color(s) border it.
-      let regionSize = 0;
-      const borders = new Set<Color>();
+      const region: Region = { size: 0, colors: new Set(), groupIds: new Set() };
       const stack: Point[] = [{ x, y }];
       visited.add(key);
 
       while (stack.length > 0) {
         const point = stack.pop()!;
-        regionSize += 1;
+        region.size += 1;
         for (const neighbor of getNeighbors(board, point)) {
           const neighborStone = board[neighbor.y][neighbor.x];
           if (neighborStone === null) {
@@ -314,21 +339,157 @@ export function scoreBoard(board: Board, captures: Captures, komi: number): Scor
               stack.push(neighbor);
             }
           } else {
-            borders.add(neighborStone);
+            region.colors.add(neighborStone);
+            region.groupIds.add(groupId[neighbor.y][neighbor.x]);
           }
         }
       }
 
-      if (borders.size === 1) {
-        if (borders.has('black')) {
-          blackTerritory += regionSize;
-        } else {
-          whiteTerritory += regionSize;
-        }
-      }
-      // borders.size === 0 (empty board) or 2 (touches both colors): neutral
+      regions.push(region);
     }
   }
+
+  return regions;
+}
+
+// A shared region only counts as a plausible seki vital point if it's
+// small — real seki vital liberties are almost always exactly 1 point,
+// occasionally 2, essentially never more. Without this, two entirely
+// ordinary, unconnected groups facing each other across a large open dame
+// area also satisfy "fewer than two eyes each" (each has just the one big
+// territory on its far side) and would be wrongly declared seki, wiping
+// out both sides' real territory — nobody's group is actually in any
+// danger there, unlike a genuine 1-2 point shared vital liberty.
+const MAX_SEKI_SHARED_REGION_SIZE = 2;
+
+// Which single-color regions count as territory outright, and which are
+// actually part of a seki and so score nothing for either side — including
+// each side's own "eye" points, not just the point(s) they share.
+//
+// A region touching both colors (borders.size === 2) is already always
+// neutral (ordinary dame) regardless of anything below. The extra step
+// here: a group with fewer than two independent eyes of its own, kept
+// alive only by a small shared liberty with an enemy group in the same
+// position, is in seki — and Japanese rules count nothing for either side
+// in a seki, including points that look like ordinary one-color eyes but
+// are really part of the same shared-life situation. This only recognizes
+// the clear, symmetric case (a small shared liberty where every bordering
+// group on both sides lacks two eyes of its own); anything requiring
+// genuine life-and-death reading to resolve is left as-is, same as this
+// scorer already leaves dead stones for a human to mark before calling
+// this at all.
+function findSekiNeutralRegions(regions: Region[]): Set<number> {
+  const privateRegionsByGroup = new Map<number, number[]>();
+  const eyeCountByGroup = new Map<number, number>();
+
+  regions.forEach((region, index) => {
+    if (region.colors.size !== 1) {
+      return;
+    }
+    for (const id of region.groupIds) {
+      eyeCountByGroup.set(id, (eyeCountByGroup.get(id) ?? 0) + 1);
+      const list = privateRegionsByGroup.get(id);
+      if (list) {
+        list.push(index);
+      } else {
+        privateRegionsByGroup.set(id, [index]);
+      }
+    }
+  });
+
+  const neutral = new Set<number>();
+  for (const region of regions) {
+    if (region.colors.size !== 2 || region.size > MAX_SEKI_SHARED_REGION_SIZE) {
+      continue;
+    }
+    const isMutualSeki = [...region.groupIds].every((id) => (eyeCountByGroup.get(id) ?? 0) < 2);
+    if (!isMutualSeki) {
+      continue;
+    }
+    for (const id of region.groupIds) {
+      for (const privateIndex of privateRegionsByGroup.get(id) ?? []) {
+        neutral.add(privateIndex);
+      }
+    }
+  }
+
+  return neutral;
+}
+
+// A player can also directly declare a group to be in seki, via a separate
+// scoring action from marking dead stones (see the client's "mark seki"
+// toggle) — those stones stay on the board, since they're alive, unlike
+// applyDeadStones. Only one side needs to be flagged: this pulls in every
+// group directly sharing a liberty with a declared group too, so both
+// sides' eyes end up excluded from territory either way — the same
+// outcome as findSekiNeutralRegions above, but without its eye-count/
+// region-size limits, since a human confirmed it rather than the
+// automatic heuristic inferring it. This is the escape hatch for seki
+// shapes that heuristic doesn't recognize (more than the usual 1-2 shared
+// liberties, more irregular shapes, etc).
+function findDeclaredSekiRegions(
+  board: Board,
+  groupId: number[][],
+  regions: Region[],
+  declaredPoints: Point[],
+): Set<number> {
+  const declaredGroups = new Set<number>();
+  for (const point of declaredPoints) {
+    if (!isPointOnBoard(board, point) || board[point.y][point.x] === null) {
+      continue;
+    }
+    declaredGroups.add(groupId[point.y][point.x]);
+  }
+
+  for (const region of regions) {
+    if (region.colors.size === 2 && [...region.groupIds].some((id) => declaredGroups.has(id))) {
+      for (const id of region.groupIds) {
+        declaredGroups.add(id);
+      }
+    }
+  }
+
+  const neutral = new Set<number>();
+  regions.forEach((region, index) => {
+    if (region.colors.size === 1 && [...region.groupIds].some((id) => declaredGroups.has(id))) {
+      neutral.add(index);
+    }
+  });
+  return neutral;
+}
+
+// Japanese-style territory scoring: surrounded empty territory (an empty
+// region counts for a color only if every stone bordering it is that color;
+// regions touching both, or neither, are neutral — see findSekiNeutralRegions
+// and findDeclaredSekiRegions for the seki exceptions to that) plus
+// prisoners — stones each color has captured over the course of the game.
+// This scores the board exactly as it stands — it does not know which
+// stones are "dead", so it's only correct if the position has no stones
+// left on it that both players would agree are already captured in
+// substance but not yet removed.
+export function scoreBoard(
+  board: Board,
+  captures: Captures,
+  komi: number,
+  declaredSekiPoints: Point[] = [],
+): ScoreResult {
+  const { groupId } = labelGroups(board);
+  const regions = findRegions(board, groupId);
+  const sekiNeutral = findSekiNeutralRegions(regions);
+  const declaredNeutral = findDeclaredSekiRegions(board, groupId, regions, declaredSekiPoints);
+
+  let blackTerritory = 0;
+  let whiteTerritory = 0;
+  regions.forEach((region, index) => {
+    if (region.colors.size !== 1 || sekiNeutral.has(index) || declaredNeutral.has(index)) {
+      return;
+    }
+    if (region.colors.has('black')) {
+      blackTerritory += region.size;
+    } else {
+      whiteTerritory += region.size;
+    }
+  });
 
   const black = blackTerritory + captures.black;
   const white = whiteTerritory + captures.white + komi;

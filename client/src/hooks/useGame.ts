@@ -197,9 +197,9 @@ export function useGame(gameId: string) {
   }, [gameId]);
 
   const finalizeScoring = useCallback(
-    (deadPoints: Point[]) => {
+    (deadPoints: Point[], sekiPoints: Point[] = []) => {
       setError(null);
-      return finalizeScoringRequest(gameId, deadPoints)
+      return finalizeScoringRequest(gameId, deadPoints, sekiPoints)
         .then((res) => {
           setStatus(res.status);
           setResult(res.result);

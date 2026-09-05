@@ -1483,6 +1483,21 @@ app.post('/api/games/:id/pass', (req, res) => {
   }
 });
 
+// Validates an arbitrary request body value as a Point[] on this game's
+// board — anything malformed or out of bounds is silently dropped rather
+// than rejecting the whole request, same tolerance finalize-scoring already
+// had for deadPoints before this was pulled out to also validate sekiPoints.
+function parsePointArray(value: unknown, size: number): Point[] {
+  const raw: unknown[] = Array.isArray(value) ? value : [];
+  return raw
+    .map((p: unknown) => (p && typeof p === 'object' ? (p as { x: unknown; y: unknown }) : null))
+    .filter((p: { x: unknown; y: unknown } | null): p is { x: unknown; y: unknown } => p !== null)
+    .map((p: { x: unknown; y: unknown }) => ({ x: Number(p.x), y: Number(p.y) }))
+    .filter(
+      (p: Point) => Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.x < size && p.y >= 0 && p.y < size,
+    );
+}
+
 app.post('/api/games/:id/finalize-scoring', (req, res) => {
   const game = getGameRow(req.params.id);
   if (!game) {
@@ -1508,15 +1523,12 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
     return;
   }
 
-  const rawDeadPoints: unknown[] = Array.isArray(req.body?.deadPoints) ? req.body.deadPoints : [];
-  const deadPoints: Point[] = rawDeadPoints
-    .map((p: unknown) => (p && typeof p === 'object' ? (p as { x: unknown; y: unknown }) : null))
-    .filter((p: { x: unknown; y: unknown } | null): p is { x: unknown; y: unknown } => p !== null)
-    .map((p: { x: unknown; y: unknown }) => ({ x: Number(p.x), y: Number(p.y) }))
-    .filter(
-      (p: Point) =>
-        Number.isInteger(p.x) && Number.isInteger(p.y) && p.x >= 0 && p.x < game.size && p.y >= 0 && p.y < game.size,
-    );
+  const deadPoints = parsePointArray(req.body?.deadPoints, game.size);
+  // A group a player has directly declared to be in seki (a separate
+  // scoring action from marking it dead) — these stay on the board, not
+  // removed, but score nothing for either side. See scoreBoard/
+  // findDeclaredSekiRegions in shared for how marking one side is enough.
+  const sekiPoints = parsePointArray(req.body?.sekiPoints, game.size);
 
   const board = getCurrentBoard(game.id, game.size);
   const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(
@@ -1525,7 +1537,7 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
     deadPoints,
   );
 
-  const score = scoreBoard(effectiveBoard, adjustedCaptures, resolveKomi(game));
+  const score = scoreBoard(effectiveBoard, adjustedCaptures, resolveKomi(game), sekiPoints);
   const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
   // No komi means every count involved is a whole number — showing a
   // trailing ".0" there would be noise rather than precision.

@@ -38,4 +38,4 @@ export interface ScoreResult {
     winner: Color;
     margin: number;
 }
-export declare function scoreBoard(board: Board, captures: Captures, komi: number): ScoreResult;
+export declare function scoreBoard(board: Board, captures: Captures, komi: number, declaredSekiPoints?: Point[]): ScoreResult;
