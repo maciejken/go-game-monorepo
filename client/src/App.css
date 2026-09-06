@@ -1032,6 +1032,7 @@
 }
 
 .go-point {
+  position: relative;
   width: var(--cell);
   height: var(--cell);
   padding: 0;
@@ -1059,6 +1060,10 @@
 /* Scoring-phase territory markers — a small square on each empty point
    currently counted as one side's territory. */
 .go-territory-marker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: 36%;
   height: 36%;
 }

@@ -901,7 +901,7 @@ function GameView({ gameId }: GameViewProps) {
                     {!stone && pendingMove?.x === x && pendingMove?.y === y && (
                       <span className={`go-stone go-stone--${currentColor} go-stone--pending`} />
                     )}
-                    {!stone &&
+                    {(!stone || pendingDead.has(pointKey({ x, y }))) &&
                       scoring &&
                       !isReviewing &&
                       (blackTerritoryKeys.has(pointKey({ x, y })) || whiteTerritoryKeys.has(pointKey({ x, y }))) && (
