@@ -74,6 +74,16 @@ db.exec(`
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
+
+  -- An iOS device's APNs token, so the server knows where to push "it's
+  -- your turn" notifications. One user can have several rows (multiple
+  -- devices); a token moves to a new owner if it's re-registered under a
+  -- different logged-in user (e.g. a shared device, or a reinstall).
+  CREATE TABLE IF NOT EXISTS device_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
 `);
 // Migrate older `games` tables that predate the `size`/`result` columns
 const gamesColumns = new Set(db.prepare('PRAGMA table_info(games)').all().map((column) => column.name));

@@ -13,6 +13,7 @@ import { clearSessionCookie, createSession, destroySession, getSessionToken, get
 import { seedDefaultUser, seedAiUser, getAiUserId } from './seed.js';
 import { attachWebSocketServer, broadcastGameUpdate, broadcastGamesListUpdate } from './ws.js';
 import { generateAiMove, isGnuGoAvailable } from './gnugo.js';
+import { sendPushNotification } from './apns.js';
 import { deductClock, hasTimedOut, resolveTimeControl } from './clock.js';
 seedDefaultUser();
 seedAiUser();
@@ -87,6 +88,23 @@ function isValidVisionToken(req, gameId) {
 function isAiOpponentGame(game) {
     const aiId = getAiUserId();
     return game.black_user_id === aiId || game.white_user_id === aiId;
+}
+// Pushes "it's your turn" to every device the color-to-move's player has
+// registered — skipped for a local game (both colors are the same account,
+// who obviously doesn't need telling) and for an AI opponent (nobody to
+// notify; maybeTriggerAiMove handles that turn instead).
+function notifyOpponentOfMove(game, moverColor, nextColor) {
+    const opponentId = nextColor === 'black' ? game.black_user_id : game.white_user_id;
+    const moverId = moverColor === 'black' ? game.black_user_id : game.white_user_id;
+    if (!opponentId || opponentId === moverId || isAiOpponentGame(game)) {
+        return;
+    }
+    const moverName = getUsername(moverId) ?? 'Your opponent';
+    const alert = `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`;
+    const tokens = db.prepare('SELECT token FROM device_tokens WHERE user_id = ?').all(opponentId);
+    for (const { token } of tokens) {
+        sendPushNotification(token, alert);
+    }
 }
 function isStarred(gameId, userId) {
     if (!userId) {
@@ -517,13 +535,15 @@ function applyMoveToGame(game, x, y, color) {
     db.prepare('UPDATE games SET updated_at = ? WHERE id = ?').run(now, game.id);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();
+    const nextColor = getCurrentColor(turnMoveNumber(moveNumber + 1, game.handicap));
+    notifyOpponentOfMove(game, color, nextColor);
     return {
         ok: true,
         result: {
             board: newBoard,
             moveNumber,
             capturedPoints,
-            nextColor: getCurrentColor(turnMoveNumber(moveNumber + 1, game.handicap)),
+            nextColor,
             captures: getCumulativeCaptures(game.id),
         },
     };
@@ -717,6 +737,26 @@ app.post('/api/auth/logout', (req, res) => {
 });
 app.get('/api/auth/me', (req, res) => {
     res.json({ user: getSessionUser(req) });
+});
+// Registers (or re-registers) an iOS device's APNs token against the
+// logged-in user, so notifyOpponentOfMove knows where to push "it's your
+// turn". A token is re-assigned to whichever user last registered it,
+// covering both a reinstall and a shared device switching accounts.
+app.post('/api/device-tokens', (req, res) => {
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    const token = req.body?.token;
+    if (typeof token !== 'string' || token.length === 0) {
+        res.status(400).json({ error: 'Invalid device token' });
+        return;
+    }
+    db.prepare(`
+    INSERT INTO device_tokens (token, user_id, created_at) VALUES (?, ?, ?)
+    ON CONFLICT(token) DO UPDATE SET user_id = excluded.user_id, created_at = excluded.created_at
+  `).run(token, user.id, Date.now());
+    res.status(204).end();
 });
 app.get('/api/games', (req, res) => {
     const currentUser = getSessionUser(req);
