@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { applyDeadStones, getGroup, scoreBoard, type Color, type Point } from 'shared';
+import { applyDeadStones, findSekiPartnerStones, getGroup, scoreBoard, type Color, type Point } from 'shared';
 import { useAuth } from '../hooks/useAuth';
 import { useDialog } from '../hooks/useDialog';
 import { useGame } from '../hooks/useGame';
@@ -692,12 +692,17 @@ function GameView({ gameId }: GameViewProps) {
     if (group.length === 0) {
       return;
     }
-    const keys = group.map(pointKey);
     if (markMode === 'dead') {
+      const keys = group.map(pointKey);
       toggleGroupMembership(keys, pendingDead, setPendingDead, pendingSeki, setPendingSeki);
-    } else {
-      toggleGroupMembership(keys, pendingSeki, setPendingSeki, pendingDead, setPendingDead);
+      return;
     }
+    // Marking one side of a seki also marks the opposite-color group it
+    // shares its vital liberty with — a seki is never just one group, and
+    // requiring a second click on the other side is a natural spot to forget.
+    const partnerStones = findSekiPartnerStones(liveBoard, { x, y });
+    const keys = [...new Set([...group, ...partnerStones].map(pointKey))];
+    toggleGroupMembership(keys, pendingSeki, setPendingSeki, pendingDead, setPendingDead);
   };
 
   const resume = () => {

@@ -40,4 +40,5 @@ export interface ScoreResult {
     blackTerritoryPoints: Point[];
     whiteTerritoryPoints: Point[];
 }
+export declare function findSekiPartnerStones(board: Board, point: Point): Point[];
 export declare function scoreBoard(board: Board, captures: Captures, komi: number, declaredSekiPoints?: Point[]): ScoreResult;

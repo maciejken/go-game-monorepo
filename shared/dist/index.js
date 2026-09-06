@@ -307,6 +307,44 @@ function findSekiNeutralRegions(regions) {
     }
     return neutral;
 }
+// Given a stone belonging to one side of a seki, returns every stone in the
+// opposite-color group(s) it shares a liberty with — used by the client to
+// auto-extend a "mark seki" click to the other side of the pair, since a
+// real seki always involves both. A human is the one declaring this (not an
+// automatic heuristic guessing it), so this trusts that call rather than
+// second-guessing it with a life-and-death-shaped size limit: any adjacent
+// opposite-color group sharing a liberty counts, however many there are.
+export function findSekiPartnerStones(board, point) {
+    const color = board[point.y]?.[point.x];
+    if (!color) {
+        return [];
+    }
+    const opponent = oppositeColor(color);
+    const partnerStones = [];
+    const visitedPartnerStones = new Set();
+    const visitedLiberties = new Set();
+    for (const stone of getGroup(board, point)) {
+        for (const liberty of getNeighbors(board, stone)) {
+            const libertyKey = `${liberty.x},${liberty.y}`;
+            if (board[liberty.y][liberty.x] !== null || visitedLiberties.has(libertyKey)) {
+                continue;
+            }
+            visitedLiberties.add(libertyKey);
+            for (const neighbor of getNeighbors(board, liberty)) {
+                const neighborKey = `${neighbor.x},${neighbor.y}`;
+                if (board[neighbor.y][neighbor.x] !== opponent || visitedPartnerStones.has(neighborKey)) {
+                    continue;
+                }
+                const partnerGroup = getGroup(board, neighbor);
+                for (const partnerStone of partnerGroup) {
+                    visitedPartnerStones.add(`${partnerStone.x},${partnerStone.y}`);
+                }
+                partnerStones.push(...partnerGroup);
+            }
+        }
+    }
+    return partnerStones;
+}
 // A player can also directly declare a group to be in seki, via a separate
 // scoring action from marking dead stones (see the client's "mark seki"
 // toggle) — those stones stay on the board, since they're alive, unlike
