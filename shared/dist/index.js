@@ -220,12 +220,13 @@ function findRegions(board, groupId) {
             if (visited.has(key)) {
                 continue;
             }
-            const region = { size: 0, colors: new Set(), groupIds: new Set() };
+            const region = { size: 0, points: [], colors: new Set(), groupIds: new Set() };
             const stack = [{ x, y }];
             visited.add(key);
             while (stack.length > 0) {
                 const point = stack.pop();
                 region.size += 1;
+                region.points.push(point);
                 for (const neighbor of getNeighbors(board, point)) {
                     const neighborStone = board[neighbor.y][neighbor.x];
                     if (neighborStone === null) {
@@ -356,15 +357,19 @@ export function scoreBoard(board, captures, komi, declaredSekiPoints = []) {
     const declaredNeutral = findDeclaredSekiRegions(board, groupId, regions, declaredSekiPoints);
     let blackTerritory = 0;
     let whiteTerritory = 0;
+    const blackTerritoryPoints = [];
+    const whiteTerritoryPoints = [];
     regions.forEach((region, index) => {
         if (region.colors.size !== 1 || sekiNeutral.has(index) || declaredNeutral.has(index)) {
             return;
         }
         if (region.colors.has('black')) {
             blackTerritory += region.size;
+            blackTerritoryPoints.push(...region.points);
         }
         else {
             whiteTerritory += region.size;
+            whiteTerritoryPoints.push(...region.points);
         }
     });
     const black = blackTerritory + captures.black;
@@ -374,5 +379,7 @@ export function scoreBoard(board, captures, komi, declaredSekiPoints = []) {
         white,
         winner: black > white ? 'black' : 'white',
         margin: Math.abs(black - white),
+        blackTerritoryPoints,
+        whiteTerritoryPoints,
     };
 }

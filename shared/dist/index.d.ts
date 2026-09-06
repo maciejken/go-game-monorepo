@@ -37,5 +37,7 @@ export interface ScoreResult {
     white: number;
     winner: Color;
     margin: number;
+    blackTerritoryPoints: Point[];
+    whiteTerritoryPoints: Point[];
 }
 export declare function scoreBoard(board: Board, captures: Captures, komi: number, declaredSekiPoints?: Point[]): ScoreResult;

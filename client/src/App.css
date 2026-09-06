@@ -616,11 +616,9 @@
   }
 }
 
-/* Icon-only (⏮ ◀ ▶ ⏭ and the scoring-phase Resume/Finalize icons), so a
-   squarer, tighter button suits them better than the text buttons' wide
-   horizontal padding — kept the same size across both for consistency. */
-.review-controls button,
-.icon-action-button {
+/* Icon-only (⏮ ◀ ▶ ⏭), so a squarer, tighter button suits them better than
+   the text buttons' wide horizontal padding. */
+.review-controls button {
   width: 44px;
   height: 44px;
   padding: 0;
@@ -630,24 +628,67 @@
   justify-content: center;
 }
 
+/* Scoring-phase Resume/Finalize icons — a smaller footprint than the review
+   controls above since these sit in the already-crowded footer; the icon
+   itself stays full-size and overflows the button's box slightly. */
+.icon-action-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-action-button svg {
+  flex-shrink: 0;
+}
+
 /* Which click-a-group action is currently active during scoring: mark it
    dead (removed, credited as a prisoner) or mark it seki (stays on the
-   board, scores nothing for either side). */
+   board, scores nothing for either side). Styled as a switch: a white thumb
+   slides under whichever option is active, covering it in black text. */
 .go-mark-mode {
+  position: relative;
   display: flex;
-  border-radius: 4px;
+  width: min(280px, 100%);
+  padding: 4px;
+  border-radius: 5px;
   overflow: hidden;
   border: 1px solid var(--border);
+  background: var(--accent-bg);
+}
+
+.go-mark-mode-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  background: #fff;
+  border-radius: 3px;
+  transition: transform 0.2s ease;
+}
+
+.go-mark-mode-thumb--seki {
+  transform: translateX(100%);
 }
 
 .go-mark-mode button {
+  appearance: none;
+  position: relative;
+  flex: 1;
+  border: none;
   border-radius: 0;
-  padding: 6px 10px;
+  padding: 8px 10px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
 }
 
 .go-mark-mode button.go-mark-mode-active {
-  background: var(--accent-bg);
-  color: var(--accent);
+  color: #0a0a0a;
 }
 
 /* Tapping the turn-marker stone opens a balloon with the turn actions
@@ -711,6 +752,8 @@
 }
 
 .go-clock {
+  display: inline-flex;
+  align-items: center;
   opacity: 0.7;
   font-variant-numeric: tabular-nums;
   font-size: 12px;
@@ -736,7 +779,6 @@
   gap: 1px;
   height: 20px;
   margin-left: 4px;
-  vertical-align: middle;
 }
 
 .byoyomi-dot {
@@ -934,6 +976,31 @@
   flex-direction: column;
   padding: var(--pad);
   background-color: #dcb772;
+  transition: filter 0.15s ease;
+}
+
+/* While a seki group is being marked, the whole board (wood, grid lines,
+   every stone and territory marker) blurs and flattens as one piece so the
+   marked group reads as the one thing still in focus — contrast rather than
+   brightness, so it dims black and white stones evenly instead of just
+   washing out the white ones. The marked stones themselves are re-drawn
+   crisp on top by .go-board-seki-highlight below, since a CSS filter has no
+   way to exempt a descendant from its ancestor's blur. */
+.go-board--dimmed {
+  filter: blur(2px) contrast(0.4);
+}
+
+.go-board-seki-highlight {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.go-board-seki-highlight .go-stone {
+  position: absolute;
+  transform: translate(-50%, -50%);
 }
 
 /* Sized to span exactly from the first to the last intersection —
@@ -986,6 +1053,23 @@
   height: calc(var(--cell) - 4px);
   border-radius: 50%;
   box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.45);
+  transition: opacity 0.15s ease;
+}
+
+/* Scoring-phase territory markers — a small square on each empty point
+   currently counted as one side's territory. */
+.go-territory-marker {
+  width: 36%;
+  height: 36%;
+}
+
+.go-territory-marker--black {
+  background: #0a0a0a;
+}
+
+.go-territory-marker--white {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.3);
 }
 
 .go-stone--black {
@@ -1032,6 +1116,20 @@
   font-display: swap;
 }
 
+/* Fourteen-segment sibling of the above (SIL OFL 1.1 — see
+   public/fonts/dseg14-classic/LICENSE.txt) — DSEG7 has no segments to form
+   letters, so level 10 switches to this one to render as a single "X"
+   instead of two digits. */
+@font-face {
+  font-family: 'DSEG14-Classic';
+  src:
+    url('/fonts/dseg14-classic/DSEG14Classic-Regular.woff2') format('woff2'),
+    url('/fonts/dseg14-classic/DSEG14Classic-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* GNU Go's current search level, shown on the footer turn marker while
    it's the AI's turn — normally just its configured difficulty, but a
    slow position can force a step down (see ai_current_level server-side),
@@ -1047,6 +1145,10 @@
   pointer-events: none;
 }
 
+.go-stone-level--ten {
+  font-family: 'DSEG14-Classic', monospace;
+}
+
 .go-stone--black .go-stone-level {
   color: #ffffff;
 }
@@ -1057,14 +1159,6 @@
 
 .go-stone--dead {
   opacity: 0.35;
-}
-
-/* Marked seki, not dead — the stone stays exactly as visible/solid as a
-   normal one (it's alive), just ringed to show it's been declared settled
-   for scoring rather than dimmed like a captured group. */
-.go-stone--seki {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .go-stone--pending {

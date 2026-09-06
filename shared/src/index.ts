@@ -269,6 +269,12 @@ export interface ScoreResult {
   white: number;
   winner: Color;
   margin: number;
+  // Every empty point actually counted as territory for that color — for
+  // rendering the scoring-phase territory markers. Points inside a seki
+  // (automatic or declared) are deliberately absent from both, same as
+  // dame — they score for neither side, so there's nothing to mark.
+  blackTerritoryPoints: Point[];
+  whiteTerritoryPoints: Point[];
 }
 
 // Assigns a stable numeric id to every stone's group (flood-filled once),
@@ -300,6 +306,7 @@ function labelGroups(board: Board): { groupId: number[][]; groupColor: Map<numbe
 
 interface Region {
   size: number;
+  points: Point[];
   colors: Set<Color>;
   // Every stone group bordering this region, by id — a region can be
   // "single-color" (colors.size === 1) yet still be bordered by more than
@@ -323,13 +330,14 @@ function findRegions(board: Board, groupId: number[][]): Region[] {
         continue;
       }
 
-      const region: Region = { size: 0, colors: new Set(), groupIds: new Set() };
+      const region: Region = { size: 0, points: [], colors: new Set(), groupIds: new Set() };
       const stack: Point[] = [{ x, y }];
       visited.add(key);
 
       while (stack.length > 0) {
         const point = stack.pop()!;
         region.size += 1;
+        region.points.push(point);
         for (const neighbor of getNeighbors(board, point)) {
           const neighborStone = board[neighbor.y][neighbor.x];
           if (neighborStone === null) {
@@ -480,14 +488,18 @@ export function scoreBoard(
 
   let blackTerritory = 0;
   let whiteTerritory = 0;
+  const blackTerritoryPoints: Point[] = [];
+  const whiteTerritoryPoints: Point[] = [];
   regions.forEach((region, index) => {
     if (region.colors.size !== 1 || sekiNeutral.has(index) || declaredNeutral.has(index)) {
       return;
     }
     if (region.colors.has('black')) {
       blackTerritory += region.size;
+      blackTerritoryPoints.push(...region.points);
     } else {
       whiteTerritory += region.size;
+      whiteTerritoryPoints.push(...region.points);
     }
   });
 
@@ -499,5 +511,7 @@ export function scoreBoard(
     white,
     winner: black > white ? 'black' : 'white',
     margin: Math.abs(black - white),
+    blackTerritoryPoints,
+    whiteTerritoryPoints,
   };
 }

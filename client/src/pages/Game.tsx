@@ -535,6 +535,10 @@ function GameView({ gameId }: GameViewProps) {
   // uses at finalize time — so what's previewed here is exactly what gets
   // confirmed.
   let provisionalResult: string | null = null;
+  // Which empty points to mark with a black/white territory square — kept
+  // as key sets for O(1) lookup per board point below.
+  let blackTerritoryKeys = new Set<string>();
+  let whiteTerritoryKeys = new Set<string>();
   if (scoring && !isReviewing) {
     const deadPointsArray = Array.from(pendingDead, parsePointKey);
     const sekiPointsArray = Array.from(pendingSeki, parsePointKey);
@@ -543,7 +547,14 @@ function GameView({ gameId }: GameViewProps) {
     const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
     const marginLabel = Number.isInteger(score.margin) ? String(score.margin) : score.margin.toFixed(1);
     provisionalResult = `${winnerLabel} wins by ${marginLabel} (B: ${score.black}, W: ${score.white})`;
+    blackTerritoryKeys = new Set(score.blackTerritoryPoints.map(pointKey));
+    whiteTerritoryKeys = new Set(score.whiteTerritoryPoints.map(pointKey));
   }
+  // While actively in Seki mode (not just whenever a seki mark exists), dim
+  // the rest of the board instead of ringing the marked group itself —
+  // switching to Dead mode hides this so the semi-transparent dead-stone
+  // styling isn't competing with it for attention.
+  const sekiActive = markMode === 'seki' && pendingSeki.size > 0;
 
   const blackClock = isTimed
     ? computeLiveClock(
@@ -854,7 +865,7 @@ function GameView({ gameId }: GameViewProps) {
               ))}
             </div>
           )}
-          <div className="go-board">
+          <div className={`go-board${sekiActive ? ' go-board--dimmed' : ''}`}>
             <div className="go-board-lines">
               {getHoshiPoints(size).map(([gx, gy]) => (
                 <span
@@ -879,20 +890,64 @@ function GameView({ gameId }: GameViewProps) {
                       <span
                         className={`go-stone go-stone--${stone}${
                           highlightedPoint?.x === x && highlightedPoint?.y === y ? ' go-stone--last' : ''
-                        }${pendingDead.has(pointKey({ x, y })) ? ' go-stone--dead' : ''}${
-                          pendingSeki.has(pointKey({ x, y })) ? ' go-stone--seki' : ''
-                        }`}
+                        }${markMode === 'dead' && pendingDead.has(pointKey({ x, y })) ? ' go-stone--dead' : ''}`}
                       />
                     )}
                     {!stone && pendingMove?.x === x && pendingMove?.y === y && (
                       <span className={`go-stone go-stone--${currentColor} go-stone--pending`} />
                     )}
+                    {!stone &&
+                      scoring &&
+                      !isReviewing &&
+                      (blackTerritoryKeys.has(pointKey({ x, y })) || whiteTerritoryKeys.has(pointKey({ x, y }))) && (
+                        <span
+                          className={`go-territory-marker go-territory-marker--${
+                            blackTerritoryKeys.has(pointKey({ x, y })) ? 'black' : 'white'
+                          }`}
+                        />
+                      )}
                   </button>
                 ))}
               </div>
             ))}
           </div>
+          {sekiActive && (
+            // .go-board--dimmed's blur/contrast filter also blurs its
+            // descendants with no way to opt a child out, so the marked-seki
+            // stones are re-drawn crisp here, in an unblurred sibling layer
+            // stacked on top at the same board coordinates.
+            <div className="go-board-seki-highlight">
+              {Array.from(pendingSeki, parsePointKey).map(({ x, y }) => (
+                <span
+                  key={`${x}-${y}`}
+                  className={`go-stone go-stone--${displayedBoard[y][x]}`}
+                  style={{ left: `calc(var(--pad) + var(--cell) / 2 + ${x} * var(--cell))`, top: `calc(var(--pad) + var(--cell) / 2 + ${y} * var(--cell))` }}
+                />
+              ))}
+            </div>
+          )}
         </div>
+        {canMarkGroups && (
+          <div className="go-mark-mode" role="group" aria-label="Marking mode">
+            <span className={`go-mark-mode-thumb go-mark-mode-thumb--${markMode}`} aria-hidden="true" />
+            <button
+              type="button"
+              className={markMode === 'dead' ? 'go-mark-mode-active' : ''}
+              aria-pressed={markMode === 'dead'}
+              onClick={() => setMarkMode('dead')}
+            >
+              Dead
+            </button>
+            <button
+              type="button"
+              className={markMode === 'seki' ? 'go-mark-mode-active' : ''}
+              aria-pressed={markMode === 'seki'}
+              onClick={() => setMarkMode('seki')}
+            >
+              Seki
+            </button>
+          </div>
+        )}
         {!isReviewing && status === 'in_progress' && lastEvent?.eventType === 'PASS' && (
           <p>{colorLabel(lastEvent.color)} passed.</p>
         )}
@@ -983,7 +1038,9 @@ function GameView({ gameId }: GameViewProps) {
                 >
                   <span className={`go-stone go-stone--${currentColor}`}>
                     {isAiOpponent && !isMyTurn && aiCurrentLevel !== null && (
-                      <span className="go-stone-level">{aiCurrentLevel}</span>
+                      <span className={`go-stone-level${aiCurrentLevel === 10 ? ' go-stone-level--ten' : ''}`}>
+                        {aiCurrentLevel === 10 ? 'X' : aiCurrentLevel}
+                      </span>
                     )}
                   </span>
                 </button>
@@ -1030,7 +1087,12 @@ function GameView({ gameId }: GameViewProps) {
                   const resumeLabel = describeUndoAction(myColor, pendingUndoBy, true, isAiOpponent);
                   return resumeLabel === 'Resume' ? (
                     <button type="button" className="icon-action-button" aria-label="Resume" onClick={resume}>
-                      ▶
+                      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                        <path
+                          fill="currentColor"
+                          d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                        />
+                      </svg>
                     </button>
                   ) : (
                     <button type="button" onClick={resume}>
@@ -1038,26 +1100,8 @@ function GameView({ gameId }: GameViewProps) {
                     </button>
                   );
                 })()}
-                <div className="go-mark-mode" role="group" aria-label="Marking mode">
-                  <button
-                    type="button"
-                    className={markMode === 'dead' ? 'go-mark-mode-active' : ''}
-                    aria-pressed={markMode === 'dead'}
-                    onClick={() => setMarkMode('dead')}
-                  >
-                    Dead
-                  </button>
-                  <button
-                    type="button"
-                    className={markMode === 'seki' ? 'go-mark-mode-active' : ''}
-                    aria-pressed={markMode === 'seki'}
-                    onClick={() => setMarkMode('seki')}
-                  >
-                    Seki
-                  </button>
-                </div>
                 <button type="button" className="icon-action-button" aria-label="Finalize scoring" onClick={finalize}>
-                  <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                     <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                   </svg>
                 </button>
