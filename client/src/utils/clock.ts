@@ -58,11 +58,17 @@ export function computeLiveClock(
 
   const overflowMs = elapsedMs - storedRemainingMs;
   const periodsConsumed = Math.floor(overflowMs / byoyomiMs);
+  if (periodsConsumed >= storedPeriodsLeft) {
+    // All periods used up (matches server/src/clock.ts's hasTimedOut budget)
+    // — freeze at 0 instead of cycling through phantom periods until the
+    // server actually flags the timeout.
+    return { mainMs: 0, inByoyomi: true, periodMs: 0, periodsLeft: 0 };
+  }
   const currentPeriodElapsed = overflowMs % byoyomiMs;
   return {
     mainMs: 0,
     inByoyomi: true,
-    periodMs: Math.max(0, byoyomiMs - currentPeriodElapsed),
-    periodsLeft: Math.max(0, storedPeriodsLeft - periodsConsumed),
+    periodMs: byoyomiMs - currentPeriodElapsed,
+    periodsLeft: storedPeriodsLeft - periodsConsumed,
   };
 }

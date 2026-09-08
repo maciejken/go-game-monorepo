@@ -52,6 +52,29 @@ app.use(express.json());
 // Lets certbot verify domain ownership in webroot mode.
 app.use('/.well-known/acme-challenge', express.static('/etc/certbot-webroot/.well-known/acme-challenge'));
 
+// Universal Links config for the iOS app (ios-app/, associated domain
+// applinks:igo5.online): lets a plain https://igo5.online/games/<id> link
+// (shared in a text/email/etc.) open straight into the app instead of a
+// browser tab, no custom URL scheme needed. Must be served as exact JSON
+// with no redirect — iOS fetches and caches this once per install, over a
+// plain GET, before ever consulting the app's own entitlements. The team ID
+// (BQKNVB92HW) is the same one already used to code-sign the app
+// (DEVELOPMENT_TEAM in project.pbxproj).
+app.get('/.well-known/apple-app-site-association', (_req, res) => {
+  res.type('application/json');
+  res.json({
+    applinks: {
+      apps: [],
+      details: [
+        {
+          appIDs: ['BQKNVB92HW.com.maciejkedra.gogame'],
+          components: [{ '/': '/' }, { '/': '/games/*' }],
+        },
+      ],
+    },
+  });
+});
+
 app.use(express.static(path.resolve(__dirname, '../../client/dist')));
 
 app.get('/', (req, res) => {

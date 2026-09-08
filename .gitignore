@@ -7,3 +7,8 @@ pm2.config.js
 ecosystem.config.js
 .env
 .env.*
+
+# Xcode per-user/build cruft
+ios-app/**/xcuserdata/
+ios-app/**/*.xcuserstate
+ios-app/**/DerivedData/
