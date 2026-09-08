@@ -58,11 +58,13 @@ app.use('/.well-known/acme-challenge', express.static('/etc/certbot-webroot/.wel
 // browser tab, no custom URL scheme needed. Must be served as exact JSON
 // with no redirect — iOS fetches and caches this once per install, over a
 // plain GET, before ever consulting the app's own entitlements. The team ID
-// (H36M3YGDVV) must exactly match DEVELOPMENT_TEAM in project.pbxproj — the
-// two need to agree since iOS validates that this file's appID matches the
-// app's own application-identifier entitlement (verified directly via
-// `codesign -d --entitlements` on the built app after this mismatch was
-// the actual cause of links opening in Safari instead of the app).
+// (BQKNVB92HW) must exactly match the team the app is actually signed
+// with — iOS validates that this file's appID matches the app's own
+// application-identifier entitlement (verified directly via `codesign -d
+// --entitlements` on the built app; a mismatch here is what causes links
+// to open in Safari instead of the app). This has flip-flopped before —
+// confirm with `codesign -d --entitlements :- <built .app>` on the actual
+// currently-installed build if links still don't work after this.
 app.get('/.well-known/apple-app-site-association', (_req, res) => {
   res.type('application/json');
   res.json({
@@ -70,7 +72,7 @@ app.get('/.well-known/apple-app-site-association', (_req, res) => {
       apps: [],
       details: [
         {
-          appIDs: ['H36M3YGDVV.com.maciejkedra.gogame'],
+          appIDs: ['BQKNVB92HW.com.maciejkedra.gogame'],
           components: [{ '/': '/' }, { '/': '/games/*' }, { '/': '/profile/*' }],
         },
       ],
