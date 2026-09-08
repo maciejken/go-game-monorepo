@@ -260,6 +260,17 @@ function GameView({ gameId }: GameViewProps) {
 
   const userMenuItems = (
     <>
+      {user && (
+        <button
+          type="button"
+          onClick={() => {
+            setMenuOpen(false);
+            navigate(`/profile/${user.id}`);
+          }}
+        >
+          View profile
+        </button>
+      )}
       <button
         type="button"
         onClick={() => {

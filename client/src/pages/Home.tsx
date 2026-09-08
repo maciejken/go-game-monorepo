@@ -158,7 +158,10 @@ function Home() {
       <div className="auth-status">
         {user ? (
           <>
-            Logged in as <strong>{user.username}</strong>
+            Logged in as{' '}
+            <Link to={`/profile/${user.id}`}>
+              <strong>{user.username}</strong>
+            </Link>
             <button type="button" onClick={() => logout().then(refresh)}>
               Log out
             </button>

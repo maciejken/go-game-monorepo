@@ -93,6 +93,12 @@ enum APIClient {
         return response.user
     }
 
+    // Any logged-in user's public info by id, not just the caller's own —
+    // backs the profile page/Account tab.
+    static func getUser(id: String) async throws -> UserProfile {
+        try await get("api/users/\(id)")
+    }
+
     static func games(scope: String = "mine") async throws -> [GameSummary] {
         try await get("api/games?scope=\(scope)")
     }

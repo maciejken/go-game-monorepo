@@ -8,7 +8,7 @@ struct RootView: View {
             if session.isCheckingSession {
                 ProgressView()
             } else if session.currentUser != nil {
-                GameListView()
+                MainTabView()
             } else {
                 AuthView()
             }

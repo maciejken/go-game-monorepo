@@ -48,6 +48,10 @@ struct GameBoardView: View {
                 ProgressView()
             }
         }
+        // The Home tab's bottom tab bar would otherwise stack on top of
+        // this screen's own glass footer (turn marker, captures, clock) —
+        // hide it here specifically, same as the pre-tab-bar layout.
+        .toolbar(.hidden, for: .tabBar)
         .navigationTitle(navigationTitle)
         .task { await load() }
         .task {

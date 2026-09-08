@@ -68,7 +68,7 @@ app.get('/.well-known/apple-app-site-association', (_req, res) => {
       details: [
         {
           appIDs: ['BQKNVB92HW.com.maciejkedra.gogame'],
-          components: [{ '/': '/' }, { '/': '/games/*' }],
+          components: [{ '/': '/' }, { '/': '/games/*' }, { '/': '/profile/*' }],
         },
       ],
     },
@@ -1001,6 +1001,26 @@ app.post('/api/auth/logout', (req, res) => {
 
 app.get('/api/auth/me', (req, res) => {
   res.json({ user: getSessionUser(req) });
+});
+
+// A profile page (web /profile/:id, iOS's Account tab and the same path as
+// a universal link) — any logged-in user can look up any other user's
+// public info by id, not just their own. The users table only has
+// username and created_at beyond the id/password hash, so that's all this
+// returns.
+app.get('/api/users/:id', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  const row = db
+    .prepare('SELECT id, username, created_at FROM users WHERE id = ?')
+    .get(req.params.id) as { id: string; username: string; created_at: number } | undefined;
+  if (!row) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+  res.json({ id: row.id, username: row.username, createdAt: row.created_at });
 });
 
 // Registers (or re-registers) an iOS device's APNs token against the

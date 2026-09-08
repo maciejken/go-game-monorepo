@@ -29,6 +29,12 @@ export interface AuthUser {
   username: string;
 }
 
+export interface UserProfile {
+  id: string;
+  username: string;
+  createdAt: number;
+}
+
 export interface GameResponse {
   id: string;
   size: number;
@@ -341,4 +347,10 @@ export function getMe(): Promise<AuthUser | null> {
   return fetch(`${API_BASE}/auth/me`)
     .then((res) => handle<{ user: AuthUser | null }>(res))
     .then((data) => data.user);
+}
+
+// Any logged-in user's public info by id, not just the caller's own —
+// backs the profile page (/profile/:id).
+export function getUser(id: string): Promise<UserProfile> {
+  return fetch(`${API_BASE}/users/${id}`).then((res) => handle<UserProfile>(res));
 }

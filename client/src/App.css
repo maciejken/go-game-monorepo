@@ -213,6 +213,24 @@
   width: 100%;
 }
 
+.profile-fields {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 8px;
+}
+
+.profile-fields dt {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.profile-fields dd {
+  margin: 0;
+  font-weight: 600;
+}
+
 .auth-form label {
   display: flex;
   flex-direction: column;
