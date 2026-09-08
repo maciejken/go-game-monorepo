@@ -1003,6 +1003,36 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ user: getSessionUser(req) });
 });
 
+// Requires the current password (not just a valid session) before setting
+// a new one — same defense as any "change password" flow, since a session
+// cookie alone (left logged in on a shared/unlocked device, say) shouldn't
+// be enough to lock the real owner out.
+app.post('/api/auth/password', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
+  const currentPassword = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '';
+  const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+
+  if (newPassword.length < MIN_PASSWORD_LENGTH || newPassword.length > MAX_PASSWORD_LENGTH) {
+    res.status(400).json({ error: `Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` });
+    return;
+  }
+
+  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id) as
+    | { password_hash: string }
+    | undefined;
+  if (!row || !verifyPassword(currentPassword, row.password_hash)) {
+    res.status(400).json({ error: 'Current password is incorrect' });
+    return;
+  }
+
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), user.id);
+  res.json({ success: true });
+});
+
 // A profile page (web /profile/:id, iOS's Account tab and the same path as
 // a universal link) — any logged-in user can look up any other user's
 // public info by id, not just their own. The users table only has

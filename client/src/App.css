@@ -497,6 +497,10 @@
   color: #d1242f;
 }
 
+.success {
+  color: #1a7f37;
+}
+
 /* A toast above the footer rather than inline text, so it doesn't shift
    other footer/board content and reads clearly regardless of where in the
    game view it was triggered from. Auto-dismisses after 5s (see the

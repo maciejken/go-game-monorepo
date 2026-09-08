@@ -93,6 +93,11 @@ enum APIClient {
         return response.user
     }
 
+    static func changePassword(currentPassword: String, newPassword: String) async throws {
+        struct Body: Encodable { let currentPassword: String; let newPassword: String }
+        try await post("api/auth/password", body: Body(currentPassword: currentPassword, newPassword: newPassword))
+    }
+
     // Any logged-in user's public info by id, not just the caller's own —
     // backs the profile page/Account tab.
     static func getUser(id: String) async throws -> UserProfile {

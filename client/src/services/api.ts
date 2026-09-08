@@ -354,3 +354,11 @@ export function getMe(): Promise<AuthUser | null> {
 export function getUser(id: string): Promise<UserProfile> {
   return fetch(`${API_BASE}/users/${id}`).then((res) => handle<UserProfile>(res));
 }
+
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return fetch(`${API_BASE}/auth/password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  }).then((res) => handle<{ success: true }>(res)).then(() => undefined);
+}

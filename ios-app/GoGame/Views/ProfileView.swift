@@ -4,8 +4,21 @@ import SwiftUI
 // (self) profile and for a /profile/<id> universal link to someone else's.
 struct ProfileView: View {
     let userId: String
+    @Environment(SessionStore.self) private var session
     @State private var profile: UserProfile?
     @State private var errorMessage: String?
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var confirmPassword = ""
+    @State private var passwordError: String?
+    @State private var passwordChanged = false
+    @State private var isChangingPassword = false
+
+    // Only ever relevant on your own profile — viewing someone else's has
+    // no reason to expose a way to change their password.
+    private var isOwnProfile: Bool {
+        session.currentUser?.id == userId
+    }
 
     var body: some View {
         Group {
@@ -14,6 +27,33 @@ struct ProfileView: View {
                     Section {
                         LabeledContent("Username", value: profile.username)
                         LabeledContent("Joined", value: joinedDateText(profile.createdAt))
+                    }
+                    if isOwnProfile {
+                        Section("Change Password") {
+                            SecureField("Current password", text: $currentPassword)
+                                .textContentType(.password)
+                            SecureField("New password", text: $newPassword)
+                                .textContentType(.newPassword)
+                            SecureField("Confirm new password", text: $confirmPassword)
+                                .textContentType(.newPassword)
+                            if let passwordError {
+                                Text(passwordError)
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                            }
+                            if passwordChanged {
+                                Text("Password changed.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.green)
+                            }
+                            Button("Change Password") {
+                                Task { await submitPasswordChange() }
+                            }
+                            .disabled(
+                                isChangingPassword || currentPassword.isEmpty || newPassword.isEmpty
+                                    || confirmPassword.isEmpty
+                            )
+                        }
                     }
                 }
             } else {
@@ -37,6 +77,26 @@ struct ProfileView: View {
             profile = try await APIClient.getUser(id: userId)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func submitPasswordChange() async {
+        passwordError = nil
+        passwordChanged = false
+        guard newPassword == confirmPassword else {
+            passwordError = "New passwords do not match"
+            return
+        }
+        isChangingPassword = true
+        defer { isChangingPassword = false }
+        do {
+            try await APIClient.changePassword(currentPassword: currentPassword, newPassword: newPassword)
+            passwordChanged = true
+            currentPassword = ""
+            newPassword = ""
+            confirmPassword = ""
+        } catch {
+            passwordError = error.localizedDescription
         }
     }
 
