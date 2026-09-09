@@ -28,6 +28,6 @@ To actually see it running:
 ```sh
 xcrun simctl boot "iPhone 17"
 xcrun simctl install booted <path-to-built-.app-from-DerivedData>
-xcrun simctl launch booted com.maciejkedra.gogame
+xcrun simctl launch booted com.maciejkedra.igo5
 xcrun simctl io booted screenshot out.png
 ```

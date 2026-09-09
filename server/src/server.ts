@@ -57,14 +57,20 @@ app.use('/.well-known/acme-challenge', express.static('/etc/certbot-webroot/.wel
 // (shared in a text/email/etc.) open straight into the app instead of a
 // browser tab, no custom URL scheme needed. Must be served as exact JSON
 // with no redirect — iOS fetches and caches this once per install, over a
-// plain GET, before ever consulting the app's own entitlements. The team ID
-// (BQKNVB92HW) must exactly match the team the app is actually signed
-// with — iOS validates that this file's appID matches the app's own
-// application-identifier entitlement (verified directly via `codesign -d
-// --entitlements` on the built app; a mismatch here is what causes links
-// to open in Safari instead of the app). This has flip-flopped before —
-// confirm with `codesign -d --entitlements :- <built .app>` on the actual
-// currently-installed build if links still don't work after this.
+// plain GET, before ever consulting the app's own entitlements. The appID
+// here must exactly match the app's own application-identifier entitlement
+// (team + bundle id) — iOS silently falls back to opening the link in
+// Safari on any mismatch. The bundle id is com.maciejkedra.igo5 (renamed
+// from the original com.maciejkedra.gogame, which turned out to be
+// registered under a team this Mac's Xcode could never get a working
+// certificate for via automatic signing) — this App ID + its provisioning
+// profile were created manually on developer.apple.com under team
+// H36M3YGDVV and installed via manual (not automatic) code signing in
+// project.pbxproj, since automatic signing kept re-registering new
+// identifiers under whichever team it preferred rather than the one with
+// a usable certificate. Confirm with `codesign -d --entitlements :-
+// <built .app>` on the actual currently-installed build if links ever
+// stop working again.
 app.get('/.well-known/apple-app-site-association', (_req, res) => {
   res.type('application/json');
   res.json({
@@ -72,7 +78,7 @@ app.get('/.well-known/apple-app-site-association', (_req, res) => {
       apps: [],
       details: [
         {
-          appIDs: ['BQKNVB92HW.com.maciejkedra.gogame'],
+          appIDs: ['H36M3YGDVV.com.maciejkedra.igo5'],
           components: [{ '/': '/' }, { '/': '/games/*' }, { '/': '/profile/*' }],
         },
       ],
