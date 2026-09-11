@@ -475,15 +475,13 @@ function deriveSgfResult(game) {
 // (the same free-text result parsing the SGF export already relies on)
 // rather than storing a separate structured winner column. A finished game
 // with no determinable winner (manually ended, no result) counts toward
-// played but neither won nor lost. A local game (same user as both colors)
-// counts as both a win and a loss for that one game, same as it would for
-// two different accounts — no special-casing, since it's simply that
-// user's own single row-column comparison already producing that answer.
+// played but neither won nor lost. Local games (same user as both colors)
+// are excluded entirely — only remote and vs-computer games count.
 function getUserStats(userId) {
     const rows = db
         .prepare(`SELECT black_user_id, white_user_id, result, end_reason
        FROM games
-       WHERE status = 'finished' AND (black_user_id = ? OR white_user_id = ?)`)
+       WHERE status = 'finished' AND black_user_id != white_user_id AND (black_user_id = ? OR white_user_id = ?)`)
         .all(userId, userId);
     let played = 0;
     let won = 0;
