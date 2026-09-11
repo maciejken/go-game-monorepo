@@ -358,6 +358,15 @@ struct GameBoardView: View {
                     }
                     turnMarker(game)
                 }
+                // Pinned to the turn marker's own 44pt height regardless of
+                // which control is centered here — the short-result button
+                // is deliberately a bit taller (52pt) than that, and without
+                // this the row (and so the whole footer) would grow to fit
+                // it. Letting the ZStack clip to this fixed height instead
+                // means the button's extra few points just overlay the
+                // existing vertical padding around the row, which already
+                // has room to spare.
+                .frame(height: 44)
                 if game.mainTimeSeconds != nil {
                     HStack(alignment: .top) {
                         footerClock(.black, game: game, isTicking: isTicking, nowMs: nowMs)
