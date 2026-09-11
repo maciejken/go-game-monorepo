@@ -1143,6 +1143,17 @@ app.get('/api/games', (req, res) => {
     rows = rows.filter((row) => isParticipant(row, currentUser.id) || isStarred(row.id, currentUser.id));
   }
 
+  // Pagination is opt-in via `limit` — omitting it (as the iOS app still
+  // does) returns every matching game, exactly as before. When present, one
+  // extra row beyond `limit` is included so the caller can tell whether
+  // more pages remain (client/src/services/api.ts's listGames trims it off)
+  // without needing a second response field or a page-count query.
+  const limit = Number(req.query.limit);
+  if (Number.isInteger(limit) && limit > 0) {
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+    rows = rows.slice(offset, offset + limit + 1);
+  }
+
   res.json(rows.map((row) => ({
     id: row.id,
     size: row.size,

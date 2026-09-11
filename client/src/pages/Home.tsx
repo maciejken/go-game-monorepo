@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Color } from 'shared';
 import {
@@ -18,6 +18,8 @@ import { useLiveSocket } from '../hooks/useLiveSocket';
 import { timeControlLabel } from '../utils/clock';
 
 const BOARD_SIZES = [9, 13, 19];
+
+const GAMES_PAGE_SIZE = 20;
 
 // Komi choices for an even (no handicap) game, supporting correct scoring
 // under each classic ruleset.
@@ -45,10 +47,6 @@ const TIME_CONTROL_STEPS: { value: TimeControlName; label: string }[] = [
 
 function getMaxHandicap(size: number): number {
   return size === 19 ? 9 : 5;
-}
-
-function formatDate(ms: number): string {
-  return new Date(ms).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
 }
 
 // Subtle step markers under a slider — a plain CSS overlay rather than
@@ -80,16 +78,59 @@ function Home() {
   const [gnugoLevel, setGnugoLevel] = useState(GNUGO_LEVEL_DEFAULT);
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [scope, setScope] = useState<GameListScope>('mine');
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLLIElement | null>(null);
 
+  // Resets back to page one — used for the initial load, a scope switch,
+  // and every live-update/mutation refresh. Simpler than trying to merge
+  // an in-place update into whatever pages are currently loaded, at the
+  // cost of losing scroll-loaded pages on those refreshes.
   const refresh = useCallback(() => {
-    listGames(scope)
-      .then(setGames)
+    listGames(scope, { limit: GAMES_PAGE_SIZE, offset: 0 })
+      .then(({ games: page, hasMore: more }) => {
+        setGames(page);
+        setHasMore(more);
+      })
       .catch((err: Error) => setError(err.message));
   }, [scope]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const loadMore = useCallback(() => {
+    if (!games || loadingMore || !hasMore) {
+      return;
+    }
+    setLoadingMore(true);
+    listGames(scope, { limit: GAMES_PAGE_SIZE, offset: games.length })
+      .then(({ games: page, hasMore: more }) => {
+        setGames((prev) => (prev ? [...prev, ...page] : page));
+        setHasMore(more);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoadingMore(false));
+  }, [games, scope, hasMore, loadingMore]);
+
+  // Fires loadMore once the sentinel row at the end of the list scrolls
+  // into view — re-observing whenever loadMore itself changes (i.e. after
+  // hasMore/loadingMore change) so a short page that doesn't fill the
+  // viewport keeps pulling in more pages until it either fills up or runs
+  // out, rather than waiting for a scroll event that may never come.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) {
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        loadMore();
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   // Live updates: a new invite, a finished game, or any other player's
   // move updates the list here without needing a manual reload.
@@ -360,6 +401,7 @@ function Home() {
           {games.map((game) => (
             <GameListItem key={game.id} game={game} onDelete={handleDelete} onRename={refresh} onStarChange={refresh} />
           ))}
+          {hasMore && <li ref={sentinelRef} aria-hidden="true" />}
         </ul>
       )}
     </div>
@@ -448,8 +490,6 @@ function GameListItem({ game, onDelete, onRename, onStarChange }: GameListItemPr
         )}
         {metaParts.length > 1 && ` · ${metaParts.slice(1).join(' · ')}`}
       </div>
-      <div className="game-card-row">Created: {formatDate(game.createdAt)}</div>
-      <div className="game-card-row">Updated: {formatDate(game.updatedAt)}</div>
     </>
   );
 

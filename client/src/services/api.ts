@@ -196,8 +196,29 @@ async function handle<T>(res: Response): Promise<T> {
 
 export type GameListScope = 'mine' | 'all';
 
-export function listGames(scope: GameListScope = 'mine'): Promise<GameSummary[]> {
-  return fetch(`${API_BASE}/games?scope=${scope}`).then((res) => handle<GameSummary[]>(res));
+export interface GameListPage {
+  games: GameSummary[];
+  hasMore: boolean;
+}
+
+// Pagination is optional: pass no options for the old "everything at once"
+// behavior, or { limit, offset } for one page — the server includes one
+// extra row beyond `limit` when there's more, which this trims off and
+// turns into `hasMore` so the caller never has to think about the trick.
+export async function listGames(
+  scope: GameListScope = 'mine',
+  options?: { limit?: number; offset?: number },
+): Promise<GameListPage> {
+  const params = new URLSearchParams({ scope });
+  if (options?.limit != null) {
+    params.set('limit', String(options.limit));
+    params.set('offset', String(options.offset ?? 0));
+  }
+  const rows = await fetch(`${API_BASE}/games?${params}`).then((res) => handle<GameSummary[]>(res));
+  if (options?.limit != null && rows.length > options.limit) {
+    return { games: rows.slice(0, options.limit), hasMore: true };
+  }
+  return { games: rows, hasMore: false };
 }
 
 export function starGame(id: string): Promise<{ starred: true }> {
