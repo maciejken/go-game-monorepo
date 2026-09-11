@@ -567,7 +567,7 @@ function GameView({ gameId }: GameViewProps) {
     const score = scoreBoard(effectiveBoard, adjustedCaptures, komi, sekiPointsArray);
     const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
     const marginLabel = Number.isInteger(score.margin) ? String(score.margin) : score.margin.toFixed(1);
-    provisionalResult = `${winnerLabel} wins by ${marginLabel} (B: ${score.black}, W: ${score.white})`;
+    provisionalResult = `${winnerLabel} wins by ${marginLabel}`;
     blackTerritoryKeys = new Set(score.blackTerritoryPoints.map(pointKey));
     whiteTerritoryKeys = new Set(score.whiteTerritoryPoints.map(pointKey));
   }

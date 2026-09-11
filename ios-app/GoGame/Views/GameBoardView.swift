@@ -619,7 +619,6 @@ struct GameBoardView: View {
         guard let preview = livePreview(game) else { return nil }
         let winner = preview.winner == .black ? "Black" : "White"
         return "Estimated: \(winner) wins by \(formatScore(preview.margin))"
-            + " (B: \(formatScore(preview.black)), W: \(formatScore(preview.white)))"
     }
 
     private func formatScore(_ value: Double) -> String {
