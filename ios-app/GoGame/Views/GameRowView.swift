@@ -33,12 +33,6 @@ struct GameRowView: View {
             Text(metaParts.joined(separator: " · "))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("Created: \(formattedDate(game.createdAt))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text("Updated: \(formattedDate(game.updatedAt))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -47,9 +41,5 @@ struct GameRowView: View {
         case .standard: return "10 min"
         case .correspondence: return "24h per move"
         }
-    }
-
-    private func formattedDate(_ epochMs: Int) -> String {
-        Date(timeIntervalSince1970: Double(epochMs) / 1000).formatted(date: .numeric, time: .shortened)
     }
 }

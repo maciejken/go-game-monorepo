@@ -4,10 +4,14 @@ struct GameListView: View {
     @Environment(SessionStore.self) private var session
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
     @State private var games: [GameSummary] = []
+    @State private var hasMore = false
+    @State private var isLoadingMore = false
     @State private var errorMessage: String?
     @State private var showNewGame = false
     @State private var selectedGameId: String?
     @State private var pendingGameId: String?
+
+    private static let pageSize = 20
 
     var body: some View {
         NavigationStack {
@@ -43,6 +47,16 @@ struct GameListView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(RowButtonStyle())
+                // Mirrors the web client's IntersectionObserver-on-a-
+                // sentinel approach with the plain SwiftUI equivalent:
+                // .onAppear on the last row fires exactly when it scrolls
+                // into view, whether that's from scrolling or because the
+                // page is short enough that it's already visible.
+                .onAppear {
+                    if game.id == games.last?.id {
+                        Task { await loadMore() }
+                    }
+                }
             }
             .overlay {
                 if games.isEmpty && errorMessage == nil {
@@ -155,10 +169,29 @@ struct GameListView: View {
         }
     }
 
+    // Resets back to page one — used for the initial load, pull-to-refresh,
+    // and every live-socket-triggered reload. Simpler than merging updates
+    // into whatever pages are currently loaded, at the cost of losing
+    // scroll-loaded pages on those refreshes — mirrors Home.tsx's refresh.
     private func loadGames() async {
         do {
-            games = try await APIClient.games()
+            let page = try await APIClient.games(limit: Self.pageSize, offset: 0)
+            games = page.games
+            hasMore = page.hasMore
             errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func loadMore() async {
+        guard hasMore, !isLoadingMore else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        do {
+            let page = try await APIClient.games(limit: Self.pageSize, offset: games.count)
+            games.append(contentsOf: page.games)
+            hasMore = page.hasMore
         } catch {
             errorMessage = error.localizedDescription
         }

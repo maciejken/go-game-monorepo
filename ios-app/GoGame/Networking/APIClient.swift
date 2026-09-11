@@ -104,8 +104,21 @@ enum APIClient {
         try await get("api/users/\(id)")
     }
 
-    static func games(scope: String = "mine") async throws -> [GameSummary] {
-        try await get("api/games?scope=\(scope)")
+    // Mirrors client/src/services/api.ts's listGames: the server includes
+    // one extra row beyond `limit` when there's more to load, which this
+    // trims off into a plain `hasMore` so the caller never has to think
+    // about the trick.
+    struct GameListPage {
+        let games: [GameSummary]
+        let hasMore: Bool
+    }
+
+    static func games(scope: String = "mine", limit: Int, offset: Int) async throws -> GameListPage {
+        let rows: [GameSummary] = try await get("api/games?scope=\(scope)&limit=\(limit)&offset=\(offset)")
+        if rows.count > limit {
+            return GameListPage(games: Array(rows.prefix(limit)), hasMore: true)
+        }
+        return GameListPage(games: rows, hasMore: false)
     }
 
     static func getGame(id: String) async throws -> GameState {
