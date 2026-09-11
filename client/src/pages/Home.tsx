@@ -27,8 +27,11 @@ const KOMI_OPTIONS_EVEN = [6.5, 5.5, 0.5, 0];
 // only ever a tie-breaker: the standard 0.5, or 0 for no tie-breaker at all.
 const KOMI_OPTIONS_HANDICAP = [0.5, 0];
 
-// Matches the server's own default (GNUGO_LEVEL) and GTP --level's range.
-const GNUGO_LEVEL_DEFAULT = 5;
+// GTP --level's range is 1-10; the server's own fallback (GNUGO_LEVEL) is
+// deliberately lower for reliability, but this form's default is the
+// strongest setting since a player choosing gnugo mode explicitly wants a
+// real opponent.
+const GNUGO_LEVEL_DEFAULT = 10;
 const GNUGO_LEVEL_MIN = 1;
 const GNUGO_LEVEL_MAX = 10;
 

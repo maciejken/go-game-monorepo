@@ -16,7 +16,7 @@ struct NewGameView: View {
     @State private var timeControl = "unlimited" // "standard" | "correspondence" | "unlimited"
     @State private var opponentUsername = ""
     @State private var color = "black" // "black" | "white" | "random"
-    @State private var gnugoLevel = 5
+    @State private var gnugoLevel = 10
     @State private var isCreating = false
     @State private var errorMessage: String?
 
