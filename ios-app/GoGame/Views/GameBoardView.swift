@@ -190,7 +190,11 @@ struct GameBoardView: View {
             // the system draws that on top of app content regardless of
             // what's underneath, on every app, glass or not.
             footerRow(game)
-                .padding(.vertical, 10)
+                // 14pt rather than 10pt so the short-result button's 4pt
+                // overflow past its pinned 44pt row (see footerRow) still
+                // leaves a visible gap above/below it, instead of nearly
+                // touching the glass edge.
+                .padding(.vertical, 14)
                 .background {
                     if #available(iOS 26.0, *) {
                         Rectangle()
@@ -367,13 +371,31 @@ struct GameBoardView: View {
                 // existing vertical padding around the row, which already
                 // has room to spare.
                 .frame(height: 44)
-                if game.mainTimeSeconds != nil {
-                    HStack(alignment: .top) {
+                // Always rendered, even for an untimed game — hidden with
+                // .opacity rather than omitted, so this row's height (and so
+                // the footer's overall height) doesn't change based on
+                // whether the game happens to have a clock. The untimed
+                // branch renders inert placeholder text rather than a real
+                // footerClock: computeLiveClock divides elapsed time by
+                // byoyomiSeconds, which is 0 for an untimed game, and if
+                // isTicking is also true that's a divide-by-zero producing
+                // an infinite Double — Int(that) is a fatal crash, not just
+                // a bad number. The placeholder matches ClockView's plain
+                // (non-byoyomi) font/layout closely enough that this row's
+                // height is the same either way.
+                HStack(alignment: .top) {
+                    if game.mainTimeSeconds != nil {
                         footerClock(.black, game: game, isTicking: isTicking, nowMs: nowMs)
                         Spacer()
                         footerClock(.white, game: game, isTicking: isTicking, nowMs: nowMs)
+                    } else {
+                        Text("00:00").font(.subheadline.monospacedDigit())
+                        Spacer()
+                        Text("00:00").font(.subheadline.monospacedDigit())
                     }
                 }
+                .opacity(game.mainTimeSeconds != nil ? 1 : 0)
+                .allowsHitTesting(game.mainTimeSeconds != nil)
             }
             .padding(.horizontal, 16)
         }
