@@ -27,6 +27,9 @@ struct ProfileView: View {
                     Section {
                         LabeledContent("Username", value: profile.username)
                         LabeledContent("Joined", value: joinedDateText(profile.createdAt))
+                        LabeledContent("Games played", value: "\(profile.gamesPlayed)")
+                        LabeledContent("Won", value: "\(profile.gamesWon)")
+                        LabeledContent("Lost", value: "\(profile.gamesLost)")
                     }
                     if isOwnProfile {
                         Section("Change Password") {

@@ -32,6 +32,8 @@ struct GameSummary: Codable, Identifiable {
     let updatedAt: Int
     let blackUsername: String?
     let whiteUsername: String?
+    let blackUserId: String?
+    let whiteUserId: String?
     let myColor: MyColor?
     let isAiOpponent: Bool
     let gnugoLevel: Int?

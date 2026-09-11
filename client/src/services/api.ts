@@ -33,6 +33,9 @@ export interface UserProfile {
   id: string;
   username: string;
   createdAt: number;
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
 }
 
 export interface GameResponse {
@@ -44,6 +47,8 @@ export interface GameResponse {
   board: Board;
   blackUsername: string | null;
   whiteUsername: string | null;
+  blackUserId: string | null;
+  whiteUserId: string | null;
 }
 
 // How a finished game ended — only a 'scoring' finish can be reopened via
@@ -92,6 +97,8 @@ export interface GameSummary {
   updatedAt: number;
   blackUsername: string | null;
   whiteUsername: string | null;
+  blackUserId: string | null;
+  whiteUserId: string | null;
   myColor: MyColor;
   isAiOpponent: boolean;
   gnugoLevel: number | null;

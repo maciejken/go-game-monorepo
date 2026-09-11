@@ -29,6 +29,8 @@ export function useGame(gameId: string) {
   const [captures, setCaptures] = useState<Captures>({ black: 0, white: 0 });
   const [blackUsername, setBlackUsername] = useState<string | null>(null);
   const [whiteUsername, setWhiteUsername] = useState<string | null>(null);
+  const [blackUserId, setBlackUserId] = useState<string | null>(null);
+  const [whiteUserId, setWhiteUserId] = useState<string | null>(null);
   const [myColor, setMyColor] = useState<MyColor>(null);
   const [pendingUndoBy, setPendingUndoBy] = useState<Color | null>(null);
   const [endReason, setEndReason] = useState<EndReason>(null);
@@ -66,6 +68,8 @@ export function useGame(gameId: string) {
         setCaptures(game.captures);
         setBlackUsername(game.blackUsername);
         setWhiteUsername(game.whiteUsername);
+        setBlackUserId(game.blackUserId);
+        setWhiteUserId(game.whiteUserId);
         setMyColor(game.myColor);
         setPendingUndoBy(game.pendingUndoBy);
         setEndReason(game.endReason);
@@ -229,6 +233,8 @@ export function useGame(gameId: string) {
     captures,
     blackUsername,
     whiteUsername,
+    blackUserId,
+    whiteUserId,
     myColor,
     pendingUndoBy,
     endReason,

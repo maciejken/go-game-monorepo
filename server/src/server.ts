@@ -630,7 +630,7 @@ function escapeSgfText(text: string): string {
 // withTimeoutCheck, and the finalize-scoring handler) back into the
 // standard SGF RE[] convention (e.g. "B+R", "W+T", "B+6.5") — there's no
 // structured winner/margin stored separately, only the composed sentence.
-function deriveSgfResult(game: GameRow): string | null {
+function deriveSgfResult(game: Pick<GameRow, 'result' | 'end_reason'>): string | null {
   if (!game.result) {
     return null;
   }
@@ -647,6 +647,42 @@ function deriveSgfResult(game: GameRow): string | null {
     return match ? `${match[1] === 'Black' ? 'B' : 'W'}+${match[2]}` : null;
   }
   return null;
+}
+
+// Backs the profile page's games played/won/lost — reuses deriveSgfResult
+// (the same free-text result parsing the SGF export already relies on)
+// rather than storing a separate structured winner column. A finished game
+// with no determinable winner (manually ended, no result) counts toward
+// played but neither won nor lost. A local game (same user as both colors)
+// counts as both a win and a loss for that one game, same as it would for
+// two different accounts — no special-casing, since it's simply that
+// user's own single row-column comparison already producing that answer.
+function getUserStats(userId: string): { played: number; won: number; lost: number } {
+  const rows = db
+    .prepare(
+      `SELECT black_user_id, white_user_id, result, end_reason
+       FROM games
+       WHERE status = 'finished' AND (black_user_id = ? OR white_user_id = ?)`,
+    )
+    .all(userId, userId) as Pick<GameRow, 'black_user_id' | 'white_user_id' | 'result' | 'end_reason'>[];
+
+  let played = 0;
+  let won = 0;
+  let lost = 0;
+  for (const row of rows) {
+    played += 1;
+    const sgfResult = deriveSgfResult(row);
+    if (!sgfResult) {
+      continue;
+    }
+    const winnerIsBlack = sgfResult.startsWith('B');
+    if (winnerIsBlack ? row.black_user_id === userId : row.white_user_id === userId) {
+      won += 1;
+    } else if (winnerIsBlack ? row.white_user_id === userId : row.black_user_id === userId) {
+      lost += 1;
+    }
+  }
+  return { played, won, lost };
 }
 
 // Each player's own point total for a scored finish (e.g. "White wins by
@@ -1061,7 +1097,15 @@ app.get('/api/users/:id', (req, res) => {
     res.status(404).json({ error: 'User not found' });
     return;
   }
-  res.json({ id: row.id, username: row.username, createdAt: row.created_at });
+  const stats = getUserStats(row.id);
+  res.json({
+    id: row.id,
+    username: row.username,
+    createdAt: row.created_at,
+    gamesPlayed: stats.played,
+    gamesWon: stats.won,
+    gamesLost: stats.lost,
+  });
 });
 
 // Registers (or re-registers) an iOS device's APNs token against the
@@ -1116,6 +1160,8 @@ app.get('/api/games', (req, res) => {
     updatedAt: row.updated_at,
     blackUsername: getUsername(row.black_user_id),
     whiteUsername: getUsername(row.white_user_id),
+    blackUserId: row.black_user_id,
+    whiteUserId: row.white_user_id,
     myColor: getMyColor(row, currentUser?.id ?? null),
     isAiOpponent: isAiOpponentGame(row),
     gnugoLevel: row.gnugo_level,
@@ -1257,6 +1303,8 @@ app.post('/api/games', async (req, res) => {
     board,
     blackUsername: getUsername(blackUserId),
     whiteUsername: getUsername(whiteUserId),
+    blackUserId,
+    whiteUserId,
   });
 
   // No-op unless the AI was just assigned the color that moves first
@@ -1300,6 +1348,8 @@ app.get('/api/games/:id', (req, res) => {
     canUndo: hasUndoableEvent(game.id),
     blackUsername: getUsername(game.black_user_id),
     whiteUsername: getUsername(game.white_user_id),
+    blackUserId: game.black_user_id,
+    whiteUserId: game.white_user_id,
     myColor: getMyColor(game, currentUser?.id ?? null),
     pendingUndoBy: game.pending_undo_by,
     endReason: game.end_reason,

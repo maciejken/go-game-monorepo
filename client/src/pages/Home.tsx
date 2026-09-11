@@ -370,6 +370,19 @@ interface GameListItemProps {
   onStarChange: () => void;
 }
 
+// A player's name inside the game card, linked to their profile — stops
+// propagation since the whole card is itself a link to the game.
+function PlayerLink({ username, userId }: { username: string | null; userId: string | null }) {
+  if (!username || !userId) {
+    return <>{username ?? '—'}</>;
+  }
+  return (
+    <Link to={`/profile/${userId}`} onClick={(e) => e.stopPropagation()}>
+      {username}
+    </Link>
+  );
+}
+
 function GameListItem({ game, onDelete, onRename, onStarChange }: GameListItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [titleInput, setTitleInput] = useState(game.title ?? '');
@@ -405,9 +418,6 @@ function GameListItem({ game, onDelete, onRename, onStarChange }: GameListItemPr
   };
 
   const metaParts = [`${game.size}x${game.size}`];
-  if (game.myColor !== 'both') {
-    metaParts.push(`${game.blackUsername ?? '—'} vs ${game.whiteUsername ?? '—'}`);
-  }
   if (game.isAiOpponent && game.gnugoLevel !== null) {
     metaParts.push(`level ${game.gnugoLevel}`);
   }
@@ -424,7 +434,17 @@ function GameListItem({ game, onDelete, onRename, onStarChange }: GameListItemPr
 
   const metaRows = (
     <>
-      <div className="game-card-row">{metaParts.join(' · ')}</div>
+      <div className="game-card-row">
+        {metaParts[0]}
+        {game.myColor !== 'both' && (
+          <>
+            {' · '}
+            <PlayerLink username={game.blackUsername} userId={game.blackUserId} /> vs{' '}
+            <PlayerLink username={game.whiteUsername} userId={game.whiteUserId} />
+          </>
+        )}
+        {metaParts.length > 1 && ` · ${metaParts.slice(1).join(' · ')}`}
+      </div>
       <div className="game-card-row">Created: {formatDate(game.createdAt)}</div>
       <div className="game-card-row">Updated: {formatDate(game.updatedAt)}</div>
     </>

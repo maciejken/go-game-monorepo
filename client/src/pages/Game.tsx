@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { applyDeadStones, findSekiPartnerStones, getGroup, scoreBoard, type Color, type Point } from 'shared';
 import { useAuth } from '../hooks/useAuth';
 import { useDialog } from '../hooks/useDialog';
@@ -126,6 +126,14 @@ function describeReopenAction(myColor: MyColor, pendingReopenBy: Color | null, i
   return 'Confirm reopen scoring';
 }
 
+// A player's name shown in the header/status text, linked to their profile.
+function PlayerLink({ username, userId }: { username: string | null; userId: string | null }) {
+  if (!username || !userId) {
+    return <>{username ?? '—'}</>;
+  }
+  return <Link to={`/profile/${userId}`}>{username}</Link>;
+}
+
 function Game() {
   const { id: gameId } = useParams<{ id: string }>();
 
@@ -152,6 +160,8 @@ function GameView({ gameId }: GameViewProps) {
     captures,
     blackUsername,
     whiteUsername,
+    blackUserId,
+    whiteUserId,
     myColor,
     pendingUndoBy,
     endReason,
@@ -790,10 +800,17 @@ function GameView({ gameId }: GameViewProps) {
           Back
         </button>
         {myColor === 'both' ? (
-          <h2 className="game-title">{title || `${blackUsername ?? '—'} (local)`}</h2>
+          <h2 className="game-title">
+            {title || (
+              <>
+                <PlayerLink username={blackUsername} userId={blackUserId} /> (local)
+              </>
+            )}
+          </h2>
         ) : (
           <h2 className="game-title">
-            {blackUsername ?? '—'} vs {whiteUsername ?? '—'}
+            <PlayerLink username={blackUsername} userId={blackUserId} /> vs{' '}
+            <PlayerLink username={whiteUsername} userId={whiteUserId} />
           </h2>
         )}
         <div className="go-menu" ref={menuRef}>
@@ -990,7 +1007,18 @@ function GameView({ gameId }: GameViewProps) {
           </p>
         )}
         {!isReviewing && status === 'in_progress' && isParticipant && !isMyTurn && !pendingUndoBy && (
-          <p>Waiting for {(currentColor === 'black' ? blackUsername : whiteUsername) ?? colorLabel(currentColor)} to move.</p>
+          <p>
+            Waiting for{' '}
+            {(currentColor === 'black' ? blackUsername : whiteUsername) ? (
+              <PlayerLink
+                username={currentColor === 'black' ? blackUsername : whiteUsername}
+                userId={currentColor === 'black' ? blackUserId : whiteUserId}
+              />
+            ) : (
+              colorLabel(currentColor)
+            )}{' '}
+            to move.
+          </p>
         )}
         {!isReviewing && !isParticipant && status !== 'finished' && (
           <p>You're viewing as a spectator — log in as a player in this game to make moves.</p>

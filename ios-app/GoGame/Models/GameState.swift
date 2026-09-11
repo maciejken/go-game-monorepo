@@ -41,6 +41,8 @@ struct GameState: Codable {
     var board: Board
     let blackUsername: String?
     let whiteUsername: String?
+    let blackUserId: String?
+    let whiteUserId: String?
     var currentColor: StoneColor
     var captures: Captures
     let myColor: MyColor?

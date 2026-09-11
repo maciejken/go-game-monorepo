@@ -110,6 +110,12 @@ function Profile() {
           <dd>{profile.username}</dd>
           <dt>Joined</dt>
           <dd>{formatJoinDate(profile.createdAt)}</dd>
+          <dt>Games played</dt>
+          <dd>{profile.gamesPlayed}</dd>
+          <dt>Won</dt>
+          <dd>{profile.gamesWon}</dd>
+          <dt>Lost</dt>
+          <dd>{profile.gamesLost}</dd>
         </dl>
       )}
       {profile && user?.id === profile.id && <ChangePasswordForm />}

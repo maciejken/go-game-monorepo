@@ -33,6 +33,12 @@ struct GameBoardView: View {
     // GameListView's create-game race.
     @State private var isDeleted = false
     @Environment(\.dismiss) private var dismiss
+    // Used to jump to a player's profile from the result sheet — reuses the
+    // exact same mechanism a real /profile/<id> universal link goes
+    // through, since MainTabView already knows how to switch to the
+    // Account tab and push a profile for it regardless of what's currently
+    // on screen.
+    @Environment(DeepLinkRouter.self) private var deepLinkRouter
     // Mirrors client/src/pages/Game.tsx's confirmMoves setting (persisted
     // the same way, via a device-local preference) and pendingMove: with it
     // on, a first tap on a valid point just marks it; tapping that same
@@ -503,11 +509,11 @@ struct GameBoardView: View {
                 .multilineTextAlignment(.center)
             if let breakdown = game.resultBreakdown {
                 HStack(spacing: 8) {
-                    Text(game.blackUsername ?? "—")
+                    profileLink(username: game.blackUsername, userId: game.blackUserId)
                     resultPointsStone(.black, score: breakdown.black)
                     Spacer().frame(width: 20)
                     resultPointsStone(.white, score: breakdown.white)
-                    Text(game.whiteUsername ?? "—")
+                    profileLink(username: game.whiteUsername, userId: game.whiteUserId)
                 }
                 .font(.subheadline)
                 // Only a scoring-based finish can be reopened (a
@@ -539,6 +545,24 @@ struct GameBoardView: View {
             }
         }
         .padding()
+    }
+
+    // A player's name in the result sheet, tappable to their profile. Safe
+    // to do here (unlike a game-list row, which is already a giant tap
+    // target of its own) since this sheet has no other tap target to
+    // conflict with.
+    @ViewBuilder
+    private func profileLink(username: String?, userId: String?) -> some View {
+        if let username, let userId {
+            Button {
+                showResultSheet = false
+                deepLinkRouter.targetProfileId = userId
+            } label: {
+                Text(username).underline()
+            }
+        } else {
+            Text(username ?? "—")
+        }
     }
 
     // MyColor has a 'both' case StoneColor doesn't, so pendingReopenBy
