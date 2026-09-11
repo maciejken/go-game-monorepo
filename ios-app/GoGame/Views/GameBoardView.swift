@@ -455,13 +455,42 @@ struct GameBoardView: View {
             finalizeButton(game)
         default:
             if let shortResult = game.shortResult {
-                Button {
-                    showResultSheet = true
-                } label: {
-                    Text(shortResult)
-                        .font(.headline)
+                // Same fill-the-shape-with-the-winner's-color treatment as
+                // the in-progress turn marker, just a touch bigger (52pt vs
+                // 44pt) since it also has to hold text. The size itself
+                // stays fixed regardless of score length ("B+5.5" vs
+                // "W+123.5") — .minimumScaleFactor shrinks the font instead
+                // of the button growing, so the footer's center slot never
+                // shifts width across game phases.
+                let winnerIsBlack = shortResult.hasPrefix("B")
+                let tint: Color = winnerIsBlack ? .black : .white
+                let textColor: Color = winnerIsBlack ? .white : .black
+                let label = Text(shortResult)
+                    .font(.footnote.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
+                    .foregroundStyle(textColor)
+                    .frame(width: 52, height: 52)
+                if #available(iOS 26.0, *) {
+                    Button {
+                        showResultSheet = true
+                    } label: {
+                        label
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(tint)
+                    .buttonBorderShape(.circle)
+                    .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
+                } else {
+                    Button {
+                        showResultSheet = true
+                    } label: {
+                        label
+                            .background(tint, in: Circle())
+                            .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
