@@ -21,6 +21,16 @@ enum LiveSocket {
         while !Task.isCancelled {
             let task = URLSession.shared.webSocketTask(with: wsURL(path))
             task.resume()
+            // A fresh connection may be replacing one that died while
+            // suspended (e.g. backgrounded for a push notification) —
+            // whatever broadcast would have arrived in the meantime is
+            // simply gone, the server doesn't replay missed messages. Since
+            // there is no way to tell whether something was missed,
+            // refetching on every (re)connect, not just on an actual
+            // message, is the only way to guarantee the view can't be left
+            // stale indefinitely (it would otherwise sit unchanged until
+            // the next unrelated live update happened to arrive).
+            await onMessage()
             while !Task.isCancelled {
                 do {
                     _ = try await task.receive()

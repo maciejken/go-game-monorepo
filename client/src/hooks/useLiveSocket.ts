@@ -29,6 +29,14 @@ export function useLiveSocket(path: string, onMessage: () => void): void {
         return;
       }
       socket = new WebSocket(`${wsBaseUrl()}${path}`);
+      // A fresh connection may be replacing one that died silently (e.g.
+      // the laptop slept, or the tab lost focus long enough for the
+      // browser to drop it) — whatever broadcast would have arrived in
+      // the meantime is simply gone, the server doesn't replay missed
+      // messages. Refetching on every (re)connect, not just on an actual
+      // message, is the only way to guarantee the view can't be left
+      // stale until some unrelated later update happens to arrive.
+      socket.onopen = () => onMessageRef.current();
       socket.onmessage = () => onMessageRef.current();
       socket.onclose = () => {
         if (!stopped) {
