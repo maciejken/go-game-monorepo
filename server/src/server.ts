@@ -210,16 +210,23 @@ function pushToUser(userId: string, alert: string, gameId: string): void {
 
 // Pushes "it's your turn" to every device the color-to-move's player has
 // registered — skipped for a local game (both colors are the same account,
-// who obviously doesn't need telling) and for an AI opponent (nobody to
-// notify; maybeTriggerAiMove handles that turn instead).
+// who obviously doesn't need telling) and whenever the *next* mover is the
+// AI itself (no device to push to; maybeTriggerAiMove handles that turn
+// instead, immediately, without waiting on a human). Deliberately not
+// gated on isAiOpponentGame(game) generally: GNU Go's own move is applied
+// via this same function (see applyMoveToGame's shared use below), fired
+// off asynchronously after the human's move response already went out —
+// so the human backgrounding the app right after their own move would
+// otherwise never learn GNU Go replied.
 function notifyOpponentOfMove(game: Participants & { id: string; title: string | null }, moverColor: Color, nextColor: Color): void {
   const opponentId = nextColor === 'black' ? game.black_user_id : game.white_user_id;
   const moverId = moverColor === 'black' ? game.black_user_id : game.white_user_id;
-  if (!opponentId || opponentId === moverId || isAiOpponentGame(game)) {
+  const aiId = getAiUserId();
+  if (!opponentId || opponentId === moverId || opponentId === aiId) {
     return;
   }
 
-  const moverName = getUsername(moverId) ?? 'Your opponent';
+  const moverName = moverId === aiId ? 'GNU Go' : getUsername(moverId) ?? 'Your opponent';
   pushToUser(opponentId, `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`, game.id);
 }
 
