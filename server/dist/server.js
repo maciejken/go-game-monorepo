@@ -825,6 +825,27 @@ app.post('/api/auth/password', (req, res) => {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), user.id);
     res.json({ success: true });
 });
+// Backs the new-game form's opponent-username autocomplete. Registered
+// before /api/users/:id so "search" doesn't get swallowed as an :id value.
+// % and _ are escaped since usernames have no charset restriction beyond
+// length — an unescaped one would otherwise act as a SQL LIKE wildcard.
+app.get('/api/users/search', (req, res) => {
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (query.length < MIN_USERNAME_LENGTH) {
+        res.json([]);
+        return;
+    }
+    const escaped = query.replace(/[\\%_]/g, '\\$&');
+    const rows = db
+        .prepare(`SELECT id, username FROM users WHERE username LIKE ? ESCAPE '\\' ORDER BY username LIMIT 10`)
+        .all(`${escaped}%`);
+    const aiId = getAiUserId();
+    res.json(rows.map((row) => ({ username: row.username, isAi: row.id === aiId })));
+});
 // A profile page (web /profile/:id, iOS's Account tab and the same path as
 // a universal link) — any logged-in user can look up any other user's
 // public info by id, not just their own. The users table only has

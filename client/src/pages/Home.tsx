@@ -6,12 +6,14 @@ import {
   deleteGame,
   listGames,
   recentGameVs,
+  searchUsernames,
   starGame,
   unstarGame,
   updateGameTitle,
   type GameListScope,
   type GameSummary,
   type TimeControlName,
+  type UsernameSearchResult,
 } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { useDialog } from '../hooks/useDialog';
@@ -72,11 +74,12 @@ function Home() {
   const [handicap, setHandicap] = useState(0);
   const [komi, setKomi] = useState(KOMI_OPTIONS_EVEN[0]);
   const [title, setTitle] = useState('');
-  const [mode, setMode] = useState<'local' | 'remote' | 'gnugo'>('local');
+  const [mode, setMode] = useState<'local' | 'remote' | 'gnugo'>('remote');
   const [timeControl, setTimeControl] = useState<TimeControlName>('unlimited');
   const [opponentUsername, setOpponentUsername] = useState('');
   const [color, setColor] = useState<Color | 'random'>('black');
   const [gnugoLevel, setGnugoLevel] = useState(GNUGO_LEVEL_DEFAULT);
+  const [usernameSuggestions, setUsernameSuggestions] = useState<UsernameSearchResult[]>([]);
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [scope, setScope] = useState<GameListScope>('mine');
   const [hasMore, setHasMore] = useState(false);
@@ -209,6 +212,44 @@ function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, opponentUsername]);
 
+  // Username autocomplete — a much lighter debounce than the handicap
+  // lookup above since this one drives visible list feedback while typing,
+  // not a background prefill. 3 chars mirrors the server's own
+  // MIN_USERNAME_LENGTH (querying under that always returns []). Doesn't
+  // clear usernameSuggestions when the query drops below 3 chars or mode
+  // changes — the render below already gates the dropdown on the current
+  // length/mode, so stale results just stay harmlessly unused in state
+  // until a new query replaces them.
+  useEffect(() => {
+    if (mode !== 'remote' || opponentUsername.trim().length < 3) {
+      return;
+    }
+    const query = opponentUsername.trim();
+    const timeoutId = setTimeout(() => {
+      searchUsernames(query)
+        .then(setUsernameSuggestions)
+        .catch(() => setUsernameSuggestions([]));
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [mode, opponentUsername]);
+
+  // Selecting the computer's or your own username switches mode instead of
+  // filling in an opponent — those aren't real remote opponents, and
+  // handleModeChange already carries the gnugo prefill/color-forcing logic
+  // a plain setMode wouldn't.
+  const handleSuggestionSelect = (suggestion: UsernameSearchResult) => {
+    setUsernameSuggestions([]);
+    if (suggestion.isAi) {
+      setOpponentUsername('');
+      handleModeChange('gnugo');
+    } else if (user && suggestion.username === user.username) {
+      setOpponentUsername('');
+      handleModeChange('local');
+    } else {
+      setOpponentUsername(suggestion.username);
+    }
+  };
+
   const startNewGame = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -299,13 +340,29 @@ function Home() {
             {mode === 'remote' && (
               <label className="modal-form-row">
                 <span className="modal-form-label">Opponent</span>
-                <input
-                  type="text"
-                  value={opponentUsername}
-                  onChange={(e) => setOpponentUsername(e.target.value)}
-                  placeholder="Username"
-                  required
-                />
+                <div className="opponent-field">
+                  <input
+                    type="text"
+                    value={opponentUsername}
+                    onChange={(e) => setOpponentUsername(e.target.value)}
+                    onBlur={() => setTimeout(() => setUsernameSuggestions([]), 150)}
+                    placeholder="Username"
+                    required
+                  />
+                  {opponentUsername.trim().length >= 3 && usernameSuggestions.length > 0 && (
+                    <ul className="opponent-suggestions">
+                      {usernameSuggestions.map((suggestion) => (
+                        <li key={suggestion.username}>
+                          <button type="button" onMouseDown={() => handleSuggestionSelect(suggestion)}>
+                            {suggestion.username}
+                            {suggestion.isAi && ' (computer)'}
+                            {user && suggestion.username === user.username && ' (you)'}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </label>
             )}
             <label className="modal-form-row">

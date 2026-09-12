@@ -237,6 +237,19 @@ export function recentGameVs(
   return fetch(`${API_BASE}/games/recent-vs?${params}`).then((res) => handle<RecentGameVsOpponent | null>(res));
 }
 
+export interface UsernameSearchResult {
+  username: string;
+  isAi: boolean;
+}
+
+// Backs the new-game form's opponent autocomplete. The server returns []
+// for a query under its own minimum length rather than erroring.
+export function searchUsernames(query: string): Promise<UsernameSearchResult[]> {
+  return fetch(`${API_BASE}/users/search?q=${encodeURIComponent(query)}`).then((res) =>
+    handle<UsernameSearchResult[]>(res),
+  );
+}
+
 export function starGame(id: string): Promise<{ starred: true }> {
   return fetch(`${API_BASE}/games/${id}/star`, { method: 'POST' }).then((res) =>
     handle<{ starred: true }>(res),
