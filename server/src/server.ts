@@ -37,7 +37,7 @@ import {
 import { seedDefaultUser, seedAiUser, getAiUserId } from './seed.js';
 import { attachWebSocketServer, broadcastGameUpdate, broadcastGamesListUpdate } from './ws.js';
 import { generateAiMove, isGnuGoAvailable, type AiMoveResult, type ReplayMove } from './gnugo.js';
-import { sendPushNotification } from './apns.js';
+import { isApnsConfigured, sendPushNotification } from './apns.js';
 import { deductClock, hasTimedOut, resolveTimeControl, type ClockState, type TimeControlName } from './clock.js';
 
 seedDefaultUser();
@@ -1217,6 +1217,19 @@ app.get('/api/device-tokens/mine', (req, res) => {
     count: number;
   };
   res.json({ registered: row.count > 0, count: row.count });
+});
+
+// Pairs with the endpoint above: confirms whether *this running process*
+// currently has all five APNS_* env vars loaded, without exposing their
+// values — the two most common setup mistakes (a pm2 restart that didn't
+// pick up an edited env file, or a var name typo) are otherwise invisible
+// until a push silently no-ops.
+app.get('/api/apns-status', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  res.json({ configured: isApnsConfigured() });
 });
 
 // Backs the new-game form's handicap/level auto-fill: given an opponent
