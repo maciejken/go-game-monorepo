@@ -5,6 +5,21 @@ import UserNotifications
 // registration callbacks below — they're AppDelegate-only, hence this small
 // adapter (wired in via @UIApplicationDelegateAdaptor in GoGame.swift).
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    // Set once by GoGame.swift's .onAppear. A notification tap on a cold
+    // launch can be delivered to didReceive(response:) before that runs —
+    // exactly the same "target might arrive before a consumer exists" case
+    // DeepLinkRouter itself is built around — so a tap arriving that early
+    // is buffered here and flushed the moment the router is actually set.
+    var deepLinkRouter: DeepLinkRouter? {
+        didSet {
+            if let gameId = pendingGameId {
+                deepLinkRouter?.targetGameId = gameId
+                pendingGameId = nil
+            }
+        }
+    }
+    private var pendingGameId: String?
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -34,5 +49,23 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
         [.banner, .sound, .badge]
+    }
+
+    // Fires when the user actually taps the notification (background,
+    // foreground, or a cold launch — iOS delivers this once the delegate
+    // above is set regardless of which). gameId is the custom payload data
+    // server.ts's pushToUser attaches alongside aps.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        guard let gameId = response.notification.request.content.userInfo["gameId"] as? String else {
+            return
+        }
+        if let deepLinkRouter {
+            deepLinkRouter.targetGameId = gameId
+        } else {
+            pendingGameId = gameId
+        }
     }
 }

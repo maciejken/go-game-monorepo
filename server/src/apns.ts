@@ -40,7 +40,7 @@ function getProviderToken(): string {
 // is waiting on, so failures are logged and swallowed rather than thrown.
 // No-ops entirely (also without logging) until isApnsConfigured() is true —
 // see config.ts for what that requires.
-export function sendPushNotification(deviceToken: string, alert: string): void {
+export function sendPushNotification(deviceToken: string, alert: string, data?: { gameId: string }): void {
   if (!isApnsConfigured()) {
     return;
   }
@@ -77,5 +77,8 @@ export function sendPushNotification(deviceToken: string, alert: string): void {
     client.close();
   });
 
-  req.end(JSON.stringify({ aps: { alert, sound: 'default' } }));
+  // gameId sits alongside aps as a plain custom top-level key — the iOS
+  // app reads it back from the delivered notification's userInfo to know
+  // which game to open on a tap (see AppDelegate's didReceive response:).
+  req.end(JSON.stringify({ aps: { alert, sound: 'default' }, ...data }));
 }

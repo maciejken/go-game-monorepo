@@ -12,6 +12,9 @@ struct GoGameApp: App {
                 .onOpenURL { url in
                     deepLinkRouter.handle(url)
                 }
+                .onAppear {
+                    appDelegate.deepLinkRouter = deepLinkRouter
+                }
         }
     }
 }

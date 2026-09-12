@@ -195,19 +195,23 @@ function isAiOpponentGame(game: Participants): boolean {
   return game.black_user_id === aiId || game.white_user_id === aiId;
 }
 
-// Pushes "it's your turn" to every device the color-to-move's player has
-// registered — skipped for a local game (both colors are the same account,
-// who obviously doesn't need telling) and for an AI opponent (nobody to
-// notify; maybeTriggerAiMove handles that turn instead).
-function pushToUser(userId: string, alert: string): void {
+// Sends to every device the user has registered — gameId rides along as
+// custom push-payload data (see apns.ts) so a tap on the notification can
+// take the iOS app straight to that game via DeepLinkRouter, the same
+// mechanism a /games/<id> universal link uses.
+function pushToUser(userId: string, alert: string, gameId: string): void {
   const tokens = db.prepare('SELECT token FROM device_tokens WHERE user_id = ?').all(userId) as {
     token: string;
   }[];
   for (const { token } of tokens) {
-    sendPushNotification(token, alert);
+    sendPushNotification(token, alert, { gameId });
   }
 }
 
+// Pushes "it's your turn" to every device the color-to-move's player has
+// registered — skipped for a local game (both colors are the same account,
+// who obviously doesn't need telling) and for an AI opponent (nobody to
+// notify; maybeTriggerAiMove handles that turn instead).
 function notifyOpponentOfMove(game: Participants & { id: string; title: string | null }, moverColor: Color, nextColor: Color): void {
   const opponentId = nextColor === 'black' ? game.black_user_id : game.white_user_id;
   const moverId = moverColor === 'black' ? game.black_user_id : game.white_user_id;
@@ -216,15 +220,15 @@ function notifyOpponentOfMove(game: Participants & { id: string; title: string |
   }
 
   const moverName = getUsername(moverId) ?? 'Your opponent';
-  pushToUser(opponentId, `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`);
+  pushToUser(opponentId, `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`, game.id);
 }
 
 // A new remote game has no prior move for notifyOpponentOfMove to hang an
 // "it's your turn" push off of — without this, the invited side never
 // learns about it until they happen to open the app themselves.
-function notifyOfInvite(inviterId: string, invitedId: string, title: string | null): void {
+function notifyOfInvite(inviterId: string, invitedId: string, gameId: string, title: string | null): void {
   const inviterName = getUsername(inviterId) ?? 'Someone';
-  pushToUser(invitedId, `${inviterName} invited you to a game${title ? ` — ${title}` : ''}.`);
+  pushToUser(invitedId, `${inviterName} invited you to a game${title ? ` — ${title}` : ''}.`, gameId);
 }
 
 function isStarred(gameId: string, userId: string | null): boolean {
@@ -1450,7 +1454,7 @@ app.post('/api/games', async (req, res) => {
   broadcastGamesListUpdate();
 
   if (invitedOpponentId) {
-    notifyOfInvite(user.id, invitedOpponentId, title);
+    notifyOfInvite(user.id, invitedOpponentId, id, title);
   }
 
   res.status(201).json({
