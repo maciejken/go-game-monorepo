@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { changePassword, getUser, type UserProfile } from '../services/api';
+import { changePassword, getUser, setAcceptsInvitations, type UserProfile } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 
 function formatJoinDate(ms: number): string {
@@ -83,6 +83,33 @@ function ChangePasswordForm() {
   );
 }
 
+// Only ever shown on your own profile (gated in Profile below) — an
+// optimistic checkbox: flips immediately, then reverts with an error
+// message if the request fails, mirroring the star-toggle pattern used
+// elsewhere in this app for a single-field, no-confirmation-needed setting.
+function AcceptInvitationsToggle({ initialValue }: { initialValue: boolean }) {
+  const [checked, setChecked] = useState(initialValue);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = (next: boolean) => {
+    setChecked(next);
+    setError(null);
+    setAcceptsInvitations(next).catch((err: Error) => {
+      setChecked(!next);
+      setError(err.message);
+    });
+  };
+
+  return (
+    <p>
+      <label>
+        <input type="checkbox" checked={checked} onChange={(e) => toggle(e.target.checked)} /> Accept invitations
+      </label>
+      {error && <span className="error"> {error}</span>}
+    </p>
+  );
+}
+
 function Profile() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -118,7 +145,12 @@ function Profile() {
           <dd>{profile.gamesLost}</dd>
         </dl>
       )}
-      {profile && user?.id === profile.id && <ChangePasswordForm />}
+      {profile && user?.id === profile.id && (
+        <>
+          <AcceptInvitationsToggle initialValue={profile.acceptsInvitations} />
+          <ChangePasswordForm />
+        </>
+      )}
       <Link to="/">Back to games</Link>
     </div>
   );

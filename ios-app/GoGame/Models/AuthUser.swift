@@ -12,6 +12,7 @@ struct UserProfile: Codable, Identifiable {
     let id: String
     let username: String
     let createdAt: Int
+    let acceptsInvitations: Bool
     let gamesPlayed: Int
     let gamesWon: Int
     let gamesLost: Int

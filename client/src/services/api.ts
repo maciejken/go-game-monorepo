@@ -33,6 +33,7 @@ export interface UserProfile {
   id: string;
   username: string;
   createdAt: number;
+  acceptsInvitations: boolean;
   gamesPlayed: number;
   gamesWon: number;
   gamesLost: number;
@@ -418,4 +419,18 @@ export function changePassword(currentPassword: string, newPassword: string): Pr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ currentPassword, newPassword }),
   }).then((res) => handle<{ success: true }>(res)).then(() => undefined);
+}
+
+// A 204 with no body on success, so this can't go through handle<T> (which
+// always calls res.json()) — mirrors deleteGame's own manual res.ok check.
+export async function setAcceptsInvitations(acceptsInvitations: boolean): Promise<void> {
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ acceptsInvitations }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.error ?? 'Failed to update setting');
+  }
 }

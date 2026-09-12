@@ -185,6 +185,15 @@ if (!gamesColumns.has('ai_current_level')) {
   db.exec('ALTER TABLE games ADD COLUMN ai_current_level INTEGER');
 }
 
+// Whether other users can find and invite this one to a remote game —
+// defaults to on (1) so existing accounts keep today's behavior.
+const usersColumns = new Set(
+  (db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((column) => column.name),
+);
+if (!usersColumns.has('accepts_invitations')) {
+  db.exec('ALTER TABLE users ADD COLUMN accepts_invitations INTEGER NOT NULL DEFAULT 1');
+}
+
 // Migrate older `snapshots` tables that predate the `hash` column (used for
 // situational superko checks), backfilling it for any existing rows.
 const snapshotsColumns = new Set(

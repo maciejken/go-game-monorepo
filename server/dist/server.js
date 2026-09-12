@@ -815,6 +815,22 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/api/auth/me', (req, res) => {
     res.json({ user: getSessionUser(req) });
 });
+// The "Accept invitations" toggle — the only self-service account setting
+// besides the password, hence living under /api/auth rather than needing a
+// dedicated settings resource for just one field.
+app.patch('/api/auth/me', (req, res) => {
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    const acceptsInvitations = req.body?.acceptsInvitations;
+    if (typeof acceptsInvitations !== 'boolean') {
+        res.status(400).json({ error: 'acceptsInvitations must be a boolean' });
+        return;
+    }
+    db.prepare('UPDATE users SET accepts_invitations = ? WHERE id = ?').run(acceptsInvitations ? 1 : 0, user.id);
+    res.status(204).end();
+});
 // Requires the current password (not just a valid session) before setting
 // a new one — same defense as any "change password" flow, since a session
 // cookie alone (left logged in on a shared/unlocked device, say) shouldn't
@@ -862,10 +878,16 @@ app.get('/api/users/search', (req, res) => {
     const escaped = query.replace(/[\\%_]/g, '\\$&');
     const pattern = `${escaped}%`;
     const aiId = getAiUserId();
+    // accepts_invitations = 1 OR id = ? (self) so someone who's opted out
+    // still finds themself — they're just invisible to everyone else. The
+    // AI needs no such exception: its row defaults to accepts_invitations =
+    // 1 and nothing ever changes it.
     if (query.length >= 3) {
         const rows = db
-            .prepare(`SELECT id, username FROM users WHERE username LIKE ? ESCAPE '\\' ORDER BY username LIMIT 10`)
-            .all(pattern);
+            .prepare(`SELECT id, username FROM users
+         WHERE username LIKE ? ESCAPE '\\' AND (accepts_invitations = 1 OR id = ?)
+         ORDER BY username LIMIT 10`)
+            .all(pattern, user.id);
         res.json(rows.map((row) => ({ username: row.username, isAi: row.id === aiId })));
         return;
     }
@@ -877,6 +899,7 @@ app.get('/api/users/search', (req, res) => {
          AND g.black_user_id != g.white_user_id
          AND g.updated_at >= ?
          AND u.username LIKE ? ESCAPE '\\'
+         AND u.accepts_invitations = 1
        ORDER BY u.username
        LIMIT 10`)
         .all(user.id, user.id, user.id, Date.now() - RECENT_OPPONENT_WINDOW_MS, pattern);
@@ -895,14 +918,16 @@ app.get('/api/users/search', (req, res) => {
 // a universal link) — any logged-in user can look up any other user's
 // public info by id, not just their own. The users table only has
 // username and created_at beyond the id/password hash, so that's all this
-// returns.
+// returns. acceptsInvitations is harmless to expose publicly (more a "do
+// not disturb" flag than sensitive data) — returning it here means the
+// profile page can show/edit it without a separate endpoint.
 app.get('/api/users/:id', (req, res) => {
     const user = requireAuth(req, res);
     if (!user) {
         return;
     }
     const row = db
-        .prepare('SELECT id, username, created_at FROM users WHERE id = ?')
+        .prepare('SELECT id, username, created_at, accepts_invitations FROM users WHERE id = ?')
         .get(req.params.id);
     if (!row) {
         res.status(404).json({ error: 'User not found' });
@@ -913,6 +938,7 @@ app.get('/api/users/:id', (req, res) => {
         id: row.id,
         username: row.username,
         createdAt: row.created_at,
+        acceptsInvitations: row.accepts_invitations === 1,
         gamesPlayed: stats.played,
         gamesWon: stats.won,
         gamesLost: stats.lost,
@@ -1084,13 +1110,18 @@ app.post('/api/games', async (req, res) => {
             res.status(400).json({ error: 'Choose which color you will play' });
             return;
         }
-        const opponent = db.prepare('SELECT id FROM users WHERE username = ?').get(opponentUsername);
-        if (!opponent) {
-            res.status(400).json({ error: `No user named "${opponentUsername}"` });
+        const opponent = db.prepare('SELECT id, accepts_invitations FROM users WHERE username = ?').get(opponentUsername);
+        // Self-invite gets its own message regardless of the toggle — telling
+        // someone their own account "isn't accepting invitations" would just
+        // be confusing. A nonexistent username and an existing-but-opted-out
+        // one deliberately share one message: distinguishing them would let
+        // this endpoint be used to enumerate which usernames exist.
+        if (opponent && opponent.id === user.id) {
+            res.status(400).json({ error: 'Invite a different user, not yourself' });
             return;
         }
-        if (opponent.id === user.id) {
-            res.status(400).json({ error: 'Invite a different user, not yourself' });
+        if (!opponent || opponent.accepts_invitations !== 1) {
+            res.status(400).json({ error: "Selected player isn't currently accepting invitations" });
             return;
         }
         const color = resolveColor(req.body.color);

@@ -13,6 +13,8 @@ struct ProfileView: View {
     @State private var passwordError: String?
     @State private var passwordChanged = false
     @State private var isChangingPassword = false
+    @State private var acceptsInvitations = false
+    @State private var acceptsInvitationsError: String?
 
     // Only ever relevant on your own profile — viewing someone else's has
     // no reason to expose a way to change their password.
@@ -32,6 +34,34 @@ struct ProfileView: View {
                         LabeledContent("Lost", value: "\(profile.gamesLost)")
                     }
                     if isOwnProfile {
+                        // Optimistic — flips immediately, reverts with an
+                        // error message if the request fails, rather than
+                        // waiting on a round-trip for a single boolean.
+                        Section {
+                            Toggle(
+                                "Accept invitations",
+                                isOn: Binding(
+                                    get: { acceptsInvitations },
+                                    set: { newValue in
+                                        acceptsInvitations = newValue
+                                        acceptsInvitationsError = nil
+                                        Task {
+                                            do {
+                                                try await APIClient.setAcceptsInvitations(newValue)
+                                            } catch {
+                                                acceptsInvitations = !newValue
+                                                acceptsInvitationsError = error.localizedDescription
+                                            }
+                                        }
+                                    }
+                                )
+                            )
+                            if let acceptsInvitationsError {
+                                Text(acceptsInvitationsError)
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                            }
+                        }
                         Section("Change Password") {
                             SecureField("Current password", text: $currentPassword)
                                 .textContentType(.password)
@@ -78,6 +108,7 @@ struct ProfileView: View {
     private func load() async {
         do {
             profile = try await APIClient.getUser(id: userId)
+            acceptsInvitations = profile?.acceptsInvitations ?? false
         } catch {
             errorMessage = error.localizedDescription
         }

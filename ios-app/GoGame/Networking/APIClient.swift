@@ -95,6 +95,14 @@ enum APIClient {
         try await send(request)
     }
 
+    private static func patch<Body: Encodable>(_ path: String, body: Body) async throws {
+        var request = URLRequest(url: url(path))
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        try await send(request)
+    }
+
     private static func delete(_ path: String) async throws {
         var request = URLRequest(url: url(path))
         request.httpMethod = "DELETE"
@@ -124,6 +132,11 @@ enum APIClient {
     static func changePassword(currentPassword: String, newPassword: String) async throws {
         struct Body: Encodable { let currentPassword: String; let newPassword: String }
         try await post("api/auth/password", body: Body(currentPassword: currentPassword, newPassword: newPassword))
+    }
+
+    static func setAcceptsInvitations(_ acceptsInvitations: Bool) async throws {
+        struct Body: Encodable { let acceptsInvitations: Bool }
+        try await patch("api/auth/me", body: Body(acceptsInvitations: acceptsInvitations))
     }
 
     // Any logged-in user's public info by id, not just the caller's own —
