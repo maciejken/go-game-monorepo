@@ -20,6 +20,11 @@ struct NewGameView: View {
     @State private var gnugoLevel = 10
     @State private var isCreating = false
     @State private var errorMessage: String?
+    // A create-game failure specific to the opponent field (not found,
+    // opted out of invitations, self-invite) — shown under that field
+    // rather than the form's generic error, and cleared as soon as the
+    // username changes rather than lingering until the next submit.
+    @State private var opponentError: String?
     @State private var opponentLookupTask: Task<Void, Never>?
     @State private var usernameSearchTask: Task<Void, Never>?
     @State private var usernameSuggestions: [APIClient.UsernameSearchResult] = []
@@ -43,6 +48,7 @@ struct NewGameView: View {
                     .onChange(of: mode) { _, newMode in
                         if newMode != "remote" {
                             usernameSuggestions = []
+                            opponentError = nil
                         }
                         if newMode == "gnugo" {
                             timeControl = "standard"
@@ -69,6 +75,7 @@ struct NewGameView: View {
                             .onChange(of: opponentUsername) { _, newValue in
                                 opponentLookupTask?.cancel()
                                 usernameSearchTask?.cancel()
+                                opponentError = nil
                                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                                 guard !trimmed.isEmpty else { return }
                                 opponentLookupTask = Task {
@@ -106,6 +113,9 @@ struct NewGameView: View {
                                 }
                             }
                             .foregroundStyle(.primary)
+                        }
+                        if let opponentError {
+                            Text(opponentError).foregroundStyle(.red)
                         }
                     }
                 }
@@ -198,6 +208,7 @@ struct NewGameView: View {
     // creating the game.
     private func selectSuggestion(_ suggestion: APIClient.UsernameSearchResult) {
         usernameSuggestions = []
+        opponentError = nil
         if suggestion.isAi {
             opponentUsername = ""
             mode = "gnugo"
@@ -215,9 +226,10 @@ struct NewGameView: View {
 
     private func create() async {
         errorMessage = nil
+        opponentError = nil
         let trimmedOpponent = opponentUsername.trimmingCharacters(in: .whitespacesAndNewlines)
         if mode == "remote" && trimmedOpponent.isEmpty {
-            errorMessage = "Opponent's username is required for a remote game"
+            opponentError = "Opponent's username is required for a remote game"
             return
         }
         isCreating = true
@@ -237,7 +249,11 @@ struct NewGameView: View {
             )
             onCreated(gameId)
         } catch {
-            errorMessage = error.localizedDescription
+            if mode == "remote" {
+                opponentError = error.localizedDescription
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }

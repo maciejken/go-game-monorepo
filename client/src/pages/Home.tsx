@@ -80,6 +80,11 @@ function Home() {
   const [color, setColor] = useState<Color | 'random'>('black');
   const [gnugoLevel, setGnugoLevel] = useState(GNUGO_LEVEL_DEFAULT);
   const [usernameSuggestions, setUsernameSuggestions] = useState<UsernameSearchResult[]>([]);
+  // A create-game failure specific to the opponent field (not found, opted
+  // out of invitations, self-invite) — shown under that input rather than
+  // the form's generic error, and cleared as soon as the username changes
+  // rather than lingering until the next submit attempt.
+  const [opponentError, setOpponentError] = useState<string | null>(null);
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [scope, setScope] = useState<GameListScope>('mine');
   const [hasMore, setHasMore] = useState(false);
@@ -150,6 +155,7 @@ function Home() {
 
   const handleModeChange = (newMode: 'local' | 'remote' | 'gnugo') => {
     setMode(newMode);
+    setOpponentError(null);
     if (newMode === 'gnugo') {
       // 10-min defaults for a computer opponent; a handicap game only makes
       // sense if the human — not GNU Go — receives the free stones.
@@ -240,6 +246,7 @@ function Home() {
   // a plain setMode wouldn't.
   const handleSuggestionSelect = (suggestion: UsernameSearchResult) => {
     setUsernameSuggestions([]);
+    setOpponentError(null);
     if (suggestion.isAi) {
       setOpponentUsername('');
       handleModeChange('gnugo');
@@ -254,6 +261,7 @@ function Home() {
   const startNewGame = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setOpponentError(null);
     createGame({
       size,
       handicap,
@@ -265,7 +273,13 @@ function Home() {
       ...(mode === 'gnugo' ? { color, level: gnugoLevel } : {}),
     })
       .then((game) => navigate(`/games/${game.id}`))
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) => {
+        if (mode === 'remote') {
+          setOpponentError(err.message);
+        } else {
+          setError(err.message);
+        }
+      });
   };
 
   const handleDelete = (id: string) => {
@@ -345,7 +359,10 @@ function Home() {
                   <input
                     type="text"
                     value={opponentUsername}
-                    onChange={(e) => setOpponentUsername(e.target.value)}
+                    onChange={(e) => {
+                      setOpponentUsername(e.target.value);
+                      setOpponentError(null);
+                    }}
                     onBlur={() => setTimeout(() => setUsernameSuggestions([]), 150)}
                     placeholder="Username"
                     required
@@ -363,6 +380,7 @@ function Home() {
                       ))}
                     </ul>
                   )}
+                  {opponentError && <p className="error">{opponentError}</p>}
                 </div>
               </label>
             )}
