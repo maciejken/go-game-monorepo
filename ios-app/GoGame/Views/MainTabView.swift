@@ -41,6 +41,18 @@ struct MainTabView: View {
         }
         .task { consumeProfileDeepLink() }
         .onChange(of: deepLinkRouter.targetProfileId) { _, _ in consumeProfileDeepLink() }
+        // GameListView (the Home tab) does the actual push onto its own
+        // NavigationStack whenever targetGameId is set — but that stack is
+        // invisible if Home isn't the selected tab (e.g. a push notification
+        // tapped while sitting on Account/Profile), so this just makes sure
+        // the tab bar actually shows it. Safe to run alongside GameListView's
+        // own consumption of the same value: this only ever touches
+        // selectedTab, never targetGameId itself.
+        .onChange(of: deepLinkRouter.targetGameId) { _, newValue in
+            if newValue != nil {
+                selectedTab = .home
+            }
+        }
     }
 
     private func consumeProfileDeepLink() {
