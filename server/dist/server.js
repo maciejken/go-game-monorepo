@@ -848,23 +848,35 @@ app.get('/api/users/search', (req, res) => {
     }
     const escaped = query.replace(/[\\%_]/g, '\\$&');
     const pattern = `${escaped}%`;
-    const rows = query.length >= 3
-        ? db
-            .prepare(`SELECT id, username FROM users WHERE username LIKE ? ESCAPE '\\' ORDER BY username LIMIT 10`)
-            .all(pattern)
-        : db
-            .prepare(`SELECT DISTINCT u.id, u.username
-             FROM games g
-             JOIN users u ON u.id = CASE WHEN g.black_user_id = ? THEN g.white_user_id ELSE g.black_user_id END
-             WHERE (g.black_user_id = ? OR g.white_user_id = ?)
-               AND g.black_user_id != g.white_user_id
-               AND g.updated_at >= ?
-               AND u.username LIKE ? ESCAPE '\\'
-             ORDER BY u.username
-             LIMIT 10`)
-            .all(user.id, user.id, user.id, Date.now() - RECENT_OPPONENT_WINDOW_MS, pattern);
     const aiId = getAiUserId();
-    res.json(rows.map((row) => ({ username: row.username, isAi: row.id === aiId })));
+    if (query.length >= 3) {
+        const rows = db
+            .prepare(`SELECT id, username FROM users WHERE username LIKE ? ESCAPE '\\' ORDER BY username LIMIT 10`)
+            .all(pattern);
+        res.json(rows.map((row) => ({ username: row.username, isAi: row.id === aiId })));
+        return;
+    }
+    const opponentRows = db
+        .prepare(`SELECT DISTINCT u.id, u.username
+       FROM games g
+       JOIN users u ON u.id = CASE WHEN g.black_user_id = ? THEN g.white_user_id ELSE g.black_user_id END
+       WHERE (g.black_user_id = ? OR g.white_user_id = ?)
+         AND g.black_user_id != g.white_user_id
+         AND g.updated_at >= ?
+         AND u.username LIKE ? ESCAPE '\\'
+       ORDER BY u.username
+       LIMIT 10`)
+        .all(user.id, user.id, user.id, Date.now() - RECENT_OPPONENT_WINDOW_MS, pattern);
+    const results = opponentRows.map((row) => ({ username: row.username, isAi: row.id === aiId }));
+    // A "me" shortcut on top of the recent-opponents list: typing "m"/"me"
+    // (a prefix of the literal word "me") or a prefix of your own username
+    // surfaces yourself first — you're never a "recent opponent" of your
+    // own games, so the query above alone would never suggest you.
+    const lowerQuery = query.toLowerCase();
+    if ('me'.startsWith(lowerQuery) || user.username.toLowerCase().startsWith(lowerQuery)) {
+        results.unshift({ username: user.username, isAi: false });
+    }
+    res.json(results);
 });
 // A profile page (web /profile/:id, iOS's Account tab and the same path as
 // a universal link) — any logged-in user can look up any other user's
