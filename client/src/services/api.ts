@@ -221,6 +221,22 @@ export async function listGames(
   return { games: rows, hasMore: false };
 }
 
+export interface RecentGameVsOpponent {
+  handicap: number;
+  gnugoLevel: number | null;
+}
+
+// Backs the new-game form's handicap/level auto-fill — the most recent
+// past game against this opponent (a human by username, or the computer
+// via `ai: true`), or null if there isn't one.
+export function recentGameVs(
+  opponent: { username: string } | { ai: true },
+): Promise<RecentGameVsOpponent | null> {
+  const params =
+    'ai' in opponent ? new URLSearchParams({ ai: '1' }) : new URLSearchParams({ opponentUsername: opponent.username });
+  return fetch(`${API_BASE}/games/recent-vs?${params}`).then((res) => handle<RecentGameVsOpponent | null>(res));
+}
+
 export function starGame(id: string): Promise<{ starred: true }> {
   return fetch(`${API_BASE}/games/${id}/star`, { method: 'POST' }).then((res) =>
     handle<{ starred: true }>(res),

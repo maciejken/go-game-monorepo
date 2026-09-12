@@ -872,6 +872,41 @@ app.post('/api/device-tokens', (req, res) => {
   `).run(token, user.id, Date.now());
     res.status(204).end();
 });
+// Backs the new-game form's handicap/level auto-fill: given an opponent
+// (by username, or the reserved AI account via `ai=1`), find the most
+// recent game against that same opponent and return its handicap/gnugo
+// level — or null if there's no prior game to base a prefill on. Reuses
+// the exact username→id resolution POST /api/games's remote branch uses,
+// so "no such user" behaves identically in both places.
+app.get('/api/games/recent-vs', (req, res) => {
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    let opponentId;
+    if (req.query.ai === '1') {
+        opponentId = getAiUserId();
+    }
+    else {
+        const opponentUsername = typeof req.query.opponentUsername === 'string' ? req.query.opponentUsername.trim() : '';
+        if (!opponentUsername) {
+            res.status(400).json({ error: 'opponentUsername or ai is required' });
+            return;
+        }
+        const opponent = db.prepare('SELECT id FROM users WHERE username = ?').get(opponentUsername);
+        if (!opponent) {
+            res.status(404).json({ error: `No user named "${opponentUsername}"` });
+            return;
+        }
+        opponentId = opponent.id;
+    }
+    const row = db
+        .prepare(`SELECT handicap, gnugo_level FROM games
+       WHERE (black_user_id = ? AND white_user_id = ?) OR (black_user_id = ? AND white_user_id = ?)
+       ORDER BY created_at DESC LIMIT 1`)
+        .get(user.id, opponentId, opponentId, user.id);
+    res.json(row ? { handicap: row.handicap, gnugoLevel: row.gnugo_level } : null);
+});
 app.get('/api/games', (req, res) => {
     const currentUser = getSessionUser(req);
     // "mine" is meaningless without an identity to filter by — fall back to

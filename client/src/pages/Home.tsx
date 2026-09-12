@@ -5,6 +5,7 @@ import {
   createGame,
   deleteGame,
   listGames,
+  recentGameVs,
   starGame,
   unstarGame,
   updateGameTitle,
@@ -153,6 +154,19 @@ function Home() {
       if (handicap > 0) {
         setColor('black');
       }
+      // Picking up where the last game against the computer left off —
+      // routed through handleHandicapChange so its color/komi side effects
+      // still apply to the prefilled value, not just a manual pick.
+      recentGameVs({ ai: true })
+        .then((recent) => {
+          if (recent) {
+            handleHandicapChange(recent.handicap);
+            if (recent.gnugoLevel != null) {
+              setGnugoLevel(recent.gnugoLevel);
+            }
+          }
+        })
+        .catch(() => {});
     }
   };
 
@@ -167,6 +181,33 @@ function Home() {
       setKomi(0.5);
     }
   };
+
+  // 2s after the user stops typing a remote opponent's username, check
+  // whether there's a previous game against them and, if so, prefill the
+  // same handicap — routed through handleHandicapChange for the same
+  // reason as the gnugo prefill above. An unknown/not-yet-valid username
+  // just means no prefill; the real "no such user" error still surfaces at
+  // submit time, same as today.
+  useEffect(() => {
+    if (mode !== 'remote') {
+      return;
+    }
+    const username = opponentUsername.trim();
+    if (!username) {
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      recentGameVs({ username })
+        .then((recent) => {
+          if (recent) {
+            handleHandicapChange(recent.handicap);
+          }
+        })
+        .catch(() => {});
+    }, 2000);
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, opponentUsername]);
 
   const startNewGame = (e: React.FormEvent) => {
     e.preventDefault();
