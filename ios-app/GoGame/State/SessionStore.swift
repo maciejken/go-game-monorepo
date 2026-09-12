@@ -12,7 +12,20 @@ final class SessionStore {
 
     func checkSession() async {
         isCheckingSession = true
-        currentUser = try? await APIClient.me()
+        do {
+            currentUser = try await APIClient.me()
+        } catch {
+            // A thrown error here means the request itself failed (timeout,
+            // no connectivity) — genuinely distinct from APIClient.me()
+            // succeeding with a nil user (no session cookie). Worth
+            // retrying once after a brief pause rather than immediately
+            // treating a cold-launch network hiccup (e.g. opening the app
+            // from a notification right as the device's radio wakes up)
+            // the same as "not logged in", which would force a real
+            // session right back to the login screen.
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            currentUser = try? await APIClient.me()
+        }
         isCheckingSession = false
         if currentUser != nil {
             PushNotifications.requestAuthorizationAndRegister()

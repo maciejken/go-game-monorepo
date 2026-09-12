@@ -1,26 +1,38 @@
 import Foundation
 
 // Talks to the same REST API the web client uses (client/src/services/api.ts).
-// Auth is cookie-based, same as the browser — URLSession.shared's default
-// configuration uses the shared HTTPCookieStorage, which stores and resends
-// the go_session cookie automatically (including across app relaunches,
-// since it persists to disk), so there's no manual token handling here.
+// Auth is cookie-based, same as the browser — the session below uses the
+// shared HTTPCookieStorage, which stores and resends the go_session cookie
+// automatically (including across app relaunches, since it persists to
+// disk), so there's no manual token handling here.
 enum APIClient {
     private struct ErrorResponse: Decodable {
         let error: String
     }
+
+    // .default (like .shared) uses HTTPCookieStorage.shared, so cookie
+    // behavior is unchanged — this exists only to shorten the timeout.
+    // .shared's default 60s per-request timeout meant a single hung/slow
+    // request (e.g. right at a notification-triggered cold launch, when
+    // the device's radio may still be waking up) could leave a screen
+    // spinning for a very long time before ever failing.
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 15
+        return URLSession(configuration: config)
+    }()
 
     private static func url(_ path: String) -> URL {
         URL(string: "\(Config.baseURL.absoluteString)/\(path)")!
     }
 
     private static func send(_ request: URLRequest) async throws {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         try checkStatus(data: data, response: response)
     }
 
     private static func send<Response: Decodable>(_ request: URLRequest) async throws -> Response {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         try checkStatus(data: data, response: response)
         return try JSONDecoder().decode(Response.self, from: data)
     }
