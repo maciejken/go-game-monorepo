@@ -825,6 +825,13 @@ app.post('/api/auth/password', (req, res) => {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), user.id);
     res.json({ success: true });
 });
+// A 1-2 character query is too short to search the whole user base
+// usefully (way too many matches), but is exactly enough to jog a memory
+// of "who did I just play" — so under 3 characters, search is narrowed to
+// opponents from games active within this window instead. Approximated as
+// 90 days rather than exact calendar months, which would need actual date
+// arithmetic for a distinction nobody would notice.
+const RECENT_OPPONENT_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
 // Backs the new-game form's opponent-username autocomplete. Registered
 // before /api/users/:id so "search" doesn't get swallowed as an :id value.
 // % and _ are escaped since usernames have no charset restriction beyond
@@ -835,14 +842,27 @@ app.get('/api/users/search', (req, res) => {
         return;
     }
     const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-    if (query.length < MIN_USERNAME_LENGTH) {
+    if (!query) {
         res.json([]);
         return;
     }
     const escaped = query.replace(/[\\%_]/g, '\\$&');
-    const rows = db
-        .prepare(`SELECT id, username FROM users WHERE username LIKE ? ESCAPE '\\' ORDER BY username LIMIT 10`)
-        .all(`${escaped}%`);
+    const pattern = `${escaped}%`;
+    const rows = query.length >= 3
+        ? db
+            .prepare(`SELECT id, username FROM users WHERE username LIKE ? ESCAPE '\\' ORDER BY username LIMIT 10`)
+            .all(pattern)
+        : db
+            .prepare(`SELECT DISTINCT u.id, u.username
+             FROM games g
+             JOIN users u ON u.id = CASE WHEN g.black_user_id = ? THEN g.white_user_id ELSE g.black_user_id END
+             WHERE (g.black_user_id = ? OR g.white_user_id = ?)
+               AND g.black_user_id != g.white_user_id
+               AND g.updated_at >= ?
+               AND u.username LIKE ? ESCAPE '\\'
+             ORDER BY u.username
+             LIMIT 10`)
+            .all(user.id, user.id, user.id, Date.now() - RECENT_OPPONENT_WINDOW_MS, pattern);
     const aiId = getAiUserId();
     res.json(rows.map((row) => ({ username: row.username, isAi: row.id === aiId })));
 });

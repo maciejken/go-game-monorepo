@@ -214,14 +214,15 @@ function Home() {
 
   // Username autocomplete — a much lighter debounce than the handicap
   // lookup above since this one drives visible list feedback while typing,
-  // not a background prefill. 3 chars mirrors the server's own
-  // MIN_USERNAME_LENGTH (querying under that always returns []). Doesn't
-  // clear usernameSuggestions when the query drops below 3 chars or mode
-  // changes — the render below already gates the dropdown on the current
-  // length/mode, so stale results just stay harmlessly unused in state
-  // until a new query replaces them.
+  // not a background prefill. Any non-empty query is sent — the server
+  // itself narrows a 1-2 character query to recent opponents rather than
+  // the whole user base, only searching everyone once there's a 3rd
+  // character. Doesn't clear usernameSuggestions when the query empties
+  // out or mode changes — the render below already gates the dropdown on
+  // the current length/mode, so stale results just stay harmlessly unused
+  // in state until a new query replaces them.
   useEffect(() => {
-    if (mode !== 'remote' || opponentUsername.trim().length < 3) {
+    if (mode !== 'remote' || !opponentUsername.trim()) {
       return;
     }
     const query = opponentUsername.trim();
@@ -349,7 +350,7 @@ function Home() {
                     placeholder="Username"
                     required
                   />
-                  {opponentUsername.trim().length >= 3 && usernameSuggestions.length > 0 && (
+                  {opponentUsername.trim().length >= 1 && usernameSuggestions.length > 0 && (
                     <ul className="opponent-suggestions">
                       {usernameSuggestions.map((suggestion) => (
                         <li key={suggestion.username}>

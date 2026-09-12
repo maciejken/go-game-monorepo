@@ -77,17 +77,15 @@ struct NewGameView: View {
                                     guard let recent = await recentGameVsQuiet(username: trimmed) else { return }
                                     handicap = recent.handicap
                                 }
-                                // 3 chars mirrors the server's own
-                                // MIN_USERNAME_LENGTH (querying under that
-                                // always returns []). A much lighter
+                                // Any non-empty query is sent — the server
+                                // itself narrows a 1-2 character query to
+                                // recent opponents rather than the whole
+                                // user base, only searching everyone once
+                                // there's a 3rd character. A much lighter
                                 // debounce than the handicap lookup above,
                                 // since this one drives visible list
                                 // feedback while typing, not a background
                                 // prefill.
-                                guard trimmed.count >= 3 else {
-                                    usernameSuggestions = []
-                                    return
-                                }
                                 usernameSearchTask = Task {
                                     try? await Task.sleep(nanoseconds: 300_000_000)
                                     guard !Task.isCancelled else { return }
