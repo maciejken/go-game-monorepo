@@ -199,6 +199,15 @@ function isAiOpponentGame(game: Participants): boolean {
 // registered — skipped for a local game (both colors are the same account,
 // who obviously doesn't need telling) and for an AI opponent (nobody to
 // notify; maybeTriggerAiMove handles that turn instead).
+function pushToUser(userId: string, alert: string): void {
+  const tokens = db.prepare('SELECT token FROM device_tokens WHERE user_id = ?').all(userId) as {
+    token: string;
+  }[];
+  for (const { token } of tokens) {
+    sendPushNotification(token, alert);
+  }
+}
+
 function notifyOpponentOfMove(game: Participants & { id: string; title: string | null }, moverColor: Color, nextColor: Color): void {
   const opponentId = nextColor === 'black' ? game.black_user_id : game.white_user_id;
   const moverId = moverColor === 'black' ? game.black_user_id : game.white_user_id;
@@ -207,13 +216,15 @@ function notifyOpponentOfMove(game: Participants & { id: string; title: string |
   }
 
   const moverName = getUsername(moverId) ?? 'Your opponent';
-  const alert = `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`;
-  const tokens = db.prepare('SELECT token FROM device_tokens WHERE user_id = ?').all(opponentId) as {
-    token: string;
-  }[];
-  for (const { token } of tokens) {
-    sendPushNotification(token, alert);
-  }
+  pushToUser(opponentId, `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`);
+}
+
+// A new remote game has no prior move for notifyOpponentOfMove to hang an
+// "it's your turn" push off of — without this, the invited side never
+// learns about it until they happen to open the app themselves.
+function notifyOfInvite(inviterId: string, invitedId: string, title: string | null): void {
+  const inviterName = getUsername(inviterId) ?? 'Someone';
+  pushToUser(invitedId, `${inviterName} invited you to a game${title ? ` — ${title}` : ''}.`);
 }
 
 function isStarred(gameId: string, userId: string | null): boolean {
@@ -1315,6 +1326,7 @@ app.post('/api/games', async (req, res) => {
   let blackUserId = user.id;
   let whiteUserId = user.id;
   let gnugoLevel: number | null = null;
+  let invitedOpponentId: string | null = null;
 
   // 'random' is nigiri — the traditional stone-guessing method — for anyone
   // who doesn't care which color they get.
@@ -1349,6 +1361,7 @@ app.post('/api/games', async (req, res) => {
     const color = resolveColor(req.body.color);
     blackUserId = color === 'black' ? user.id : opponent.id;
     whiteUserId = color === 'white' ? user.id : opponent.id;
+    invitedOpponentId = opponent.id;
   } else if (req.body?.mode === 'gnugo') {
     if (!(await isGnuGoAvailable())) {
       res.status(400).json({ error: 'GNU Go is not installed on the server — AI games are unavailable.' });
@@ -1407,6 +1420,10 @@ app.post('/api/games', async (req, res) => {
   }
 
   broadcastGamesListUpdate();
+
+  if (invitedOpponentId) {
+    notifyOfInvite(user.id, invitedOpponentId, title);
+  }
 
   res.status(201).json({
     id,

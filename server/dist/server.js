@@ -126,6 +126,12 @@ function isAiOpponentGame(game) {
 // registered — skipped for a local game (both colors are the same account,
 // who obviously doesn't need telling) and for an AI opponent (nobody to
 // notify; maybeTriggerAiMove handles that turn instead).
+function pushToUser(userId, alert) {
+    const tokens = db.prepare('SELECT token FROM device_tokens WHERE user_id = ?').all(userId);
+    for (const { token } of tokens) {
+        sendPushNotification(token, alert);
+    }
+}
 function notifyOpponentOfMove(game, moverColor, nextColor) {
     const opponentId = nextColor === 'black' ? game.black_user_id : game.white_user_id;
     const moverId = moverColor === 'black' ? game.black_user_id : game.white_user_id;
@@ -133,11 +139,14 @@ function notifyOpponentOfMove(game, moverColor, nextColor) {
         return;
     }
     const moverName = getUsername(moverId) ?? 'Your opponent';
-    const alert = `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`;
-    const tokens = db.prepare('SELECT token FROM device_tokens WHERE user_id = ?').all(opponentId);
-    for (const { token } of tokens) {
-        sendPushNotification(token, alert);
-    }
+    pushToUser(opponentId, `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`);
+}
+// A new remote game has no prior move for notifyOpponentOfMove to hang an
+// "it's your turn" push off of — without this, the invited side never
+// learns about it until they happen to open the app themselves.
+function notifyOfInvite(inviterId, invitedId, title) {
+    const inviterName = getUsername(inviterId) ?? 'Someone';
+    pushToUser(invitedId, `${inviterName} invited you to a game${title ? ` — ${title}` : ''}.`);
 }
 function isStarred(gameId, userId) {
     if (!userId) {
@@ -1033,6 +1042,7 @@ app.post('/api/games', async (req, res) => {
     let blackUserId = user.id;
     let whiteUserId = user.id;
     let gnugoLevel = null;
+    let invitedOpponentId = null;
     // 'random' is nigiri — the traditional stone-guessing method — for anyone
     // who doesn't care which color they get.
     const resolveColor = (requested) => requested === 'random' ? (Math.random() < 0.5 ? 'black' : 'white') : requested === 'white' ? 'white' : 'black';
@@ -1058,6 +1068,7 @@ app.post('/api/games', async (req, res) => {
         const color = resolveColor(req.body.color);
         blackUserId = color === 'black' ? user.id : opponent.id;
         whiteUserId = color === 'white' ? user.id : opponent.id;
+        invitedOpponentId = opponent.id;
     }
     else if (req.body?.mode === 'gnugo') {
         if (!(await isGnuGoAvailable())) {
@@ -1102,6 +1113,9 @@ app.post('/api/games', async (req, res) => {
     `).run(id, 0, 'HANDICAP', JSON.stringify({ handicap, points: handicapPoints }), now);
     }
     broadcastGamesListUpdate();
+    if (invitedOpponentId) {
+        notifyOfInvite(user.id, invitedOpponentId, title);
+    }
     res.status(201).json({
         id,
         size,
