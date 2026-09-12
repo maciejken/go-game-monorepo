@@ -934,6 +934,18 @@ app.post('/api/device-tokens', (req, res) => {
   `).run(token, user.id, Date.now());
     res.status(204).end();
 });
+// A quick way to answer "did my device actually register a push token?"
+// without needing device console access — registration itself is silent
+// on success (see the iOS AppDelegate), so this is otherwise unobservable
+// short of reading the games DB directly.
+app.get('/api/device-tokens/mine', (req, res) => {
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    const row = db.prepare('SELECT COUNT(*) as count FROM device_tokens WHERE user_id = ?').get(user.id);
+    res.json({ registered: row.count > 0, count: row.count });
+});
 // Backs the new-game form's handicap/level auto-fill: given an opponent
 // (by username, or the reserved AI account via `ai=1`), find the most
 // recent game against that same opponent and return its handicap/gnugo
