@@ -22,7 +22,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            GameListView()
+            GameListView(isActiveTab: selectedTab == .home)
                 .tabItem { Image(systemName: "house") }
                 .tag(AppTab.home)
 

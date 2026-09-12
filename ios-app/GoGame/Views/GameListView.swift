@@ -1,6 +1,17 @@
 import SwiftUI
 
 struct GameListView: View {
+    // Whether the Home tab is the one actually showing right now — a game
+    // deep link must wait for this before pushing, otherwise the push
+    // happens on an invisible NavigationStack (e.g. the app was
+    // backgrounded on the Account tab and resumed via a push notification
+    // tap) with nothing visible to show for it, and worse, pushing into a
+    // NavigationStack that isn't part of the visible view hierarchy yet is
+    // exactly the kind of state change that has corrupted this app's
+    // navigation before. MainTabView passes this in and flips selectedTab
+    // to .home whenever a game link arrives; that change flows down here
+    // and re-triggers consumeDeepLink() once it's actually safe to push.
+    let isActiveTab: Bool
     @Environment(SessionStore.self) private var session
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
     @State private var games: [GameSummary] = []
@@ -108,6 +119,11 @@ struct GameListView: View {
             // up. .onChange below covers a link arriving after that.
             .task { consumeDeepLink() }
             .onChange(of: deepLinkRouter.targetGameId) { _, _ in consumeDeepLink() }
+            .onChange(of: isActiveTab) { _, active in
+                if active {
+                    consumeDeepLink()
+                }
+            }
             // Gated on selectedGameId, pendingGameId, and showNewGame all
             // being clear: a state update on this root list — even just
             // re-assigning `games` — while a game is pushed, or anywhere in
@@ -205,6 +221,7 @@ struct GameListView: View {
     // visit rather than risking that.
     private func consumeDeepLink() {
         guard let id = deepLinkRouter.targetGameId else { return }
+        guard isActiveTab else { return }
         guard selectedGameId == nil, pendingGameId == nil, !showNewGame else { return }
         deepLinkRouter.targetGameId = nil
         selectedGameId = id
