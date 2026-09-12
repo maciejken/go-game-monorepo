@@ -42,13 +42,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         print("Remote notification registration failed: \(error)")
     }
 
-    // Without this, iOS silently swallows a notification's alert/sound
-    // while the app is in the foreground.
+    // This delegate method only ever fires while the app is actually
+    // foregrounded and running — a backgrounded or killed app never reaches
+    // this code at all, iOS presents the notification itself. Suppressing
+    // it here means no banner/sound while foregrounded: the live socket
+    // (LiveSocket.swift) already refreshes whatever's on screen in real
+    // time, so a system notification on top of that would just be a
+    // redundant, noisier version of an update the user is already seeing.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        []
     }
 
     // Fires when the user actually taps the notification (background,
