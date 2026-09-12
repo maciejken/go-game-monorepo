@@ -191,7 +191,14 @@ struct GameListView: View {
     // scroll-loaded pages on those refreshes — mirrors Home.tsx's refresh.
     private func loadGames() async {
         do {
-            let page = try await APIClient.games(limit: Self.pageSize, offset: 0)
+            // withRetry absorbs a transient failure (e.g. the network still
+            // recovering right after resuming from background, which a
+            // push-notification-driven open makes fairly common) instead of
+            // flashing this screen's error alert for something that
+            // resolves itself a couple of seconds later.
+            let page = try await APIClient.withRetry {
+                try await APIClient.games(limit: Self.pageSize, offset: 0)
+            }
             games = page.games
             hasMore = page.hasMore
             errorMessage = nil

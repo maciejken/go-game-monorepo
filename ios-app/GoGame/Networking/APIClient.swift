@@ -26,6 +26,22 @@ enum APIClient {
         URL(string: "\(Config.baseURL.absoluteString)/\(path)")!
     }
 
+    // Retries once after a short pause on a thrown error — covers a
+    // transient hiccup right after resuming from background (the device's
+    // radio may still be waking up, made more likely to actually bite by
+    // this session's shorter-than-default 15s timeout above) without
+    // surfacing a user-visible failure for what usually resolves itself a
+    // couple of seconds later. Shared by every call site that would
+    // otherwise flash an error alert/log a user out for a momentary blip.
+    static func withRetry<T>(_ operation: () async throws -> T) async throws -> T {
+        do {
+            return try await operation()
+        } catch {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            return try await operation()
+        }
+    }
+
     private static func send(_ request: URLRequest) async throws {
         let (data, response) = try await session.data(for: request)
         try checkStatus(data: data, response: response)
