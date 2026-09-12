@@ -165,6 +165,23 @@ enum APIClient {
         return created.id
     }
 
+    // Backs the new-game form's handicap/level auto-fill. Mirrors
+    // client/src/services/api.ts's recentGameVs — null means no prior game
+    // exists against this opponent (or the computer), not an error.
+    struct RecentGameVsOpponent: Decodable {
+        let handicap: Int
+        let gnugoLevel: Int?
+    }
+
+    static func recentGameVs(username: String) async throws -> RecentGameVsOpponent? {
+        let encoded = username.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? username
+        return try await get("api/games/recent-vs?opponentUsername=\(encoded)")
+    }
+
+    static func recentGameVsAI() async throws -> RecentGameVsOpponent? {
+        try await get("api/games/recent-vs?ai=1")
+    }
+
     static func makeMove(gameId: String, x: Int, y: Int, color: StoneColor) async throws -> MoveResponse {
         struct Body: Encodable { let x: Int; let y: Int; let color: StoneColor }
         return try await post("api/games/\(gameId)/moves", body: Body(x: x, y: y, color: color))

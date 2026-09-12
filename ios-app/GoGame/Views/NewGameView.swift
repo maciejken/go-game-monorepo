@@ -19,6 +19,7 @@ struct NewGameView: View {
     @State private var gnugoLevel = 10
     @State private var isCreating = false
     @State private var errorMessage: String?
+    @State private var opponentLookupTask: Task<Void, Never>?
 
     private static let boardSizes = [9, 13, 19]
 
@@ -40,12 +41,36 @@ struct NewGameView: View {
                         if newMode == "gnugo" {
                             timeControl = "standard"
                             if handicap > 0 { color = "black" }
+                            // Picking up where the last game against the
+                            // computer left off. Plain assignment to
+                            // `handicap` is enough to re-trigger its own
+                            // .onChange below (color/komi side effects),
+                            // unlike the web version, which has to route
+                            // through its handleHandicapChange explicitly.
+                            Task {
+                                guard let recent = await recentGameVsAIQuiet() else { return }
+                                handicap = recent.handicap
+                                if let level = recent.gnugoLevel {
+                                    gnugoLevel = level
+                                }
+                            }
                         }
                     }
                     if mode == "remote" {
                         TextField("Opponent username", text: $opponentUsername)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                            .onChange(of: opponentUsername) { _, newValue in
+                                opponentLookupTask?.cancel()
+                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !trimmed.isEmpty else { return }
+                                opponentLookupTask = Task {
+                                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                                    guard !Task.isCancelled else { return }
+                                    guard let recent = await recentGameVsQuiet(username: trimmed) else { return }
+                                    handicap = recent.handicap
+                                }
+                            }
                     }
                 }
 
@@ -117,6 +142,17 @@ struct NewGameView: View {
                 }
             }
         }
+    }
+
+    // An unknown/not-yet-valid username, or any other request error, just
+    // means there's nothing to prefill from — the real "no such user"
+    // error still surfaces at submit time via APIClient.createGame.
+    private func recentGameVsQuiet(username: String) async -> APIClient.RecentGameVsOpponent? {
+        try? await APIClient.recentGameVs(username: username)
+    }
+
+    private func recentGameVsAIQuiet() async -> APIClient.RecentGameVsOpponent? {
+        try? await APIClient.recentGameVsAI()
     }
 
     private func formatKomi(_ value: Double) -> String {
