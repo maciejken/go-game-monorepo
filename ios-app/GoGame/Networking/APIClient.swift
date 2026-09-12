@@ -182,6 +182,19 @@ enum APIClient {
         try await get("api/games/recent-vs?ai=1")
     }
 
+    // Backs the new-game form's opponent autocomplete. Mirrors
+    // client/src/services/api.ts's searchUsernames — the server returns []
+    // for a query under its own minimum length rather than erroring.
+    struct UsernameSearchResult: Decodable {
+        let username: String
+        let isAi: Bool
+    }
+
+    static func searchUsernames(query: String) async throws -> [UsernameSearchResult] {
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        return try await get("api/users/search?q=\(encoded)")
+    }
+
     static func makeMove(gameId: String, x: Int, y: Int, color: StoneColor) async throws -> MoveResponse {
         struct Body: Encodable { let x: Int; let y: Int; let color: StoneColor }
         return try await post("api/games/\(gameId)/moves", body: Body(x: x, y: y, color: color))

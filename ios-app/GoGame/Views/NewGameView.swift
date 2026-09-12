@@ -7,9 +7,10 @@ struct NewGameView: View {
     var onCreated: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(SessionStore.self) private var session
 
     @State private var title = ""
-    @State private var mode = "local" // "local" | "remote" | "gnugo"
+    @State private var mode = "remote" // "local" | "remote" | "gnugo"
     @State private var boardSize = 19
     @State private var handicap = 0
     @State private var komi: Double = 6.5
@@ -20,6 +21,8 @@ struct NewGameView: View {
     @State private var isCreating = false
     @State private var errorMessage: String?
     @State private var opponentLookupTask: Task<Void, Never>?
+    @State private var usernameSearchTask: Task<Void, Never>?
+    @State private var usernameSuggestions: [APIClient.UsernameSearchResult] = []
 
     private static let boardSizes = [9, 13, 19]
 
@@ -38,6 +41,9 @@ struct NewGameView: View {
                         Text("Vs. Computer").tag("gnugo")
                     }
                     .onChange(of: mode) { _, newMode in
+                        if newMode != "remote" {
+                            usernameSuggestions = []
+                        }
                         if newMode == "gnugo" {
                             timeControl = "standard"
                             if handicap > 0 { color = "black" }
@@ -62,6 +68,7 @@ struct NewGameView: View {
                             .textInputAutocapitalization(.never)
                             .onChange(of: opponentUsername) { _, newValue in
                                 opponentLookupTask?.cancel()
+                                usernameSearchTask?.cancel()
                                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                                 guard !trimmed.isEmpty else { return }
                                 opponentLookupTask = Task {
@@ -70,7 +77,38 @@ struct NewGameView: View {
                                     guard let recent = await recentGameVsQuiet(username: trimmed) else { return }
                                     handicap = recent.handicap
                                 }
+                                // 3 chars mirrors the server's own
+                                // MIN_USERNAME_LENGTH (querying under that
+                                // always returns []). A much lighter
+                                // debounce than the handicap lookup above,
+                                // since this one drives visible list
+                                // feedback while typing, not a background
+                                // prefill.
+                                guard trimmed.count >= 3 else {
+                                    usernameSuggestions = []
+                                    return
+                                }
+                                usernameSearchTask = Task {
+                                    try? await Task.sleep(nanoseconds: 300_000_000)
+                                    guard !Task.isCancelled else { return }
+                                    usernameSuggestions = (try? await APIClient.searchUsernames(query: trimmed)) ?? []
+                                }
                             }
+                        ForEach(usernameSuggestions, id: \.username) { suggestion in
+                            Button {
+                                selectSuggestion(suggestion)
+                            } label: {
+                                HStack {
+                                    Text(suggestion.username)
+                                    if suggestion.isAi {
+                                        Text("(computer)").foregroundStyle(.secondary)
+                                    } else if suggestion.username == session.currentUser?.username {
+                                        Text("(you)").foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .foregroundStyle(.primary)
+                        }
                     }
                 }
 
@@ -153,6 +191,24 @@ struct NewGameView: View {
 
     private func recentGameVsAIQuiet() async -> APIClient.RecentGameVsOpponent? {
         try? await APIClient.recentGameVsAI()
+    }
+
+    // Selecting the computer's or your own username switches mode instead
+    // of filling in an opponent — those aren't real remote opponents, and
+    // assigning `mode` re-triggers its own .onChange above (gnugo
+    // prefill/color-forcing), unlike a route that skipped straight to
+    // creating the game.
+    private func selectSuggestion(_ suggestion: APIClient.UsernameSearchResult) {
+        usernameSuggestions = []
+        if suggestion.isAi {
+            opponentUsername = ""
+            mode = "gnugo"
+        } else if suggestion.username == session.currentUser?.username {
+            opponentUsername = ""
+            mode = "local"
+        } else {
+            opponentUsername = suggestion.username
+        }
     }
 
     private func formatKomi(_ value: Double) -> String {
