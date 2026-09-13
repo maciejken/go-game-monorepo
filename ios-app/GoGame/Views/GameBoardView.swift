@@ -176,15 +176,6 @@ struct GameBoardView: View {
                     // against the description line above it.
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
-                            // Vertical padding here (not just .top on the
-                            // ScrollView itself) matters: a ScrollView clips
-                            // its content to its own laid-out size, which
-                            // would otherwise only ever be exactly the
-                            // marker's 40pt and cut the current marker's
-                            // glow off flat at the top/bottom edges. Wider
-                            // gaps between markers give that same glow room
-                            // to actually read against neighbors too,
-                            // instead of nearly touching them.
                             HStack(spacing: 10) {
                                 ForEach(history.moves, id: \.moveNumber) { entry in
                                     moveChainMarker(entry)
@@ -492,7 +483,8 @@ struct GameBoardView: View {
         ClockView(
             clock: clock,
             byoyomiPeriods: game.byoyomiPeriods,
-            isActive: isTicking && game.currentColor == color
+            isActive: isTicking && game.currentColor == color,
+            segmentAlignment: color == .black ? .leading : .trailing
         )
     }
 
@@ -900,12 +892,12 @@ struct GameBoardView: View {
                     .foregroundStyle(entry.color == .black ? .white : (entry.color == .white ? .black : .primary))
             }
             .frame(width: 40, height: 40)
-            // The "current" marker is called out with .primary (black in
-            // light mode, white in dark) rather than the accent color — a
-            // ring plus a soft matching glow, so it reads by light/dark
-            // contrast against the list's own background instead of by hue.
-            .overlay(Circle().stroke(Color.primary, lineWidth: isCurrent ? 2 : 0))
-            .shadow(color: isCurrent ? Color.primary.opacity(0.45) : .clear, radius: isCurrent ? 6 : 0)
+            // The "current" marker is called out with just a bold .primary
+            // ring (black in light mode, white in dark) — no shadow/glow —
+            // so it reads by the same light/dark contrast the rest of the
+            // board already uses, as a single distinct edge rather than a
+            // soft effect.
+            .overlay(Circle().stroke(Color.primary, lineWidth: isCurrent ? 3 : 0))
         }
         .buttonStyle(.plain)
     }
