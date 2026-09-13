@@ -1155,7 +1155,20 @@ function GameView({ gameId }: GameViewProps) {
                   onClick={() => goToMove(0)}
                   disabled={navDisabled || reviewMoveNumber === 0}
                 >
-                  ⏮
+                  {/* A thin stroked chevron + bar ("|<") reads as noticeably
+                      more subtle than a filled glyph like ⏮ — closer to a
+                      light/glass icon weight than a solid shape. */}
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <line x1="7" y1="5" x2="7" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    <polyline
+                      points="17,5 8,12 17,19"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </button>
                 {shortResult ? (
                   <div className="go-turn-menu" ref={resultBalloonRef}>
@@ -1183,7 +1196,17 @@ function GameView({ gameId }: GameViewProps) {
                   onClick={() => goToMove(latestMoveNumber ?? 0)}
                   disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
                 >
-                  ⏭
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <line x1="17" y1="5" x2="17" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    <polyline
+                      points="7,5 16,12 7,19"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </button>
               </div>
             )}

@@ -171,6 +171,9 @@ struct GameBoardView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                     }
+                    // Extra breathing room beyond the VStack's own 12pt
+                    // spacing, so the move list doesn't crowd right up
+                    // against the description line above it.
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 6) {
@@ -181,6 +184,7 @@ struct GameBoardView: View {
                             }
                             .padding(.horizontal)
                         }
+                        .padding(.top, 8)
                         .onChange(of: reviewMoveNumber) { _, newValue in
                             guard let newValue else { return }
                             withAnimation { proxy.scrollTo(newValue, anchor: .center) }
@@ -546,7 +550,7 @@ struct GameBoardView: View {
                 // happen by tapping a stone directly in the move-chain strip
                 // instead, to keep this footer row from getting crowded.
                 HStack(spacing: 8) {
-                    reviewNavButton(systemName: "backward.end.fill", disabled: history == nil || reviewMoveNumber == 0) {
+                    reviewNavButton(systemName: "backward.end", disabled: history == nil || reviewMoveNumber == 0) {
                         goToMove(0)
                     }
                     if #available(iOS 26.0, *) {
@@ -570,7 +574,7 @@ struct GameBoardView: View {
                         .buttonStyle(.plain)
                     }
                     reviewNavButton(
-                        systemName: "forward.end.fill",
+                        systemName: "forward.end",
                         disabled: history == nil || reviewMoveNumber == (history?.moves.count ?? 1) - 1
                     ) {
                         goToMove((history?.moves.count ?? 1) - 1)
@@ -581,11 +585,14 @@ struct GameBoardView: View {
     }
 
     // First/Last review-nav buttons flanking the result button — 32pt,
-    // ~62% of that button's 52pt, per request.
+    // ~62% of that button's 52pt, per request. The unfilled backward.end/
+    // forward.end (a thin chevron + bar, "|<"/">|") reads as noticeably
+    // more subtle than the solid .fill variant, closer to Liquid Glass's
+    // own generally light/thin icon weight.
     @ViewBuilder
     private func reviewNavButton(systemName: String, disabled: Bool, action: @escaping () -> Void) -> some View {
         let icon = Image(systemName: systemName)
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: 13, weight: .medium))
             .frame(width: 32, height: 32)
         if #available(iOS 26.0, *) {
             Button(action: action) { icon }
@@ -864,7 +871,14 @@ struct GameBoardView: View {
             ZStack {
                 switch entry.color {
                 case .black:
-                    Circle().fill(Color.black)
+                    // A plain black fill nearly disappears against this
+                    // list's own dark-mode background — the same .primary
+                    // hairline rim footerStone uses for exactly that reason
+                    // (invisible in the one case that needs it, negligible
+                    // in the three that don't).
+                    Circle()
+                        .fill(Color.black)
+                        .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
                 case .white:
                     Circle().fill(Color(red: 0.97, green: 0.94, blue: 0.87))
                 case nil:
@@ -876,7 +890,12 @@ struct GameBoardView: View {
                     .foregroundStyle(entry.color == .black ? .white : (entry.color == .white ? .black : .primary))
             }
             .frame(width: 40, height: 40)
-            .overlay(Circle().stroke(Color.accentColor, lineWidth: isCurrent ? 2 : 0))
+            // The "current" marker is called out with .primary (black in
+            // light mode, white in dark) rather than the accent color — a
+            // ring plus a soft matching glow, so it reads by light/dark
+            // contrast against the list's own background instead of by hue.
+            .overlay(Circle().stroke(Color.primary, lineWidth: isCurrent ? 2 : 0))
+            .shadow(color: isCurrent ? Color.primary.opacity(0.5) : .clear, radius: isCurrent ? 4 : 0)
         }
         .buttonStyle(.plain)
     }
