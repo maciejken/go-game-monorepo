@@ -20,7 +20,6 @@ struct GameListView: View {
     @State private var errorMessage: String?
     @State private var showNewGame = false
     @State private var selectedGameId: String?
-    @State private var selectedGameFinished = false
     @State private var pendingGameId: String?
 
     private static let pageSize = 20
@@ -47,7 +46,6 @@ struct GameListView: View {
             List(games) { game in
                 Button {
                     guard selectedGameId == nil else { return }
-                    selectedGameFinished = game.status == "finished"
                     selectedGameId = game.id
                 } label: {
                     HStack {
@@ -152,7 +150,7 @@ struct GameListView: View {
             }
             .navigationTitle("Your Games")
             .navigationDestination(item: $selectedGameId) { gameId in
-                GameBoardView(gameId: gameId, initiallyFinished: selectedGameFinished)
+                GameBoardView(gameId: gameId)
             }
             // onDismiss defers navigating until the sheet's dismiss animation
             // has actually finished — setting selectedGameId in the same
@@ -160,11 +158,6 @@ struct GameListView: View {
             // the navigationDestination(item:) push.
             .sheet(isPresented: $showNewGame, onDismiss: {
                 if let pendingGameId {
-                    // A just-created game is never already finished — reset
-                    // rather than carry over a stale true from a previous
-                    // row tap, which would wrongly send this fresh game
-                    // through the finished-game concurrent-fetch path.
-                    selectedGameFinished = false
                     selectedGameId = pendingGameId
                     self.pendingGameId = nil
                 }
@@ -238,14 +231,6 @@ struct GameListView: View {
         guard isActiveTab else { return }
         guard selectedGameId == nil, pendingGameId == nil, !showNewGame else { return }
         deepLinkRouter.targetGameId = nil
-        // A push notification for a finished game (e.g. "opponent resigned")
-        // is exactly how review mode is most likely to get opened, so this
-        // needs the same status hint as a row tap — otherwise it silently
-        // falls back to the slower sequential fetch, carrying over whatever
-        // stale value selectedGameFinished happened to have from the last
-        // row tap instead. Falls back to false (today's plain path, no
-        // regression) if this game isn't in the already-loaded list.
-        selectedGameFinished = games.first(where: { $0.id == id })?.status == "finished"
         selectedGameId = id
     }
 }

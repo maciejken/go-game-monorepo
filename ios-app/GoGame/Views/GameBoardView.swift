@@ -9,14 +9,6 @@ enum MarkMode {
 
 struct GameBoardView: View {
     let gameId: String
-    // Set when the caller already knows (e.g. from the list row's own
-    // GameSummary.status) that this game is finished, so load() can fetch
-    // the history alongside the game detail instead of waiting for the
-    // detail request to confirm "finished" first — avoiding two sequential
-    // round trips before the move chain can appear. Defaults to false
-    // (today's sequential behavior) wherever the caller has no such hint,
-    // e.g. a push-notification deep link that only carries a game id.
-    var initiallyFinished: Bool = false
     @State private var game: GameState?
     @State private var errorMessage: String?
     @State private var isBusy = false
@@ -941,16 +933,26 @@ struct GameBoardView: View {
 
     private func load() async {
         do {
-            if initiallyFinished, history == nil {
-                // The caller already knows (from the list row) that this
-                // game is finished, so fetch the history alongside the game
-                // detail instead of after it. Both are awaited here before
-                // either `game` or `history` is assigned, so the board,
-                // title, and move chain all appear in the same SwiftUI
-                // update instead of the board/title popping in first and
-                // the move chain a moment later. Falls back to the plain
-                // path below whenever that hint is wrong (e.g. reopened as
-                // "scoring", finalized since the list was loaded).
+            if game == nil, history == nil {
+                // The very first load of this game in this view's lifetime:
+                // fetch the detail and history concurrently, since there's
+                // no way yet to know whether it'll turn out finished. This
+                // used to depend on a hint passed in from wherever the view
+                // was opened from (a list row's cached status) — but every
+                // other way into a game (a push-notification deep link, a
+                // freshly created game) had no reliable way to supply that
+                // hint (nothing to look up on a cold launch before the list
+                // has even loaded), silently falling back to the slow
+                // sequential path below. Gating on "nothing fetched yet"
+                // instead needs no hint from any caller and covers all of
+                // them uniformly. Both requests are awaited before either
+                // `game` or `history` is assigned, so the board, title, and
+                // move chain all appear in the same SwiftUI update rather
+                // than the board/title popping in first. Once this first
+                // load lands, later reloads (pull-to-refresh, live-socket
+                // refetch) fall through to the plain path below, which only
+                // ever fetches history for a game already confirmed
+                // finished — never repeatedly for one still being played.
                 async let gameFetch = APIClient.getGame(id: gameId)
                 async let historyFetch = try? APIClient.getGameHistory(id: gameId)
                 let fetchedGame = try await gameFetch
