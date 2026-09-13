@@ -108,6 +108,20 @@ struct GameBoardView: View {
                 .presentationDetents([.height(230)])
                 .presentationBackground(Color(uiColor: .systemBackground))
         }
+        // Bound directly to the game's own pendingInviteResponse rather
+        // than a local flag: accepting clears it server-side, and the
+        // reload that follows naturally dismisses this sheet by itself
+        // once that flag comes back false — no separate state to keep in
+        // sync. The `set` half is a no-op (paired with
+        // .interactiveDismissDisabled below) so declining or accepting via
+        // the buttons are the only ways out, never a swipe.
+        .sheet(isPresented: Binding(get: { game?.pendingInviteResponse == true }, set: { _ in })) {
+            if let game {
+                inviteResponseSheetContent(game)
+                    .interactiveDismissDisabled(true)
+                    .presentationBackground(Color(uiColor: .systemBackground))
+            }
+        }
         .sheet(isPresented: Binding(get: { sgfExportURL != nil }, set: { if !$0 { sgfExportURL = nil } })) {
             if let sgfExportURL {
                 ShareSheet(activityItems: [sgfExportURL])
@@ -276,6 +290,74 @@ struct GameBoardView: View {
                 .font(.headline)
             Toggle("Confirm moves before playing them", isOn: $confirmMovesEnabled)
                 .onChange(of: confirmMovesEnabled) { _, _ in pendingMove = nil }
+        }
+        .padding()
+    }
+
+    private func inviteResponseSheetContent(_ game: GameState) -> some View {
+        let opponentName = (game.myColor == .black ? game.whiteUsername : game.blackUsername) ?? "Someone"
+        let timeControlLabel: String = {
+            switch game.timeControl {
+            case .standard: return "10 minutes"
+            case .correspondence: return "24h per move"
+            case nil: return "Unlimited"
+            }
+        }()
+        return VStack(spacing: 16) {
+            Text("Game Invitation")
+                .font(.headline)
+            Text("\(opponentName) invited you to a game\(game.title?.isEmpty == false ? " — \(game.title!)" : "").")
+                .multilineTextAlignment(.center)
+            VStack(spacing: 4) {
+                LabeledContent("Board size", value: "\(game.size)×\(game.size)")
+                if game.handicap > 0 {
+                    LabeledContent("Handicap", value: "\(game.handicap)")
+                }
+                LabeledContent("Komi", value: game.komi == 0 ? "No komi" : "\(game.komi)")
+                LabeledContent("Time control", value: timeControlLabel)
+                LabeledContent("You'll play", value: game.myColor == .black ? "Black" : "White")
+            }
+            .font(.subheadline)
+            Group {
+                if #available(iOS 26.0, *) {
+                    Button {
+                        Task { await respondToInvite(accept: true) }
+                    } label: {
+                        Text("Accept")
+                            .foregroundStyle(Color(uiColor: .systemBackground))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(.primary)
+                } else {
+                    Button {
+                        Task { await respondToInvite(accept: true) }
+                    } label: {
+                        Text("Accept").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+            .disabled(isBusy)
+            Group {
+                if #available(iOS 26.0, *) {
+                    Button(role: .destructive) {
+                        Task { await respondToInvite(accept: false) }
+                    } label: {
+                        Text("Reject").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.glass)
+                    .tint(.red)
+                } else {
+                    Button(role: .destructive) {
+                        Task { await respondToInvite(accept: false) }
+                    } label: {
+                        Text("Reject").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            .disabled(isBusy)
         }
         .padding()
     }
@@ -1207,6 +1289,34 @@ struct GameBoardView: View {
             try sgf.write(to: url, atomically: true, encoding: .utf8)
             sgfExportURL = url
         } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func respondToInvite(accept: Bool) async {
+        guard !isBusy else { return }
+        isBusy = true
+        // Rejecting deletes the game server-side, so set this before the
+        // request goes out — same reasoning as deleteGame(): the server's
+        // own broadcast can reach this view's live socket before the
+        // response does, and without this a load() already in flight would
+        // land on a 404 and flash a "Game not found" error right as this
+        // view is popping.
+        if !accept {
+            isDeleted = true
+        }
+        defer { isBusy = false }
+        do {
+            try await APIClient.respondToInvite(gameId: gameId, accept: accept)
+            if accept {
+                await load()
+            } else {
+                dismiss()
+            }
+        } catch {
+            if !accept {
+                isDeleted = false
+            }
             errorMessage = error.localizedDescription
         }
     }

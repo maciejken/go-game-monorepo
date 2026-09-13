@@ -36,6 +36,7 @@ struct ResultBreakdown: Codable {
 struct GameState: Codable {
     let id: String
     let size: Int
+    let handicap: Int
     let title: String?
     let status: String
     var board: Board
@@ -46,6 +47,9 @@ struct GameState: Codable {
     var currentColor: StoneColor
     var captures: Captures
     let myColor: MyColor?
+    // True only for the invited side of a remote-game invite that hasn't
+    // been responded to yet — drives the accept/reject confirmation sheet.
+    let pendingInviteResponse: Bool
     var lastMove: Point?
     let result: String?
     let shortResult: String?

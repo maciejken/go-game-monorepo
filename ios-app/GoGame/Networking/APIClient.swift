@@ -297,6 +297,14 @@ enum APIClient {
         try await delete("api/games/\(gameId)")
     }
 
+    // Accepting just clears the pending flag server-side (the game already
+    // plays normally either way); rejecting deletes the game outright and
+    // notifies the inviter.
+    static func respondToInvite(gameId: String, accept: Bool) async throws {
+        struct Body: Encodable { let accept: Bool }
+        try await post("api/games/\(gameId)/respond-invite", body: Body(accept: accept))
+    }
+
     // Registers this device's APNs token so the server's
     // notifyOpponentOfMove (server/src/server.ts) knows where to push. Only
     // meaningful once the server itself has real APNs credentials
