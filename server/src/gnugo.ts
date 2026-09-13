@@ -95,7 +95,7 @@ export interface AiMoveRequest {
 
 export type AiMoveResult = { type: 'move'; point: Point } | { type: 'pass' } | { type: 'resign' };
 
-const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_TIMEOUT_MS = 600000;
 
 // Stateless by design: a fresh gnugo process per request, replaying the
 // whole game into it via GTP `play` before asking it to move. Slightly more

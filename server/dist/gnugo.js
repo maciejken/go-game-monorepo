@@ -66,7 +66,7 @@ function sendCommand(child, command) {
         child.stdin.write(`${command}\n`);
     });
 }
-const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_TIMEOUT_MS = 600000;
 // Stateless by design: a fresh gnugo process per request, replaying the
 // whole game into it via GTP `play` before asking it to move. Slightly more
 // work per call than keeping a process alive per game, but it means the
