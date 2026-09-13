@@ -213,6 +213,23 @@ function isAiOpponentGame(game: Participants): boolean {
   return game.black_user_id === aiId || game.white_user_id === aiId;
 }
 
+// GNU Go is a single shared account (getAiUserId()), not one per player —
+// gates new AI-game creation so it's only ever committed to one unfinished
+// game at a time, server-wide, regardless of who's asking. "Open" covers
+// both in_progress and scoring: nothing left for a human to do in either
+// once the other player is GNU Go, since it can't mark dead stones either.
+function hasOpenAiGame(): boolean {
+  const aiId = getAiUserId();
+  const row = db
+    .prepare(
+      `SELECT 1 FROM games
+       WHERE status IN ('in_progress', 'scoring') AND (black_user_id = ? OR white_user_id = ?)
+       LIMIT 1`,
+    )
+    .get(aiId, aiId);
+  return row !== undefined;
+}
+
 // Sends to every device the user has registered — gameId rides along as
 // custom push-payload data (see apns.ts) so a tap on the notification can
 // take the iOS app straight to that game via DeepLinkRouter, the same
@@ -1474,6 +1491,10 @@ app.post('/api/games', async (req, res) => {
   } else if (req.body?.mode === 'gnugo') {
     if (!(await isGnuGoAvailable())) {
       res.status(400).json({ error: 'GNU Go is not installed on the server — AI games are unavailable.' });
+      return;
+    }
+    if (hasOpenAiGame()) {
+      res.status(400).json({ error: 'GNU Go already has an open game — finish or delete it before starting another.' });
       return;
     }
     const color = resolveColor(req.body?.color);
