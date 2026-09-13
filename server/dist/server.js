@@ -66,9 +66,23 @@ function getGameRow(id) {
            black_user_id, white_user_id, pending_undo_by, end_reason, pending_reopen_by,
            time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
            black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at,
-           gnugo_level, komi, ai_current_level
+           gnugo_level, komi, ai_current_level, invited_user_id, invite_status
     FROM games WHERE id = ?
   `).get(id);
+}
+// True only for the invited side, and only until they respond — used to
+// gate the confirm/reject prompt on the client. Not enforced server-side
+// beyond that: nothing stops the invited player from moving without ever
+// calling respond-invite, same trust level the rest of this API already
+// extends to a logged-in participant.
+function isPendingInviteFor(game, userId) {
+    return game.invite_status === 'pending' && game.invited_user_id !== null && userId === game.invited_user_id;
+}
+// The other participant in a pending invite — used to notify them when the
+// invited side declines. Assumes invite_status is 'pending' (so both
+// black_user_id/white_user_id are the inviter and invitee, nobody else).
+function inviterIdFor(game) {
+    return game.invited_user_id === game.black_user_id ? game.white_user_id : game.black_user_id;
 }
 function setAiCurrentLevel(gameId, level) {
     db.prepare('UPDATE games SET ai_current_level = ? WHERE id = ?').run(level, gameId);
@@ -151,6 +165,19 @@ function notifyOpponentOfMove(game, moverColor, nextColor) {
     }
     const moverName = moverId === aiId ? 'GNU Go' : getUsername(moverId) ?? 'Your opponent';
     pushToUser(opponentId, `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`, game.id);
+}
+// Resign ends the game outright rather than handing the turn back, so
+// notifyOpponentOfMove's "it's your turn" framing doesn't fit — same
+// opponent-lookup/local-game/AI guards, worded for the game having ended.
+function notifyOpponentOfResign(game, resignedColor) {
+    const resignedId = resignedColor === 'black' ? game.black_user_id : game.white_user_id;
+    const opponentId = resignedColor === 'black' ? game.white_user_id : game.black_user_id;
+    const aiId = getAiUserId();
+    if (!opponentId || opponentId === resignedId || opponentId === aiId) {
+        return;
+    }
+    const resignedName = getUsername(resignedId) ?? 'Your opponent';
+    pushToUser(opponentId, `${resignedName} resigned${game.title ? ` in ${game.title}` : ''}.`, game.id);
 }
 // A new remote game has no prior move for notifyOpponentOfMove to hang an
 // "it's your turn" push off of — without this, the invited side never
@@ -663,6 +690,7 @@ function applyResignToGame(game, color) {
         .run('finished', gameResult, 'resign', now, game.id);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();
+    notifyOpponentOfResign(game, color);
     return gameResult;
 }
 // Lower level = faster and weaker (GNU Go's own description) — the main
@@ -1159,10 +1187,10 @@ app.post('/api/games', async (req, res) => {
       id, size, handicap, title, created_at, updated_at, status, black_user_id, white_user_id,
       time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
       black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at,
-      gnugo_level, komi
+      gnugo_level, komi, invited_user_id, invite_status
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, size, handicap, title, now, now, 'in_progress', blackUserId, whiteUserId, preset ? timeControlName : null, preset ? preset.mainTimeSeconds : null, preset ? preset.byoyomiSeconds : null, initialPeriods, initialTimeMs, initialTimeMs, initialPeriods, initialPeriods, now, gnugoLevel, komi);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, size, handicap, title, now, now, 'in_progress', blackUserId, whiteUserId, preset ? timeControlName : null, preset ? preset.mainTimeSeconds : null, preset ? preset.byoyomiSeconds : null, initialPeriods, initialTimeMs, initialTimeMs, initialPeriods, initialPeriods, now, gnugoLevel, komi, invitedOpponentId, invitedOpponentId ? 'pending' : null);
     const board = createEmptyBoard(size);
     const handicapPoints = getHandicapPoints(size, handicap);
     for (const [x, y] of handicapPoints) {
@@ -1235,6 +1263,7 @@ app.get('/api/games/:id', (req, res) => {
         blackUserId: game.black_user_id,
         whiteUserId: game.white_user_id,
         myColor: getMyColor(game, currentUser?.id ?? null),
+        pendingInviteResponse: isPendingInviteFor(game, currentUser?.id ?? null),
         pendingUndoBy: game.pending_undo_by,
         endReason: game.end_reason,
         pendingReopenBy: game.pending_reopen_by,
@@ -1348,6 +1377,15 @@ app.get('/api/games/:id/sgf', (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(generateSgf(game));
 });
+// Shared by the plain delete route below and respond-invite's rejection —
+// same effect either way: the game and everything recorded against it is
+// gone.
+function deleteGameRecord(gameId) {
+    db.prepare('DELETE FROM events WHERE game_id = ?').run(gameId);
+    db.prepare('DELETE FROM snapshots WHERE game_id = ?').run(gameId);
+    db.prepare('DELETE FROM stars WHERE game_id = ?').run(gameId);
+    db.prepare('DELETE FROM games WHERE id = ?').run(gameId);
+}
 app.delete('/api/games/:id', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
@@ -1362,13 +1400,46 @@ app.delete('/api/games/:id', (req, res) => {
         res.status(403).json({ error: 'Only players in this game can delete it' });
         return;
     }
-    db.prepare('DELETE FROM events WHERE game_id = ?').run(game.id);
-    db.prepare('DELETE FROM snapshots WHERE game_id = ?').run(game.id);
-    db.prepare('DELETE FROM stars WHERE game_id = ?').run(game.id);
-    db.prepare('DELETE FROM games WHERE id = ?').run(game.id);
+    deleteGameRecord(game.id);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();
     res.status(204).end();
+});
+// Lets the invited side of a pending remote-game invite accept (just clears
+// the pending flag — the game already plays normally either way) or reject
+// (deletes the game outright, same as the plain delete route, plus a push
+// telling the inviter it was declined — the invite's own push was the only
+// sign they had of the game existing at all, so a silent deletion would
+// otherwise look like it just vanished).
+app.post('/api/games/:id/respond-invite', (req, res) => {
+    const game = getGameRow(req.params.id);
+    if (!game) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+    }
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    if (!isPendingInviteFor(game, user.id)) {
+        res.status(400).json({ error: 'This game has no pending invitation for you' });
+        return;
+    }
+    if (req.body?.accept === true) {
+        db.prepare('UPDATE games SET invited_user_id = NULL, invite_status = NULL WHERE id = ?').run(game.id);
+        broadcastGameUpdate(game.id);
+        res.json({ status: 'accepted' });
+        return;
+    }
+    const inviterId = inviterIdFor(game);
+    deleteGameRecord(game.id);
+    broadcastGameUpdate(game.id);
+    broadcastGamesListUpdate();
+    if (inviterId) {
+        const invitedName = getUsername(user.id) ?? 'The invited player';
+        pushToUser(inviterId, `${invitedName} declined your invitation${game.title ? ` to ${game.title}` : ''}.`, game.id);
+    }
+    res.json({ status: 'rejected' });
 });
 // Dry-runs the same check applyMoveToGame does, without writing anything —
 // the client's "confirm moves" setting uses this to show a move as valid

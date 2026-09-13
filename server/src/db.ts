@@ -184,6 +184,20 @@ if (!gamesColumns.has('komi')) {
 if (!gamesColumns.has('ai_current_level')) {
   db.exec('ALTER TABLE games ADD COLUMN ai_current_level INTEGER');
 }
+// A remote-mode invite starts with invite_status 'pending' and
+// invited_user_id set to the invited (not inviting) player's id, so that
+// player can be shown a confirm/reject prompt before playing and the
+// inviter — whichever of black_user_id/white_user_id isn't this one — can
+// be told if it's declined. Both are cleared back to NULL on acceptance —
+// there's nothing left to act on afterward, and NULL uniformly means "not
+// an open invitation" for local/gnugo games and any game predating this
+// feature.
+if (!gamesColumns.has('invited_user_id')) {
+  db.exec('ALTER TABLE games ADD COLUMN invited_user_id TEXT');
+}
+if (!gamesColumns.has('invite_status')) {
+  db.exec('ALTER TABLE games ADD COLUMN invite_status TEXT');
+}
 
 // Whether other users can find and invite this one to a remote game —
 // defaults to on (1) so existing accounts keep today's behavior.
