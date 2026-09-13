@@ -42,7 +42,9 @@ struct ClockView: View {
                     byoyomiSegments(total: byoyomiPeriods, remaining: clock.periodsLeft)
                         .frame(width: geo.size.width)
                 }
-                .frame(height: 3)
+                // Thinner (was 3pt) — same subtle-over-solid direction as
+                // the review nav icons/markers.
+                .frame(height: 2)
             }
         }
         .foregroundStyle(isActive ? .primary : .secondary)

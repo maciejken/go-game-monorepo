@@ -599,13 +599,22 @@
 
 .go-move-chain {
   display: flex;
-  gap: 6px;
+  /* Bigger than the stones' own 6px board-grid gap: the current stone's
+     outline+offset needs room to read clearly against its neighbors
+     instead of nearly touching them. */
+  gap: 10px;
   list-style: none;
   /* More breathing room from the move-description line above than the
      board/footer's other tightly-stacked elements get, so the list doesn't
      read as crowding right up against it. */
   margin: 20px 0 0;
-  padding: 8px 4px;
+  /* Vertical padding wider than the 2px outline + 2px offset actually
+     need, since overflow-x: auto here also makes the browser clip
+     vertically (an auto/scroll value on one axis forces the other away
+     from its 'visible' default) — without slack past the outline's own
+     footprint, the current stone's ring reads as flatly cut off top/bottom
+     rather than a full ring. */
+  padding: 12px 4px;
   max-width: 100%;
   overflow-x: auto;
   cursor: grab;
