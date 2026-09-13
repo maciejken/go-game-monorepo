@@ -68,6 +68,14 @@ struct NewGameView: View {
                             }
                         }
                     }
+                    // Effectively only ever populated by a local/gnugo
+                    // creation failure (see create()'s catch below) — GNU
+                    // Go's one-open-game limit is the practical case — so
+                    // it belongs right under the control that caused it
+                    // rather than at the bottom of an unrelated form.
+                    if let errorMessage {
+                        Text(errorMessage).foregroundStyle(.red)
+                    }
                     if mode == "remote" {
                         TextField("Opponent username", text: $opponentUsername)
                             .autocorrectionDisabled()
@@ -170,10 +178,6 @@ struct NewGameView: View {
                         Text("24h per move").tag("correspondence")
                         Text("Unlimited").tag("unlimited")
                     }
-                }
-
-                if let errorMessage {
-                    Text(errorMessage).foregroundStyle(.red)
                 }
             }
             .navigationTitle("New Game")
