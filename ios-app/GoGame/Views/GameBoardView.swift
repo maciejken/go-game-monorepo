@@ -896,8 +896,16 @@ struct GameBoardView: View {
             // ring (black in light mode, white in dark) — no shadow/glow —
             // so it reads by the same light/dark contrast the rest of the
             // board already uses, as a single distinct edge rather than a
-            // soft effect.
-            .overlay(Circle().stroke(Color.primary, lineWidth: isCurrent ? 3 : 0))
+            // soft effect. Drawn as its own larger circle (not stroked flush
+            // against the stone) so the gap between stone edge and ring is
+            // equally visible on both black and white markers — flush would
+            // have coincided with black's own separate hairline border while
+            // leaving white's bare edge looking thinner.
+            .overlay(
+                Circle()
+                    .stroke(Color.primary, lineWidth: isCurrent ? 2.5 : 0)
+                    .frame(width: 52, height: 52)
+            )
         }
         .buttonStyle(.plain)
     }
