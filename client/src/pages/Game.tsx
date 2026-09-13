@@ -340,19 +340,24 @@ function GameView({ gameId }: GameViewProps) {
     </div>
   );
 
+  // Always on for a finished game — no more manual Review/Live toggle. A
+  // ?move= param still selects which position within that history is shown
+  // (bookmarkable, same as before), it just no longer controls whether
+  // review mode itself is active.
+  const isReviewing = status === 'finished';
   const moveParam = searchParams.get('move');
-  const isReviewing = moveParam !== null;
   const isTimed = mainTimeSeconds !== null;
 
   // Ticks the displayed clocks once a second — a preview only, the server
   // remains authoritative and resolves an actual timeout lazily on its own.
+  // (status !== 'in_progress' already rules out isReviewing being true.)
   useEffect(() => {
-    if (!isTimed || status !== 'in_progress' || isReviewing) {
+    if (!isTimed || status !== 'in_progress') {
       return;
     }
     const interval = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [isTimed, status, isReviewing]);
+  }, [isTimed, status]);
 
   // Close the header dropdown on any click outside it.
   useEffect(() => {
@@ -423,15 +428,25 @@ function GameView({ gameId }: GameViewProps) {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [settingsOpen]);
 
-  // Fetch history fresh each time review is entered (including landing
-  // directly on a bookmarked ?move= URL), so it can't go stale between
-  // separate review sessions.
+  // Fetch history fresh each time a game is found finished (including
+  // landing directly on an already-finished game's URL), so it can't go
+  // stale between visits.
   useEffect(() => {
     if (isReviewing && !wasReviewing.current) {
       loadHistory().catch(() => {});
     }
     wasReviewing.current = isReviewing;
   }, [isReviewing, loadHistory]);
+
+  // Defaults to the last move once history loads, unless a ?move= is
+  // already present (a bookmarked/shared link to a specific position) —
+  // mirrors the old manual "Review" button's own jump-to-last behavior,
+  // just triggered by the game being finished instead of a click.
+  useEffect(() => {
+    if (isReviewing && history && searchParams.get('move') === null) {
+      setSearchParams({ move: String(history.length - 1) }, { replace: true });
+    }
+  }, [isReviewing, history, searchParams, setSearchParams]);
 
   // Keeps the currently-selected stone in view in the move chain — on
   // footer-button navigation, on clicking a stone directly, and on first
@@ -482,13 +497,10 @@ function GameView({ gameId }: GameViewProps) {
   const size = liveBoard.length;
   // Narrates live play for screen readers — the visible board already shows
   // this via the last-move marker and clocks, so it's announced but not
-  // displayed. Review mode gets its own move-by-move list instead.
-  const liveAnnouncement =
-    !isReviewing && status === 'finished' && result
-      ? result
-      : !isReviewing && lastEvent
-        ? describeEntry(lastEvent, size)
-        : '';
+  // displayed. Review mode (always on once finished) gets its own
+  // move-by-move list instead, so there's nothing left to narrate once the
+  // game is over — this only ever fires for in-progress/scoring events.
+  const liveAnnouncement = !isReviewing && lastEvent ? describeEntry(lastEvent, size) : '';
   const scoring = status === 'scoring';
   const finished = status === 'finished';
 
@@ -506,9 +518,11 @@ function GameView({ gameId }: GameViewProps) {
     isReviewing && history && reviewMoveNumber !== null ? sumCaptures(history, reviewMoveNumber) : captures;
   const isParticipant = myColor !== null;
   const isMyTurn = myColor === 'both' || myColor === currentColor;
-  const canInteract = !isReviewing && status === 'in_progress' && isMyTurn;
+  // status === 'in_progress' already rules out isReviewing being true.
+  const canInteract = status === 'in_progress' && isMyTurn;
   // Gates marking groups at all, regardless of which mode (dead vs seki).
-  const canMarkGroups = !isReviewing && scoring && isParticipant;
+  // scoring (status === 'scoring') already rules out isReviewing being true.
+  const canMarkGroups = scoring && isParticipant;
   const navDisabled = latestMoveNumber === null || reviewMoveNumber === null;
   // Local games and AI games undo immediately (no negotiation) — same split
   // describeUndoAction uses to pick a label.
@@ -560,7 +574,7 @@ function GameView({ gameId }: GameViewProps) {
   // as key sets for O(1) lookup per board point below.
   let blackTerritoryKeys = new Set<string>();
   let whiteTerritoryKeys = new Set<string>();
-  if (scoring && !isReviewing) {
+  if (scoring) {
     const deadPointsArray = Array.from(pendingDead, parsePointKey);
     const sekiPointsArray = Array.from(pendingSeki, parsePointKey);
     const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(liveBoard, captures, deadPointsArray);
@@ -579,7 +593,7 @@ function GameView({ gameId }: GameViewProps) {
 
   const blackClock = isTimed
     ? computeLiveClock(
-        !isReviewing && status === 'in_progress' && currentColor === 'black',
+        status === 'in_progress' && currentColor === 'black',
         blackTimeRemainingMs ?? 0,
         blackPeriodsLeft ?? 0,
         byoyomiSeconds ?? 0,
@@ -589,7 +603,7 @@ function GameView({ gameId }: GameViewProps) {
     : null;
   const whiteClock = isTimed
     ? computeLiveClock(
-        !isReviewing && status === 'in_progress' && currentColor === 'white',
+        status === 'in_progress' && currentColor === 'white',
         whiteTimeRemainingMs ?? 0,
         whitePeriodsLeft ?? 0,
         byoyomiSeconds ?? 0,
@@ -657,20 +671,6 @@ function GameView({ gameId }: GameViewProps) {
     goToMove(moveNumber);
   };
 
-  const enterReview = () => {
-    clearError();
-    // Mark review as already "entered" so the effect below doesn't also
-    // fire a second fetch once isReviewing flips true as a result of this.
-    wasReviewing.current = true;
-    loadHistory()
-      .then((moves) => setSearchParams({ move: String(moves.length - 1) }, { replace: true }))
-      .catch(() => {});
-  };
-
-  const exitReview = () => {
-    searchParams.delete('move');
-    setSearchParams(searchParams, { replace: true });
-  };
 
   // Toggles every stone of a group in `set` together, since a group lives
   // or dies (or is in seki) as a unit — clicking a second stone in an
@@ -822,15 +822,6 @@ function GameView({ gameId }: GameViewProps) {
               <button
                 type="button"
                 onClick={() => {
-                  (isReviewing ? exitReview : enterReview)();
-                  setMenuOpen(false);
-                }}
-              >
-                {isReviewing ? 'Live' : 'Review'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
                   setMenuOpen(false);
                   window.location.href = sgfExportUrl(gameId);
                 }}
@@ -931,7 +922,6 @@ function GameView({ gameId }: GameViewProps) {
                     )}
                     {(!stone || pendingDead.has(pointKey({ x, y }))) &&
                       scoring &&
-                      !isReviewing &&
                       (blackTerritoryKeys.has(pointKey({ x, y })) || whiteTerritoryKeys.has(pointKey({ x, y }))) && (
                         <span
                           className={`go-territory-marker go-territory-marker--${
@@ -981,10 +971,10 @@ function GameView({ gameId }: GameViewProps) {
             </button>
           </div>
         )}
-        {!isReviewing && status === 'in_progress' && lastEvent?.eventType === 'PASS' && (
+        {status === 'in_progress' && lastEvent?.eventType === 'PASS' && (
           <p>{colorLabel(lastEvent.color)} passed.</p>
         )}
-        {!isReviewing && scoring && (
+        {scoring && (
           <p>
             {markMode === 'dead'
               ? 'Marking dead stones — click a stone to toggle its group.'
@@ -1006,7 +996,7 @@ function GameView({ gameId }: GameViewProps) {
               : `${colorLabel(pendingReopenBy)} requested to reopen scoring.`}
           </p>
         )}
-        {!isReviewing && status === 'in_progress' && isParticipant && !isMyTurn && !pendingUndoBy && (
+        {status === 'in_progress' && isParticipant && !isMyTurn && !pendingUndoBy && (
           <p>
             Waiting for{' '}
             {(currentColor === 'black' ? blackUsername : whiteUsername) ? (
@@ -1020,7 +1010,7 @@ function GameView({ gameId }: GameViewProps) {
             to move.
           </p>
         )}
-        {!isReviewing && !isParticipant && status !== 'finished' && (
+        {!isParticipant && status !== 'finished' && (
           <p>You're viewing as a spectator — log in as a player in this game to make moves.</p>
         )}
         {isReviewing && (
@@ -1071,7 +1061,7 @@ function GameView({ gameId }: GameViewProps) {
             )}
           </span>
           <div className="footer-buttons">
-            {status === 'in_progress' && !isReviewing && (
+            {status === 'in_progress' && (
               <div className="go-turn-menu" ref={turnMenuRef} style={{ '--cell': '24px' } as React.CSSProperties}>
                 <button
                   type="button"
@@ -1125,7 +1115,7 @@ function GameView({ gameId }: GameViewProps) {
                 )}
               </div>
             )}
-            {scoring && !isReviewing && isParticipant && (
+            {scoring && isParticipant && (
               <div className="go-actions">
                 {(() => {
                   const resumeLabel = describeUndoAction(myColor, pendingUndoBy, true, isAiOpponent);
@@ -1151,54 +1141,44 @@ function GameView({ gameId }: GameViewProps) {
                 </button>
               </div>
             )}
-            {finished && !isReviewing && shortResult && (
-              <div className="go-turn-menu" ref={resultBalloonRef}>
+            {finished && (
+              // Flanking First/Last buttons around the result (or "No
+              // result") button, rather than a separate 4-button nav row —
+              // Prev/Next happen by tapping a stone directly in the move
+              // chain below instead, to keep this footer slot compact now
+              // that review is always showing here, not just on request.
+              <div className="review-flanked">
                 <button
                   type="button"
-                  className="footer-result"
-                  onClick={() => setResultBalloonOpen((open) => !open)}
-                >
-                  {shortResult}
-                </button>
-                {resultBalloonOpen && (
-                  <div className="go-turn-balloon go-result-balloon">
-                    <div className="go-result-balloon-summary">{balloonSummary}</div>
-                    <div>{resultSummary}</div>
-                  </div>
-                )}
-              </div>
-            )}
-            {finished && !isReviewing && !shortResult && endReason === 'ended' && (
-              <span className="footer-result footer-result--static">No result</span>
-            )}
-            {isReviewing && (
-              <div className="review-controls">
-                <button
-                  type="button"
+                  className="review-nav-button"
                   aria-label="First move"
                   onClick={() => goToMove(0)}
                   disabled={navDisabled || reviewMoveNumber === 0}
                 >
                   ⏮
                 </button>
+                {shortResult ? (
+                  <div className="go-turn-menu" ref={resultBalloonRef}>
+                    <button
+                      type="button"
+                      className="footer-result"
+                      onClick={() => setResultBalloonOpen((open) => !open)}
+                    >
+                      {shortResult}
+                    </button>
+                    {resultBalloonOpen && (
+                      <div className="go-turn-balloon go-result-balloon">
+                        <div className="go-result-balloon-summary">{balloonSummary}</div>
+                        <div>{resultSummary}</div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  endReason === 'ended' && <span className="footer-result footer-result--static">No result</span>
+                )}
                 <button
                   type="button"
-                  aria-label="Previous move"
-                  onClick={() => goToMove((reviewMoveNumber ?? 0) - 1)}
-                  disabled={navDisabled || reviewMoveNumber === 0}
-                >
-                  ◀
-                </button>
-                <button
-                  type="button"
-                  aria-label="Next move"
-                  onClick={() => goToMove((reviewMoveNumber ?? 0) + 1)}
-                  disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
-                >
-                  ▶
-                </button>
-                <button
-                  type="button"
+                  className="review-nav-button"
                   aria-label="Last move"
                   onClick={() => goToMove(latestMoveNumber ?? 0)}
                   disabled={navDisabled || reviewMoveNumber === latestMoveNumber}

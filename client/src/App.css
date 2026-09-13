@@ -662,15 +662,13 @@
   outline-offset: 2px;
 }
 
-.go-actions,
-.review-controls {
+.go-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.go-actions button,
-.review-controls button {
+.go-actions button {
   appearance: none;
   background: #fff;
   color: #0a0a0a;
@@ -686,21 +684,41 @@
   }
 }
 
-/* Icon-only (⏮ ◀ ▶ ⏭), so a squarer, tighter button suits them better than
-   the text buttons' wide horizontal padding. */
-.review-controls button {
-  width: 44px;
-  height: 44px;
+/* Flanks the finished-game result button (or "No result" text) with
+   First/Last review-nav buttons — a plain flex row, not reusing
+   .go-actions: the result button in between needs its own .footer-result
+   styling untouched, which a shared `button` descendant selector here
+   would otherwise override. */
+.review-flanked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Icon-only (⏮ ⏭) and small — Prev/Next were dropped in favor of tapping a
+   stone directly in the move chain, so these only ever need to jump to an
+   end, matching .icon-action-button's own footer-icon footprint. */
+.review-nav-button {
+  appearance: none;
+  background: #fff;
+  color: #0a0a0a;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  font-size: 20px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.4;
+  }
 }
 
-/* Scoring-phase Resume/Finalize icons — a smaller footprint than the review
-   controls above since these sit in the already-crowded footer; the icon
-   itself stays full-size and overflows the button's box slightly. */
 .icon-action-button {
   width: 32px;
   height: 32px;
