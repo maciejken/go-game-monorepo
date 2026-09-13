@@ -165,7 +165,7 @@ struct GameBoardView: View {
 
                 if isReviewing(game), let history {
                     if let entry = reviewEntry {
-                        Text("\(describeEntry(entry, size: game.size)) — move \(entry.moveNumber) of \(history.moves.count - 1)")
+                        Text("\(entry.moveNumber). \(describeEntry(entry, size: game.size))")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
