@@ -818,8 +818,15 @@ struct GameBoardView: View {
                 showResultSheet = false
                 deepLinkRouter.targetProfileId = userId
             } label: {
-                Text(username).underline()
+                // Black in light mode, white in dark — matches the web
+                // client's own plain-text links — rather than the default
+                // system blue a Button's label would otherwise pick up.
+                // foregroundStyle alone isn't enough to override that
+                // default tint here; .buttonStyle(.plain) below is what
+                // actually stops it from recoloring the label blue.
+                Text(username).underline().foregroundStyle(.primary)
             }
+            .buttonStyle(.plain)
         } else {
             Text(username ?? "—")
         }

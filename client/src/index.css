@@ -94,6 +94,17 @@ p {
   margin: 0;
 }
 
+/* Plain-text navigational links (a profile/back-to-games Link, not a
+   card/button that already sets its own color) — black in light mode,
+   white in dark, rather than the browser's default blue/purple. :visited
+   is listed explicitly since it's more specific than a bare `a` and would
+   otherwise win for an already-visited same-origin link (profile pages,
+   game pages) with the UA stylesheet's own purple. */
+a,
+a:visited {
+  color: var(--text-h);
+}
+
 code,
 .counter {
   font-family: var(--mono);
