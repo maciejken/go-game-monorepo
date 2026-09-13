@@ -944,16 +944,19 @@ struct GameBoardView: View {
             if initiallyFinished, history == nil {
                 // The caller already knows (from the list row) that this
                 // game is finished, so fetch the history alongside the game
-                // detail instead of after it — halves the wait before the
-                // move chain can appear, versus paying two round trips back
-                // to back. Falls back to the plain path below whenever that
-                // hint is wrong (e.g. reopened as "scoring", finalized since
-                // the list was loaded).
+                // detail instead of after it. Both are awaited here before
+                // either `game` or `history` is assigned, so the board,
+                // title, and move chain all appear in the same SwiftUI
+                // update instead of the board/title popping in first and
+                // the move chain a moment later. Falls back to the plain
+                // path below whenever that hint is wrong (e.g. reopened as
+                // "scoring", finalized since the list was loaded).
                 async let gameFetch = APIClient.getGame(id: gameId)
                 async let historyFetch = try? APIClient.getGameHistory(id: gameId)
                 let fetchedGame = try await gameFetch
+                let fetchedHistory = await historyFetch
                 game = fetchedGame
-                if fetchedGame.status == "finished", let fetchedHistory = await historyFetch {
+                if fetchedGame.status == "finished", let fetchedHistory {
                     history = fetchedHistory
                     reviewMoveNumber = fetchedHistory.moves.count - 1
                 }
