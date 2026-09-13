@@ -904,7 +904,7 @@ struct GameBoardView: View {
             .overlay(
                 Circle()
                     .stroke(Color.primary, lineWidth: isCurrent ? 2.5 : 0)
-                    .frame(width: 52, height: 52)
+                    .frame(width: 46, height: 46)
             )
         }
         .buttonStyle(.plain)
