@@ -45,6 +45,14 @@ struct GameBoardView: View {
     // point again is what actually submits the move.
     @AppStorage("go-confirm-moves") private var confirmMovesEnabled = false
     @State private var pendingMove: Point?
+    // Review mode — always on for a finished game (no toggle, unlike the
+    // web client's Review/Live menu item): the full move-by-move record,
+    // fetched once when the game is first found to be finished, and the
+    // move number currently being displayed. history is fetched exactly
+    // once per game (guarded in load()) since a finished game's history
+    // never changes.
+    @State private var history: GameHistoryResponse?
+    @State private var reviewMoveNumber: Int?
 
     var body: some View {
         Group {
@@ -135,9 +143,9 @@ struct GameBoardView: View {
                 }
 
                 BoardGridView(
-                    board: game.board,
+                    board: displayedBoard(game),
                     size: game.size,
-                    lastMove: game.lastMove,
+                    lastMove: highlightedPoint(game),
                     isInteractive: isInteractive(game),
                     allowTapOnOccupied: game.status == "scoring",
                     deadPoints: markMode == .dead ? pendingDeadKeys : [],
@@ -154,6 +162,36 @@ struct GameBoardView: View {
                         }
                     }
                 )
+
+                if isReviewing(game), let history {
+                    if let entry = reviewEntry {
+                        Text("\(describeEntry(entry, size: game.size)) — move \(entry.moveNumber) of \(history.moves.count - 1)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(history.moves, id: \.moveNumber) { entry in
+                                    moveChainMarker(entry)
+                                        .id(entry.moveNumber)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                        .onChange(of: reviewMoveNumber) { _, newValue in
+                            guard let newValue else { return }
+                            withAnimation { proxy.scrollTo(newValue, anchor: .center) }
+                        }
+                        .task {
+                            if let reviewMoveNumber {
+                                proxy.scrollTo(reviewMoveNumber, anchor: .center)
+                            }
+                        }
+                    }
+                }
 
                 // Order is board → mark mode → estimate: the picker and
                 // estimate text used to sit above the board (the estimate
@@ -418,7 +456,8 @@ struct GameBoardView: View {
 
     @ViewBuilder
     private func footerCaptures(_ color: StoneColor, game: GameState) -> some View {
-        let captures = color == .black ? game.captures.black : game.captures.white
+        let reviewCaptures = displayedCaptures(game)
+        let captures = color == .black ? reviewCaptures.black : reviewCaptures.white
         HStack(spacing: 4) {
             footerStone(color, size: 14)
             Text("\(captures)")
@@ -502,27 +541,65 @@ struct GameBoardView: View {
                     .minimumScaleFactor(0.4)
                     .foregroundStyle(textColor)
                     .frame(width: 52, height: 52)
-                if #available(iOS 26.0, *) {
-                    Button {
-                        showResultSheet = true
-                    } label: {
-                        label
+                // Flanking First/Last review-nav buttons, ~62% the result
+                // button's size, per request — no separate Prev/Next: those
+                // happen by tapping a stone directly in the move-chain strip
+                // instead, to keep this footer row from getting crowded.
+                HStack(spacing: 8) {
+                    reviewNavButton(systemName: "backward.end.fill", disabled: history == nil || reviewMoveNumber == 0) {
+                        goToMove(0)
                     }
-                    .buttonStyle(.glassProminent)
-                    .tint(tint)
-                    .buttonBorderShape(.circle)
-                    .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
-                } else {
-                    Button {
-                        showResultSheet = true
-                    } label: {
-                        label
-                            .background(tint, in: Circle())
-                            .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
+                    if #available(iOS 26.0, *) {
+                        Button {
+                            showResultSheet = true
+                        } label: {
+                            label
+                        }
+                        .buttonStyle(.glassProminent)
+                        .tint(tint)
+                        .buttonBorderShape(.circle)
+                        .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
+                    } else {
+                        Button {
+                            showResultSheet = true
+                        } label: {
+                            label
+                                .background(tint, in: Circle())
+                                .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    reviewNavButton(
+                        systemName: "forward.end.fill",
+                        disabled: history == nil || reviewMoveNumber == (history?.moves.count ?? 1) - 1
+                    ) {
+                        goToMove((history?.moves.count ?? 1) - 1)
+                    }
                 }
             }
+        }
+    }
+
+    // First/Last review-nav buttons flanking the result button — 32pt,
+    // ~62% of that button's 52pt, per request.
+    @ViewBuilder
+    private func reviewNavButton(systemName: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+        let icon = Image(systemName: systemName)
+            .font(.system(size: 12, weight: .semibold))
+            .frame(width: 32, height: 32)
+        if #available(iOS 26.0, *) {
+            Button(action: action) { icon }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .disabled(disabled)
+        } else {
+            Button(action: action) {
+                icon
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(disabled)
         }
     }
 
@@ -708,6 +785,102 @@ struct GameBoardView: View {
         game.status == "scoring" && markMode == .seki && !pendingSekiKeys.isEmpty
     }
 
+    // Always on for a finished game — no toggle, unlike the web client's
+    // Review/Live menu item (which is also available mid-game there).
+    private func isReviewing(_ game: GameState) -> Bool {
+        game.status == "finished"
+    }
+
+    private var reviewEntry: HistoryEntry? {
+        guard let history, let reviewMoveNumber, history.moves.indices.contains(reviewMoveNumber) else {
+            return nil
+        }
+        return history.moves[reviewMoveNumber]
+    }
+
+    private func displayedBoard(_ game: GameState) -> Board {
+        isReviewing(game) ? (reviewEntry?.board ?? game.board) : game.board
+    }
+
+    private func highlightedPoint(_ game: GameState) -> Point? {
+        isReviewing(game) ? reviewEntry?.point : game.lastMove
+    }
+
+    private func displayedCaptures(_ game: GameState) -> Captures {
+        if isReviewing(game), let history, let reviewMoveNumber {
+            return sumCaptures(history.moves, upTo: reviewMoveNumber)
+        }
+        return game.captures
+    }
+
+    private func goToMove(_ n: Int) {
+        guard let history else { return }
+        reviewMoveNumber = min(max(n, 0), history.moves.count - 1)
+    }
+
+    private static let reviewColumnLabels = Array("ABCDEFGHJKLMNOPQRST")
+
+    private func reviewColorLabel(_ color: StoneColor?) -> String {
+        switch color {
+        case .black: return "Black"
+        case .white: return "White"
+        case nil: return ""
+        }
+    }
+
+    // Mirrors client/src/pages/Game.tsx's describeEntry.
+    private func describeEntry(_ entry: HistoryEntry, size: Int) -> String {
+        switch entry.eventType {
+        case "START":
+            return "Start of game"
+        case "HANDICAP":
+            return "Handicap stones placed"
+        case "PASS":
+            return "\(reviewColorLabel(entry.color)) passed"
+        case "RESIGN":
+            return "\(reviewColorLabel(entry.color)) resigned"
+        case "MOVE":
+            guard let point = entry.point else { return "\(reviewColorLabel(entry.color)) played" }
+            let label = "\(Self.reviewColumnLabels[point.x])\(size - point.y)"
+            let captureNote = entry.capturedPoints.isEmpty ? "" : " (captured \(entry.capturedPoints.count))"
+            return "\(reviewColorLabel(entry.color)) played \(label)\(captureNote)"
+        default:
+            return ""
+        }
+    }
+
+    // The move chain: a flat, stone-colored circular marker per logged
+    // event, reusing BoardGridView's own stone colors/shape (just bigger,
+    // 40pt — comfortably fits a 3-digit move number at 13pt bold, matching
+    // the equivalent web element's own proportions) rather than a new
+    // style. A colorless event (START/HANDICAP) gets a dashed neutral ring
+    // instead of a stone fill. Tapping one jumps review straight to it.
+    @ViewBuilder
+    private func moveChainMarker(_ entry: HistoryEntry) -> some View {
+        let isCurrent = entry.moveNumber == reviewMoveNumber
+        Button {
+            goToMove(entry.moveNumber)
+        } label: {
+            ZStack {
+                switch entry.color {
+                case .black:
+                    Circle().fill(Color.black)
+                case .white:
+                    Circle().fill(Color(red: 0.97, green: 0.94, blue: 0.87))
+                case nil:
+                    Circle().strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                        .foregroundStyle(.secondary)
+                }
+                Text("\(entry.moveNumber)")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(entry.color == .black ? .white : (entry.color == .white ? .black : .primary))
+            }
+            .frame(width: 40, height: 40)
+            .overlay(Circle().stroke(Color.accentColor, lineWidth: isCurrent ? 2 : 0))
+        }
+        .buttonStyle(.plain)
+    }
+
     // Live "what you'll get" preview — mirrors client/src/pages/Game.tsx's
     // live-preview block, using the same applyDeadStones → scoreBoard
     // pipeline (Models/Scoring.swift) the server uses at finalize time.
@@ -739,6 +912,10 @@ struct GameBoardView: View {
             // opponent's move arriving live, etc.), mirrors
             // client/src/pages/Game.tsx's own pendingMove-clearing effect.
             pendingMove = nil
+            if game?.status == "finished", history == nil, let fetched = try? await APIClient.getGameHistory(id: gameId) {
+                history = fetched
+                reviewMoveNumber = fetched.moves.count - 1
+            }
         } catch {
             // isDeleted only gates load() calls made *after* it flips true —
             // one already in flight when it flips (e.g. a pull-to-refresh or

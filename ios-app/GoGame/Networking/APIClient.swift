@@ -166,6 +166,12 @@ enum APIClient {
         try await get("api/games/\(id)")
     }
 
+    // Backs review mode — the full move-by-move record, fetched once a
+    // finished game is loaded.
+    static func getGameHistory(id: String) async throws -> GameHistoryResponse {
+        try await get("api/games/\(id)/history")
+    }
+
     // Mirrors client/src/pages/Home.tsx's createGame call. `color`,
     // `opponentUsername`, and `level` are only meaningful for "remote"/
     // "gnugo" modes; Swift's synthesized Encodable calls encodeIfPresent
