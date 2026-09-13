@@ -282,6 +282,15 @@ enum APIClient {
         return try await post("api/games/\(gameId)/resign", body: Body(color: color))
     }
 
+    // For when GNU Go's move seems stuck rather than just slow — most
+    // plausibly a server restart killed its search mid-thought, since
+    // nothing else re-triggers it once the human's own turn-ending action
+    // has already happened. Fire-and-forget on the server; the eventual
+    // move (if any) arrives the normal way, via the live socket.
+    static func recomputeAiMove(gameId: String) async throws {
+        try await post("api/games/\(gameId)/recompute-ai-move")
+    }
+
     static func finalizeScoring(gameId: String, deadPoints: [Point], sekiPoints: [Point] = []) async throws -> FinalizeScoringResponse {
         struct Body: Encodable { let deadPoints: [Point]; let sekiPoints: [Point] }
         return try await post("api/games/\(gameId)/finalize-scoring", body: Body(deadPoints: deadPoints, sekiPoints: sekiPoints))

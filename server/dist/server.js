@@ -1858,6 +1858,45 @@ app.post('/api/games/:id/resign', (req, res) => {
     const gameResult = applyResignToGame(game, color);
     res.json({ status: 'finished', result: gameResult });
 });
+// Re-fires maybeTriggerAiMove for a game already waiting on GNU Go — for
+// when a human suspects it's genuinely stuck rather than just thinking, most
+// plausibly because a server restart (e.g. a deploy) killed the gnugo
+// process mid-search without ever getting a chance to retry: nothing else
+// re-triggers it, since the trigger points are all human actions (move,
+// pass, resign, create) that already happened. maybeTriggerAiMove's own
+// re-check of whose turn it is after computing a move makes this safe to
+// call even if a first attempt is still genuinely in flight — the queue in
+// gnugo.ts serializes them, and whichever finishes second will see the
+// turn's already moved on and simply do nothing.
+app.post('/api/games/:id/recompute-ai-move', (req, res) => {
+    const game = getGameRow(req.params.id);
+    if (!game) {
+        res.status(404).json({ error: 'Game not found' });
+        return;
+    }
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    if (!isParticipant(game, user.id)) {
+        res.status(403).json({ error: 'Only players in this game can do this' });
+        return;
+    }
+    if (game.status !== 'in_progress') {
+        res.status(400).json({ error: 'Game is not in progress' });
+        return;
+    }
+    const aiId = getAiUserId();
+    const moveNumber = getNextMoveNumber(game.id);
+    const currentColor = getCurrentColor(turnMoveNumber(moveNumber, game.handicap));
+    const colorUserId = currentColor === 'black' ? game.black_user_id : game.white_user_id;
+    if (colorUserId !== aiId) {
+        res.status(400).json({ error: "It isn't GNU Go's turn" });
+        return;
+    }
+    maybeTriggerAiMove(game.id);
+    res.status(202).json({ status: 'recomputing' });
+});
 // Immediately finishes a local game with no formal result — only makes
 // sense for a game the caller plays entirely alone (black_user_id and
 // white_user_id both their own id), since anyone else in the game would

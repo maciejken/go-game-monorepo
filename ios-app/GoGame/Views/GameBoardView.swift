@@ -92,6 +92,13 @@ struct GameBoardView: View {
                     } label: {
                         Label("Export SGF", systemImage: "square.and.arrow.up")
                     }
+                    if let game, isAiTurn(game) {
+                        Button {
+                            Task { await recomputeAiMove() }
+                        } label: {
+                            Label("Recompute GNU Go's move", systemImage: "arrow.clockwise")
+                        }
+                    }
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
                     } label: {
@@ -894,6 +901,17 @@ struct GameBoardView: View {
         }
     }
 
+    // Gates the "Recompute GNU Go's move" menu item — only meaningful while
+    // actually waiting on GNU Go, i.e. an AI opponent whose turn it
+    // currently is (myColor excludes .both, since a local game has no AI).
+    private func isAiTurn(_ game: GameState) -> Bool {
+        guard game.isAiOpponent, game.status == "in_progress", let myColor = game.myColor, myColor != .both else {
+            return false
+        }
+        let myStoneColor: StoneColor = myColor == .black ? .black : .white
+        return game.currentColor != myStoneColor
+    }
+
     // Mirrors client/src/pages/Game.tsx's sekiActive: only dims the board
     // while actively in Seki mode (not just whenever a seki mark exists),
     // so switching to Dead mode isn't fighting the dim effect for attention.
@@ -1325,6 +1343,20 @@ struct GameBoardView: View {
             if !accept {
                 isDeleted = false
             }
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // Server call is fire-and-forget on its side too — it just re-triggers
+    // GNU Go's move generation and returns immediately, so the eventual
+    // move (if any) still arrives the normal way, via the live socket
+    // triggering a reload. No local busy/loading state: tapping this
+    // repeatedly is harmless (see the server route's own comment) and
+    // there's nothing here to visibly wait for either way.
+    private func recomputeAiMove() async {
+        do {
+            try await APIClient.recomputeAiMove(gameId: gameId)
+        } catch {
             errorMessage = error.localizedDescription
         }
     }
