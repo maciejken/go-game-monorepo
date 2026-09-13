@@ -110,7 +110,7 @@ const DEFAULT_TIMEOUT_MS = 600000;
 // hang. The caller (server.ts) is expected to retry at one level lower on
 // failure, since a lower level is both faster and far less likely to hit
 // that same reading blowup again.
-export async function generateAiMove(request: AiMoveRequest, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<AiMoveResult> {
+async function generateAiMoveNow(request: AiMoveRequest, timeoutMs: number): Promise<AiMoveResult> {
   const child = spawn('gnugo', ['--mode', 'gtp', '--quiet', '--level', String(request.level)]);
   const timeout = setTimeout(() => child.kill(), timeoutMs);
 
@@ -141,6 +141,22 @@ export async function generateAiMove(request: AiMoveRequest, timeoutMs = DEFAULT
       child.kill();
     }
   }
+}
+
+// One gnugo process at a time across the whole server, not one per game —
+// two games both wanting a move at once would otherwise spawn two
+// concurrent searches competing for the same CPU, which is exactly the
+// kind of contention that turns an ordinary slow position into a genuinely
+// timed-out one. Queued as a plain promise chain: each call waits for
+// every earlier one to settle (success or failure) before its own gnugo
+// process even starts. Fine for a single Node process; would need a real
+// queue (or a lock in shared storage) if this ever ran multiple instances.
+let queue: Promise<unknown> = Promise.resolve();
+
+export function generateAiMove(request: AiMoveRequest, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<AiMoveResult> {
+  const run = queue.then(() => generateAiMoveNow(request, timeoutMs));
+  queue = run.catch(() => {});
+  return run;
 }
 
 export async function isGnuGoAvailable(): Promise<boolean> {
