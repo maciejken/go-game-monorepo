@@ -119,6 +119,7 @@ struct GameBoardView: View {
             if let game {
                 inviteResponseSheetContent(game)
                     .interactiveDismissDisabled(true)
+                    .presentationDetents([.height(260)])
                     .presentationBackground(Color(uiColor: .systemBackground))
             }
         }
@@ -294,30 +295,37 @@ struct GameBoardView: View {
         .padding()
     }
 
+    // Mirrors GameRowView's own compact "13x13 · handicap 2 · komi 0.5 ·
+    // 10 min" metadata line rather than a tall LabeledContent list — same
+    // settings, far less vertical space.
+    private func inviteMetaParts(_ game: GameState) -> [String] {
+        var parts = ["\(game.size)x\(game.size)"]
+        if game.handicap > 0 {
+            parts.append("handicap \(game.handicap)")
+        }
+        parts.append(game.komi == 0 ? "no komi" : "komi \(game.komi)")
+        let timeControlLabel: String
+        switch game.timeControl {
+        case .standard: timeControlLabel = "10 min"
+        case .correspondence: timeControlLabel = "24h per move"
+        case nil: timeControlLabel = "Unlimited"
+        }
+        parts.append(timeControlLabel)
+        parts.append("you play \(game.myColor == .black ? "Black" : "White")")
+        return parts
+    }
+
     private func inviteResponseSheetContent(_ game: GameState) -> some View {
         let opponentName = (game.myColor == .black ? game.whiteUsername : game.blackUsername) ?? "Someone"
-        let timeControlLabel: String = {
-            switch game.timeControl {
-            case .standard: return "10 minutes"
-            case .correspondence: return "24h per move"
-            case nil: return "Unlimited"
-            }
-        }()
-        return VStack(spacing: 16) {
+        return VStack(spacing: 12) {
             Text("Game Invitation")
                 .font(.headline)
             Text("\(opponentName) invited you to a game\(game.title?.isEmpty == false ? " — \(game.title!)" : "").")
                 .multilineTextAlignment(.center)
-            VStack(spacing: 4) {
-                LabeledContent("Board size", value: "\(game.size)×\(game.size)")
-                if game.handicap > 0 {
-                    LabeledContent("Handicap", value: "\(game.handicap)")
-                }
-                LabeledContent("Komi", value: game.komi == 0 ? "No komi" : "\(game.komi)")
-                LabeledContent("Time control", value: timeControlLabel)
-                LabeledContent("You'll play", value: game.myColor == .black ? "Black" : "White")
-            }
-            .font(.subheadline)
+            Text(inviteMetaParts(game).joined(separator: " · "))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
             Group {
                 if #available(iOS 26.0, *) {
                     Button {
