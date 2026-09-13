@@ -1527,7 +1527,12 @@ app.post('/api/games', async (req, res) => {
     preset ? preset.mainTimeSeconds : null,
     preset ? preset.byoyomiSeconds : null,
     initialPeriods,
-    initialTimeMs, initialTimeMs, initialPeriods, initialPeriods, now,
+    // A pending invite hasn't started yet from the invited player's point of
+    // view — turn_started_at stays NULL (computeLiveClock/withTimeoutCheck
+    // both already treat that as "frozen, not ticking") until respond-invite
+    // accepts it, so no clock time (or timeout) accrues against either
+    // player before they've actually agreed to play.
+    initialTimeMs, initialTimeMs, initialPeriods, initialPeriods, invitedOpponentId ? null : now,
     gnugoLevel, komi,
     invitedOpponentId,
     invitedOpponentId ? 'pending' : null,
@@ -1817,7 +1822,13 @@ app.post('/api/games/:id/respond-invite', (req, res) => {
   }
 
   if (req.body?.accept === true) {
-    db.prepare('UPDATE games SET invited_user_id = NULL, invite_status = NULL WHERE id = ?').run(game.id);
+    // The clock (if any) starts counting from here, not from whenever the
+    // invite was actually created — see the matching comment on the
+    // INSERT in POST /api/games.
+    db.prepare('UPDATE games SET invited_user_id = NULL, invite_status = NULL, turn_started_at = ? WHERE id = ?').run(
+      Date.now(),
+      game.id,
+    );
     broadcastGameUpdate(game.id);
     res.json({ status: 'accepted' });
     return;
