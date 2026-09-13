@@ -214,16 +214,21 @@ function isAiOpponentGame(game: Participants): boolean {
 }
 
 // GNU Go is a single shared account (getAiUserId()), not one per player —
-// gates new AI-game creation so it's only ever committed to one unfinished
-// game at a time, server-wide, regardless of who's asking. "Open" covers
-// both in_progress and scoring: nothing left for a human to do in either
-// once the other player is GNU Go, since it can't mark dead stones either.
+// gates new AI-game creation so it's never committed to a second 'standard'
+// (10-minute) game while one is already open, server-wide, regardless of
+// who's asking. "Open" covers both in_progress and scoring: nothing left
+// for a human to do in either once the other player is GNU Go, since it
+// can't mark dead stones either. A correspondence or unlimited game against
+// GNU Go is deliberately not "open" for this check — it can sit for days
+// without demanding anything from it right now, unlike a short game that
+// does want its attention/CPU, so it shouldn't block a fresh game.
 function hasOpenAiGame(): boolean {
   const aiId = getAiUserId();
   const row = db
     .prepare(
       `SELECT 1 FROM games
-       WHERE status IN ('in_progress', 'scoring') AND (black_user_id = ? OR white_user_id = ?)
+       WHERE status IN ('in_progress', 'scoring') AND time_control = 'standard'
+         AND (black_user_id = ? OR white_user_id = ?)
        LIMIT 1`,
     )
     .get(aiId, aiId);
@@ -1515,7 +1520,7 @@ app.post('/api/games', async (req, res) => {
       return;
     }
     if (hasOpenAiGame()) {
-      res.status(400).json({ error: 'GNU Go already has an open game — finish or delete it before starting another.' });
+      res.status(400).json({ error: 'GNU Go already has a short game in progress — finish or delete it before starting another.' });
       return;
     }
     const color = resolveColor(req.body?.color);
