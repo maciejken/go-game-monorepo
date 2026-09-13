@@ -150,6 +150,20 @@ function hasOpenAiGame() {
         .get(aiId, aiId);
     return row !== undefined;
 }
+// A human's equivalent of hasOpenAiGame, scoped to 'standard' (10-minute)
+// games only — a short game wants real-time attention, so being invited to
+// a second one while a first is still open isn't the same as juggling
+// several unhurried correspondence games at once, which is completely
+// normal and left alone here.
+function hasOpenStandardGame(userId) {
+    const row = db
+        .prepare(`SELECT 1 FROM games
+       WHERE status IN ('in_progress', 'scoring') AND time_control = 'standard'
+         AND (black_user_id = ? OR white_user_id = ?)
+       LIMIT 1`)
+        .get(userId, userId);
+    return row !== undefined;
+}
 // Sends to every device the user has registered — gameId rides along as
 // custom push-payload data (see apns.ts) so a tap on the notification can
 // take the iOS app straight to that game via DeepLinkRouter, the same
@@ -1171,6 +1185,10 @@ app.post('/api/games', async (req, res) => {
         }
         if (!opponent || opponent.accepts_invitations !== 1) {
             res.status(400).json({ error: "Selected player isn't currently accepting invitations" });
+            return;
+        }
+        if (timeControlName === 'standard' && hasOpenStandardGame(opponent.id)) {
+            res.status(400).json({ error: `${opponentUsername} already has a short game in progress` });
             return;
         }
         const color = resolveColor(req.body.color);
