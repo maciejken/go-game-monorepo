@@ -20,6 +20,7 @@ struct GameListView: View {
     @State private var errorMessage: String?
     @State private var showNewGame = false
     @State private var selectedGameId: String?
+    @State private var selectedGameFinished = false
     @State private var pendingGameId: String?
 
     private static let pageSize = 20
@@ -46,6 +47,7 @@ struct GameListView: View {
             List(games) { game in
                 Button {
                     guard selectedGameId == nil else { return }
+                    selectedGameFinished = game.status == "finished"
                     selectedGameId = game.id
                 } label: {
                     HStack {
@@ -150,7 +152,7 @@ struct GameListView: View {
             }
             .navigationTitle("Your Games")
             .navigationDestination(item: $selectedGameId) { gameId in
-                GameBoardView(gameId: gameId)
+                GameBoardView(gameId: gameId, initiallyFinished: selectedGameFinished)
             }
             // onDismiss defers navigating until the sheet's dismiss animation
             // has actually finished — setting selectedGameId in the same

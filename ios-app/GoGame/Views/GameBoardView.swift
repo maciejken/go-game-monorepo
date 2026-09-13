@@ -9,6 +9,14 @@ enum MarkMode {
 
 struct GameBoardView: View {
     let gameId: String
+    // Set when the caller already knows (e.g. from the list row's own
+    // GameSummary.status) that this game is finished, so load() can fetch
+    // the history alongside the game detail instead of waiting for the
+    // detail request to confirm "finished" first — avoiding two sequential
+    // round trips before the move chain can appear. Defaults to false
+    // (today's sequential behavior) wherever the caller has no such hint,
+    // e.g. a push-notification deep link that only carries a game id.
+    var initiallyFinished: Bool = false
     @State private var game: GameState?
     @State private var errorMessage: String?
     @State private var isBusy = false
@@ -933,7 +941,25 @@ struct GameBoardView: View {
 
     private func load() async {
         do {
-            game = try await APIClient.getGame(id: gameId)
+            if initiallyFinished, history == nil {
+                // The caller already knows (from the list row) that this
+                // game is finished, so fetch the history alongside the game
+                // detail instead of after it — halves the wait before the
+                // move chain can appear, versus paying two round trips back
+                // to back. Falls back to the plain path below whenever that
+                // hint is wrong (e.g. reopened as "scoring", finalized since
+                // the list was loaded).
+                async let gameFetch = APIClient.getGame(id: gameId)
+                async let historyFetch = try? APIClient.getGameHistory(id: gameId)
+                let fetchedGame = try await gameFetch
+                game = fetchedGame
+                if fetchedGame.status == "finished", let fetchedHistory = await historyFetch {
+                    history = fetchedHistory
+                    reviewMoveNumber = fetchedHistory.moves.count - 1
+                }
+            } else {
+                game = try await APIClient.getGame(id: gameId)
+            }
             pendingDeadKeys = []
             // A pending (unconfirmed) move marker only makes sense for the
             // turn it was placed on — a fresh load always means the turn
