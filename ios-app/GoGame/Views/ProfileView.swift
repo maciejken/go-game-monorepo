@@ -87,6 +87,11 @@ struct ProfileView: View {
                                     || confirmPassword.isEmpty
                             )
                         }
+                        Section {
+                            Button("Log Out", role: .destructive) {
+                                Task { await session.logout() }
+                            }
+                        }
                     }
                 }
             } else {

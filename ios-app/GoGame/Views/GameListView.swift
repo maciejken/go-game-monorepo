@@ -12,7 +12,6 @@ struct GameListView: View {
     // to .home whenever a game link arrives; that change flows down here
     // and re-triggers consumeDeepLink() once it's actually safe to push.
     let isActiveTab: Bool
-    @Environment(SessionStore.self) private var session
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
     @State private var games: [GameSummary] = []
     @State private var hasMore = false
@@ -165,13 +164,6 @@ struct GameListView: View {
                 NewGameView { gameId in
                     pendingGameId = gameId
                     showNewGame = false
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Log Out") {
-                        Task { await session.logout() }
-                    }
                 }
             }
             .alert(

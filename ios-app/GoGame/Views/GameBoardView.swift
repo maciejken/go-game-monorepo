@@ -77,17 +77,20 @@ struct GameBoardView: View {
         .refreshable { await load() }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showDeleteConfirmation = true
+                Menu {
+                    Button {
+                        showSettingsSheet = true
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
                 } label: {
-                    Image(systemName: "trash")
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showSettingsSheet = true
-                } label: {
-                    Image(systemName: "gearshape")
+                    Image(systemName: "ellipsis")
+                        .rotationEffect(.degrees(90))
                 }
             }
         }
