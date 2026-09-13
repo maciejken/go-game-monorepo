@@ -67,6 +67,18 @@ enum APIClient {
         try await send(URLRequest(url: url(path)))
     }
 
+    // For the one endpoint that responds with plain text rather than JSON
+    // (the SGF export) — reuses checkStatus for the same error handling,
+    // decoding the success body as UTF-8 text instead of JSON.
+    private static func getText(_ path: String) async throws -> String {
+        let (data, response) = try await session.data(for: URLRequest(url: url(path)))
+        try checkStatus(data: data, response: response)
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw APIError(message: "Invalid response", status: 0)
+        }
+        return text
+    }
+
     private static func post(_ path: String) async throws {
         var request = URLRequest(url: url(path))
         request.httpMethod = "POST"
@@ -170,6 +182,10 @@ enum APIClient {
     // finished game is loaded.
     static func getGameHistory(id: String) async throws -> GameHistoryResponse {
         try await get("api/games/\(id)/history")
+    }
+
+    static func getSgf(id: String) async throws -> String {
+        try await getText("api/games/\(id)/sgf")
     }
 
     // Mirrors client/src/pages/Home.tsx's createGame call. `color`,

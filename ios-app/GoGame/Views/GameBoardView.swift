@@ -22,6 +22,10 @@ struct GameBoardView: View {
     @State private var showSettingsSheet = false
     @State private var showResultSheet = false
     @State private var showDeleteConfirmation = false
+    // Set once the SGF text has been fetched and written to a temp file —
+    // its presence both drives the share sheet (.sheet(isPresented:), same
+    // pattern as errorMessage below) and holds the file to share.
+    @State private var sgfExportURL: URL?
     // Set before the delete request is even issued (see deleteGame()): the
     // server broadcasts a game-update event as part of handling that
     // request itself, so the push can reach this view's own live socket
@@ -83,6 +87,11 @@ struct GameBoardView: View {
                     } label: {
                         Label("Settings", systemImage: "gearshape")
                     }
+                    Button {
+                        Task { await exportSgf() }
+                    } label: {
+                        Label("Export SGF", systemImage: "square.and.arrow.up")
+                    }
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
                     } label: {
@@ -98,6 +107,11 @@ struct GameBoardView: View {
             deleteConfirmationSheetContent
                 .presentationDetents([.height(230)])
                 .presentationBackground(Color(uiColor: .systemBackground))
+        }
+        .sheet(isPresented: Binding(get: { sgfExportURL != nil }, set: { if !$0 { sgfExportURL = nil } })) {
+            if let sgfExportURL {
+                ShareSheet(activityItems: [sgfExportURL])
+            }
         }
         .sheet(isPresented: $showActionsSheet) {
             if let game {
@@ -1174,6 +1188,25 @@ struct GameBoardView: View {
             dismiss()
         } catch {
             isDeleted = false
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // Mirrors the filename server/src/server.ts's own SGF route suggests
+    // via Content-Disposition — recomputed here since fetching as plain
+    // text (rather than URLSession's download(for:), which would honor
+    // that header for a saved file's name) doesn't pick it up on its own.
+    private func exportSgf() async {
+        do {
+            let sgf = try await APIClient.getSgf(id: gameId)
+            let safeName = game?.title?
+                .replacingOccurrences(of: "[^a-zA-Z0-9-_ ]", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespaces)
+            let filename = "\(safeName?.isEmpty == false ? safeName! : gameId).sgf"
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+            try sgf.write(to: url, atomically: true, encoding: .utf8)
+            sgfExportURL = url
+        } catch {
             errorMessage = error.localizedDescription
         }
     }
