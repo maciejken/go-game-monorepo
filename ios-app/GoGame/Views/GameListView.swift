@@ -212,18 +212,38 @@ struct GameListView: View {
         }
     }
 
-    // Same "list at rest" gate as the live-socket refresh above, for the
-    // same reason: pushing into a deep-linked game while another push/pop
-    // is already mid-flight is exactly the kind of overlap that corrupts
-    // this NavigationStack. If a link arrives while a different game is
-    // already open, it's simply not consumed here — left for a future
-    // visit rather than risking that.
+    // pendingGameId/showNewGame still gate this — pushing into a deep-linked
+    // game while the create-game flow is mid-flight is exactly the kind of
+    // overlapping push that corrupts this NavigationStack. A game already
+    // open (selectedGameId non-nil) is handled by popping it first and
+    // pushing the new id after a short delay, rather than assigning the new
+    // id directly: confirmed on-device that navigationDestination(item:)
+    // does NOT refresh its pushed content for a non-nil-to-different-non-nil
+    // change — selectedGameId updates correctly (visible in logging) but the
+    // screen keeps showing the old game. Popping to nil first forces an
+    // actual pop; the delay stands in for the "wait until the transition
+    // has actually finished" a sheet's onDismiss gives for free but a plain
+    // stack pop has no equivalent callback for.
     private func consumeDeepLink() {
         guard let id = deepLinkRouter.targetGameId else { return }
         guard isActiveTab else { return }
-        guard selectedGameId == nil, pendingGameId == nil, !showNewGame else { return }
+        guard pendingGameId == nil, !showNewGame else { return }
+        guard selectedGameId != id else { return }
         deepLinkRouter.targetGameId = nil
-        selectedGameId = id
+        if selectedGameId != nil {
+            selectedGameId = nil
+            Task {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                // Only apply if nothing else claimed the now-empty slot
+                // during the delay (e.g. a row tap) — avoids clobbering an
+                // unrelated navigation that happened to start in that window.
+                if selectedGameId == nil {
+                    selectedGameId = id
+                }
+            }
+        } else {
+            selectedGameId = id
+        }
     }
 }
 
