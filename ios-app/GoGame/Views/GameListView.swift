@@ -123,30 +123,15 @@ struct GameListView: View {
                     consumeDeepLink()
                 }
             }
-            // Gated on selectedGameId, pendingGameId, and showNewGame all
-            // being clear: a state update on this root list — even just
-            // re-assigning `games` — while a game is pushed, or anywhere in
-            // the create-then-push sequence, can tear down/corrupt the
-            // whole NavigationStack on iOS 26 (a documented SwiftUI
-            // regression, confirmed on-device). Nothing is lost by skipping
-            // it — the list isn't visible during any of this anyway.
-            .task {
-                await LiveSocket.listen(path: "/ws/games") {
-                    // showNewGame is included because the server broadcasts
-                    // games-list-updated as part of handling the create
-                    // request itself — that push can reach this already-
-                    // open socket before the HTTP response for our own
-                    // createGame call comes back, i.e. before pendingGameId
-                    // is even set. Gating on the sheet being open at all
-                    // closes that gap: it's up for the request's entire
-                    // in-flight duration, not just after it resolves.
-                    // Confirmed on-device: the push consistently arrives
-                    // while the sheet is still open, sometimes before the
-                    // user even taps Start.
-                    guard selectedGameId == nil, pendingGameId == nil, !showNewGame else { return }
-                    await loadGames()
-                }
-            }
+            // No live socket here on purpose: this list used to hold one on
+            // /ws/games, but re-assigning `games` while a game was pushed,
+            // a sheet was open, or a create was mid-flight could tear down
+            // the whole NavigationStack (an iOS 26 SwiftUI regression,
+            // confirmed on-device), so it had to be gated into skipping
+            // exactly the moments anything was happening. What was left
+            // only refreshed a list nobody was looking away from anyway —
+            // .task on appear plus pull-to-refresh cover that case without
+            // the socket's reconnect churn or its navigation hazard.
             .navigationTitle("Your Games")
             .navigationDestination(item: $selectedGameId) { gameId in
                 GameBoardView(gameId: gameId)

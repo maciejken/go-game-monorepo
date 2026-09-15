@@ -31,13 +31,23 @@ enum LiveSocket {
             // stale indefinitely (it would otherwise sit unchanged until
             // the next unrelated live update happened to arrive).
             await onMessage()
-            while !Task.isCancelled {
-                do {
-                    _ = try await task.receive()
-                    await onMessage()
-                } catch {
-                    break
+            // A pending receive() doesn't notice Swift task cancellation on
+            // its own, so closing the underlying connection has to be done
+            // explicitly — otherwise cancelling this task (the view going
+            // away, or GameBoardView restarting the socket on return from
+            // the background) leaves that receive() waiting forever on a
+            // socket nothing ever closes, one more of them per restart.
+            await withTaskCancellationHandler {
+                while !Task.isCancelled {
+                    do {
+                        _ = try await task.receive()
+                        await onMessage()
+                    } catch {
+                        break
+                    }
                 }
+            } onCancel: {
+                task.cancel(with: .goingAway, reason: nil)
             }
             task.cancel(with: .goingAway, reason: nil)
             if Task.isCancelled { break }

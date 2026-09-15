@@ -57,6 +57,11 @@ struct GameBoardView: View {
     // never changes.
     @State private var history: GameHistoryResponse?
     @State private var reviewMoveNumber: Int?
+    // Bumped on every return from the background to restart the live
+    // socket — see the .task(id:) below.
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var socketGeneration = 0
+    @State private var wasBackgrounded = false
 
     var body: some View {
         Group {
@@ -72,10 +77,34 @@ struct GameBoardView: View {
         .toolbar(.hidden, for: .tabBar)
         .navigationTitle(navigationTitle)
         .task { await load() }
-        .task {
+        // Keyed on socketGeneration so coming back from the background
+        // tears the old socket down and starts a fresh one: a connection
+        // that died while the app was suspended often doesn't report the
+        // failure, it just sits half-open, never receiving and never
+        // erroring, which would leave the board silently stale until the
+        // user pulled to refresh. listen() refetches on every (re)connect,
+        // so the restart also picks up whatever was missed while away.
+        .task(id: socketGeneration) {
             await LiveSocket.listen(path: "/ws/games/\(gameId)") {
                 guard !isDeleted else { return }
                 await load()
+            }
+        }
+        // Only a real background trip counts. scenePhase also goes
+        // .inactive for things like a Control Centre pull-down or the app
+        // switcher, and reconnecting for those would just mean extra
+        // refetches for a connection that was never actually interrupted.
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background:
+                wasBackgrounded = true
+            case .active:
+                if wasBackgrounded {
+                    wasBackgrounded = false
+                    socketGeneration += 1
+                }
+            default:
+                break
             }
         }
         .refreshable { await load() }
