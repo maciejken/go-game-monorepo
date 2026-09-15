@@ -112,9 +112,13 @@ struct ProfileView: View {
 
     private func load() async {
         do {
-            profile = try await APIClient.getUser(id: userId)
+            profile = try await APIClient.withRetry { try await APIClient.getUser(id: userId) }
             acceptsInvitations = profile?.acceptsInvitations ?? false
         } catch {
+            // Navigating back out of a still-loading profile cancels this
+            // task, and the cancelled request would otherwise surface as an
+            // "Error — cancelled" alert on the way out.
+            guard !APIClient.isCancellation(error) else { return }
             errorMessage = error.localizedDescription
         }
     }

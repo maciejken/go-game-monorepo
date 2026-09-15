@@ -180,6 +180,9 @@ struct GameListView: View {
             hasMore = page.hasMore
             errorMessage = nil
         } catch {
+            // Leaving this screen mid-load cancels the task; the cancelled
+            // request isn't something to alert anyone about.
+            guard !APIClient.isCancellation(error) else { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -193,6 +196,7 @@ struct GameListView: View {
             games.append(contentsOf: page.games)
             hasMore = page.hasMore
         } catch {
+            guard !APIClient.isCancellation(error) else { return }
             errorMessage = error.localizedDescription
         }
     }

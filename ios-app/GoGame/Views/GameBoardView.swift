@@ -1161,6 +1161,10 @@ struct GameBoardView: View {
             // place that actually shows something to the user closes that
             // gap regardless of what triggered the call.
             guard !isDeleted else { return }
+            // Navigating away mid-load cancels this task, and the cancelled
+            // request would otherwise surface as an "Error — cancelled"
+            // alert on the way out.
+            guard !APIClient.isCancellation(error) else { return }
             // The live socket refetches on every (re)connect and retries
             // that connection every couple of seconds while the server is
             // unreachable — so surfacing its failures meant an alert that

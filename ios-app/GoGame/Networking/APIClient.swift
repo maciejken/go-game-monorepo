@@ -37,9 +37,25 @@ enum APIClient {
         do {
             return try await operation()
         } catch {
+            // Retrying a cancellation would only cancel again, and stopping
+            // the work is the entire point of having been cancelled.
+            if isCancellation(error) {
+                throw error
+            }
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             return try await operation()
         }
+    }
+
+    // A request that was cancelled because whatever owned it went away —
+    // a view popped mid-load, most often — is not a failure anyone needs
+    // telling about. URLSession reports it as URLError.cancelled, whose
+    // localizedDescription is the single word "cancelled": exactly the
+    // baffling alert that shows up after navigating back out of a screen
+    // that was still loading. A cancelled structured task throws
+    // CancellationError instead, so both count.
+    static func isCancellation(_ error: Error) -> Bool {
+        error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 
     private static func send(_ request: URLRequest) async throws {
