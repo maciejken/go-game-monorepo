@@ -210,6 +210,18 @@ struct GameBoardView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                     }
+                } else if let lastEvent = game.lastEvent {
+                    // Independent of the board itself: a pass leaves no
+                    // visible change at all, so without this there's no way
+                    // to tell "opponent passed" from "still waiting."
+                    Text(describeEntry(lastEvent, size: game.size))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+
+                if isReviewing(game), let history {
                     // Extra breathing room beyond the VStack's own 12pt
                     // spacing, so the move list doesn't crowd right up
                     // against the description line above it.
@@ -970,7 +982,7 @@ struct GameBoardView: View {
     }
 
     // Mirrors client/src/pages/Game.tsx's describeEntry.
-    private func describeEntry(_ entry: HistoryEntry, size: Int) -> String {
+    private func describeEntry(_ entry: some MoveEventDescribable, size: Int) -> String {
         switch entry.eventType {
         case "START":
             return "Start of game"
@@ -1162,6 +1174,9 @@ struct GameBoardView: View {
             self.game?.currentColor = response.nextColor
             self.game?.captures = response.captures
             self.game?.lastMove = Point(x: x, y: y)
+            self.game?.lastEvent = LastEvent(
+                eventType: "MOVE", color: game.currentColor, point: Point(x: x, y: y), capturedPoints: response.capturedPoints
+            )
         } catch {
             errorMessage = error.localizedDescription
         }

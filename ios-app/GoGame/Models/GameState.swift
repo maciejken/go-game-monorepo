@@ -51,6 +51,10 @@ struct GameState: Codable {
     // been responded to yet — drives the accept/reject confirmation sheet.
     let pendingInviteResponse: Bool
     var lastMove: Point?
+    // Independent of lastMove: describable even when the most recent event
+    // left no stone to point at, i.e. a pass. nil only when nothing has
+    // happened yet (a fresh non-handicap game).
+    var lastEvent: LastEvent?
     let result: String?
     let shortResult: String?
     // Only non-nil for a scoring-based finish (a resignation/timeout has no
