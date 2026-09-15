@@ -649,33 +649,29 @@ struct GameBoardView: View {
         case "in_progress":
             // Same 44pt circle as finalizeButton below, so the footer's
             // center slot stays a consistent size across game phases. The
-            // button itself is plain .glass — the same material and press
-            // response as every other glass button here — and the stone is
-            // drawn inside it the way an SF Symbol sits inside one, rather
-            // than as an opaque tint filling the whole shape. Tinting the
-            // shape instead looked flat and dead to the touch (an opaque
-            // black/white fill hides the material entirely), and a
-            // translucent tint can't carry the colour at all: on a dark
-            // background a white-tinted glass circle renders dark, which
-            // makes "whose turn is it" unreadable. An actual stone inside
-            // keeps that answer unambiguous in both appearances, with the
-            // same hairline .primary rim footerStone uses so the white
-            // stone reads in light mode and the black one in dark. No
-            // .disabled(...) here, matching the board's own stones: a
-            // spectator's tap is just a no-op, not a dimmed control.
+            // whole button is the stone: the colour comes from the glass
+            // style's own tint, with nothing drawn on top of it. Anything
+            // overlaid — the hairline rim this used to have, or a stone
+            // shape inside — is a separate layer that can't deform with
+            // the material, so it stays rigid while the glass stretches
+            // under a press and makes the button read as static no matter
+            // how lively the glass underneath actually is. Prominent
+            // rather than plain .glass because a plain tint is far too
+            // weak to carry the colour: on a dark background a
+            // white-tinted glass circle renders dark, which would make
+            // "whose turn is it" unreadable. No .disabled(...) here,
+            // matching the board's own stones: a spectator's tap is just
+            // a no-op, not a dimmed control.
             let action: () -> Void = {
                 if game.myColor != nil { showActionsSheet = true }
             }
             let tint: Color = game.currentColor == .black ? .black : .white
             if #available(iOS 26.0, *) {
                 Button(action: action) {
-                    Circle()
-                        .fill(tint)
-                        .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
-                        .frame(width: 28, height: 28)
-                        .frame(width: 44, height: 44)
+                    Color.clear.frame(width: 44, height: 44)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.glassProminent)
+                .tint(tint)
                 .buttonBorderShape(.circle)
             } else {
                 Button(action: action) {
@@ -697,20 +693,22 @@ struct GameBoardView: View {
                 // "W+123.5") — .minimumScaleFactor shrinks the font instead
                 // of the button growing, so the footer's center slot never
                 // shifts width across game phases.
-                // Plain .glass, no tint: the label already says who won
-                // ("W+6.5" / "B+R"), so colouring the shape on top of that
-                // was redundant — and paying for it with an opaque fill
-                // made this read as a flat disc with a glass rim rather
-                // than as glass. Neutral glass with .primary text matches
-                // the First/Last buttons flanking it, stays legible in both
-                // appearances (a fixed black label went nearly invisible on
-                // dark-mode glass), and leaves the material's own press
-                // response visible.
+                // Winner's colour fills the whole button via the glass
+                // style's tint, with nothing drawn over it — see the turn
+                // marker above: an overlaid rim is a separate layer that
+                // can't stretch with the material, so it stays a rigid
+                // circle while the glass deforms under a press, which is
+                // exactly what made this read as a static disc sitting in
+                // a glass button. The text is the only thing inside, and
+                // takes the contrasting colour since the fill is opaque.
+                let winnerIsBlack = shortResult.hasPrefix("B")
+                let tint: Color = winnerIsBlack ? .black : .white
+                let textColor: Color = winnerIsBlack ? .white : .black
                 let label = Text(shortResult)
                     .font(.footnote.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.4)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(textColor)
                     .frame(width: 52, height: 52)
                 // Flanking First/Last review-nav buttons, ~62% the result
                 // button's size, per request — no separate Prev/Next: those
@@ -726,17 +724,15 @@ struct GameBoardView: View {
                         } label: {
                             label
                         }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.glassProminent)
+                        .tint(tint)
                         .buttonBorderShape(.circle)
-                        // Keeps this reading as the primary action of the
-                        // three, now that it's no longer the only filled one.
-                        .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
                     } else {
                         Button {
                             showResultSheet = true
                         } label: {
                             label
-                                .background(.ultraThinMaterial, in: Circle())
+                                .background(tint, in: Circle())
                                 .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
