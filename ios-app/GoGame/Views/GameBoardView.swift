@@ -87,7 +87,7 @@ struct GameBoardView: View {
         .task(id: socketGeneration) {
             await LiveSocket.listen(path: "/ws/games/\(gameId)") {
                 guard !isDeleted else { return }
-                await load()
+                await load(surfacingErrors: false)
             }
         }
         // Only a real background trip counts. scenePhase also goes
@@ -231,7 +231,7 @@ struct GameBoardView: View {
                     }
                 )
 
-                if isReviewing(game), let history {
+                if isReviewing(game) {
                     if let entry = reviewEntry {
                         Text("\(entry.moveNumber). \(describeEntry(entry, size: game.size))")
                             .font(.subheadline)
@@ -1104,7 +1104,9 @@ struct GameBoardView: View {
         return Point(x: parts[0], y: parts[1])
     }
 
-    private func load() async {
+    // surfacingErrors is off for the live socket's own refetches — see the
+    // catch at the bottom.
+    private func load(surfacingErrors: Bool = true) async {
         do {
             if game == nil, history == nil {
                 // The very first load of this game in this view's lifetime:
@@ -1126,8 +1128,8 @@ struct GameBoardView: View {
                 // refetch) fall through to the plain path below, which only
                 // ever fetches history for a game already confirmed
                 // finished — never repeatedly for one still being played.
-                async let gameFetch = APIClient.getGame(id: gameId)
-                async let historyFetch = try? APIClient.getGameHistory(id: gameId)
+                async let gameFetch = APIClient.withRetry { try await APIClient.getGame(id: gameId) }
+                async let historyFetch = try? APIClient.withRetry { try await APIClient.getGameHistory(id: gameId) }
                 let fetchedGame = try await gameFetch
                 let fetchedHistory = await historyFetch
                 game = fetchedGame
@@ -1136,7 +1138,7 @@ struct GameBoardView: View {
                     reviewMoveNumber = fetchedHistory.moves.count - 1
                 }
             } else {
-                game = try await APIClient.getGame(id: gameId)
+                game = try await APIClient.withRetry { try await APIClient.getGame(id: gameId) }
             }
             pendingDeadKeys = []
             // A pending (unconfirmed) move marker only makes sense for the
@@ -1159,6 +1161,17 @@ struct GameBoardView: View {
             // place that actually shows something to the user closes that
             // gap regardless of what triggered the call.
             guard !isDeleted else { return }
+            // The live socket refetches on every (re)connect and retries
+            // that connection every couple of seconds while the server is
+            // unreachable — so surfacing its failures meant an alert that
+            // came straight back as fast as it could be dismissed, for as
+            // long as the network was flaky. Those refetches say nothing
+            // instead: the board simply keeps showing what it already has.
+            // A real problem still surfaces from the paths someone
+            // actually asked for — the first load (where the alternative
+            // is an endless spinner), pull-to-refresh, and each action's
+            // own error handling, which is separate from this.
+            guard surfacingErrors else { return }
             errorMessage = error.localizedDescription
         }
     }
