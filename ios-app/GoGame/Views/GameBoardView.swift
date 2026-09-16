@@ -143,7 +143,7 @@ struct GameBoardView: View {
         .sheet(isPresented: $showDeleteConfirmation) {
             deleteConfirmationSheetContent
                 .presentationDetents([.height(230)])
-                .presentationBackground(Color(uiColor: .systemBackground))
+                .presentationBackground(sheetBackground)
         }
         // Bound directly to the game's own pendingInviteResponse rather
         // than a local flag: accepting clears it server-side, and the
@@ -157,7 +157,7 @@ struct GameBoardView: View {
                 inviteResponseSheetContent(game)
                     .interactiveDismissDisabled(true)
                     .presentationDetents([.height(260)])
-                    .presentationBackground(Color(uiColor: .systemBackground))
+                    .presentationBackground(sheetBackground)
             }
         }
         .sheet(isPresented: Binding(get: { sgfExportURL != nil }, set: { if !$0 { sgfExportURL = nil } })) {
@@ -174,7 +174,7 @@ struct GameBoardView: View {
                     // semantic colors like Color.primary — that washed the
                     // Pass button's intended solid black/white fill out to
                     // gray. An opaque background stops that blending.
-                    .presentationBackground(Color(uiColor: .systemBackground))
+                    .presentationBackground(sheetBackground)
             }
         }
         .sheet(isPresented: $showSettingsSheet) {
@@ -195,6 +195,17 @@ struct GameBoardView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+    }
+
+    // These sheets sit on an opaque background rather than the default
+    // translucent material, which vibrancy-blends semantic colours like
+    // Color.primary towards grey (see the actions sheet below). In dark
+    // mode systemBackground is pure black, which leaves the secondary
+    // buttons on these sheets — plain .glass, so nearly unfilled — with
+    // almost nothing to stand out against. One step up the grey scale
+    // gives them an edge without visibly lightening the sheet.
+    private var sheetBackground: Color {
+        colorScheme == .dark ? Color(uiColor: .secondarySystemBackground) : Color(uiColor: .systemBackground)
     }
 
     private var navigationTitle: String {
