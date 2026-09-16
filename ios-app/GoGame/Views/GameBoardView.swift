@@ -667,8 +667,28 @@ struct GameBoardView: View {
             }
             let tint: Color = game.currentColor == .black ? .black : .white
             if #available(iOS 26.0, *) {
+                // Same glass style, tint and border shape as the
+                // short-result button below — the difference that mattered
+                // was never the style (the plain-.glass nav buttons down
+                // there respond too), it was the label. A glass button
+                // only animates under a press when it has real rendered
+                // content: Text for the result button, an Image for the
+                // nav buttons. Color.clear gives it none, with or without
+                // a contentShape, and the button sits inert.
+                //
+                // So the label is Text, exactly like the result button's —
+                // but a single "." drawn in clear. It's real content, so
+                // the glass responds to a press, while being both tiny and
+                // invisible: a same-tint circle was still given away by the
+                // glass's own highlights falling differently on it, and
+                // anything that large separates visibly when the shape
+                // stretches. A clear period has no edge to catch the light
+                // and nothing to see lagging behind.
                 Button(action: action) {
-                    Color.clear.frame(width: 44, height: 44)
+                    Text(".")
+                        .foregroundStyle(.clear)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.glassProminent)
                 .tint(tint)
