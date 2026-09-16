@@ -74,6 +74,11 @@ struct GameState: Codable {
     // Epoch milliseconds. Optional so the app still decodes against a
     // server that predates this field being added to GET /api/games/:id.
     let createdAt: Int?
+    // Short shared labels both players can edit, searchable from the game
+    // list. Optional for the same reason as createdAt above.
+    var tags: [String]?
+
+    var tagList: [String] { tags ?? [] }
 
     // Clock fields — mirrors client/src/services/api.ts's ClockFields. A
     // null timeControl/mainTimeSeconds means the game is untimed, matching

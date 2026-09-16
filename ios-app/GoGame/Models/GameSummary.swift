@@ -39,4 +39,9 @@ struct GameSummary: Codable, Identifiable {
     let gnugoLevel: Int?
     let timeControl: TimeControl?
     let starred: Bool
+    // Optional so the app still decodes against a server that predates
+    // tags; tagList is what the views read.
+    let tags: [String]?
+
+    var tagList: [String] { tags ?? [] }
 }

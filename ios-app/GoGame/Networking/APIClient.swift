@@ -22,6 +22,16 @@ enum APIClient {
         return URLSession(configuration: config)
     }()
 
+    // urlQueryAllowed passes through the characters that separate one query
+    // parameter from the next (and "+", which a server reads back as a
+    // space), so a search term containing any of them would otherwise
+    // corrupt the URL it's placed in.
+    private static let queryValueAllowed: CharacterSet = {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "+&=?#")
+        return allowed
+    }()
+
     private static func url(_ path: String) -> URL {
         URL(string: "\(Config.baseURL.absoluteString)/\(path)")!
     }
@@ -137,6 +147,14 @@ enum APIClient {
         try await send(request)
     }
 
+    // A DELETE whose response body matters — only the tag routes so far,
+    // which answer with the updated list.
+    private static func deleteReturning<Response: Decodable>(_ path: String, as: Response.Type) async throws -> Response {
+        var request = URLRequest(url: url(path))
+        request.httpMethod = "DELETE"
+        return try await send(request)
+    }
+
     static func register(username: String, password: String) async throws -> AuthUser {
         struct Body: Encodable { let username: String; let password: String }
         return try await post("api/auth/register", body: Body(username: username, password: password))
@@ -182,8 +200,16 @@ enum APIClient {
         let hasMore: Bool
     }
 
-    static func games(scope: String = "mine", limit: Int, offset: Int) async throws -> GameListPage {
-        let rows: [GameSummary] = try await get("api/games?scope=\(scope)&limit=\(limit)&offset=\(offset)")
+    // `query` is the game-list search text. It goes through
+    // addingPercentEncoding so spaces and anything else the user typed
+    // travel as one query-string value rather than splitting the URL; the
+    // server ignores anything under three characters.
+    static func games(scope: String = "mine", limit: Int, offset: Int, query: String = "") async throws -> GameListPage {
+        var path = "api/games?scope=\(scope)&limit=\(limit)&offset=\(offset)"
+        if !query.isEmpty, let encoded = query.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) {
+            path += "&q=\(encoded)"
+        }
+        let rows: [GameSummary] = try await get(path)
         if rows.count > limit {
             return GameListPage(games: Array(rows.prefix(limit)), hasMore: true)
         }
@@ -198,6 +224,21 @@ enum APIClient {
     // finished game is loaded.
     static func getGameHistory(id: String) async throws -> GameHistoryResponse {
         try await get("api/games/\(id)/history")
+    }
+
+    // Both tag calls answer with the game's whole tag list, so the caller
+    // replaces its copy rather than patching it.
+    static func addTag(gameId: String, tag: String) async throws -> [String] {
+        struct Body: Encodable { let tag: String }
+        struct Response: Decodable { let tags: [String] }
+        let response: Response = try await post("api/games/\(gameId)/tags", body: Body(tag: tag))
+        return response.tags
+    }
+
+    static func removeTag(gameId: String, tag: String) async throws -> [String] {
+        struct Response: Decodable { let tags: [String] }
+        let encoded = tag.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? tag
+        return try await deleteReturning("api/games/\(gameId)/tags/\(encoded)", as: Response.self).tags
     }
 
     static func getSgf(id: String) async throws -> String {

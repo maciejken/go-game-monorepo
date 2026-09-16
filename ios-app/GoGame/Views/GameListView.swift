@@ -20,8 +20,16 @@ struct GameListView: View {
     @State private var showNewGame = false
     @State private var selectedGameId: String?
     @State private var pendingGameId: String?
+    @State private var searchText = ""
+    // The debounced, long-enough-to-use form of searchText — what actually
+    // gets sent. Keeping it separate means typing doesn't refetch on every
+    // keystroke, and a 1-2 character query cleanly means "no filter"
+    // rather than a request the server would ignore anyway.
+    @State private var appliedSearch = ""
 
     private static let pageSize = 20
+    // Matches the server's own floor for ?q=.
+    private static let minSearchLength = 3
 
     var body: some View {
         NavigationStack {
@@ -70,7 +78,11 @@ struct GameListView: View {
             }
             .overlay {
                 if games.isEmpty && errorMessage == nil {
-                    ContentUnavailableView("No games yet", systemImage: "circle.grid.cross")
+                    if appliedSearch.isEmpty {
+                        ContentUnavailableView("No games yet", systemImage: "circle.grid.cross")
+                    } else {
+                        ContentUnavailableView.search(text: appliedSearch)
+                    }
                 }
             }
             .overlay(alignment: .bottomTrailing) {
@@ -110,6 +122,19 @@ struct GameListView: View {
             }
             .refreshable { await loadGames() }
             .task { await loadGames() }
+            .searchable(text: $searchText, prompt: "Search titles, players, tags")
+            // Debounced the same way the web client's search input is: the
+            // task restarts on every keystroke, and only the last one
+            // survives the sleep to actually apply the query.
+            .task(id: searchText) {
+                let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+                let next = query.count >= Self.minSearchLength ? query : ""
+                guard next != appliedSearch else { return }
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard !Task.isCancelled else { return }
+                appliedSearch = next
+                await loadGames()
+            }
             // Catches a universal-link target set before this view even
             // existed (cold launch, or arriving while the auth screen was
             // still showing) — a fresh GameListView only gets created once
@@ -174,7 +199,7 @@ struct GameListView: View {
             // flashing this screen's error alert for something that
             // resolves itself a couple of seconds later.
             let page = try await APIClient.withRetry {
-                try await APIClient.games(limit: Self.pageSize, offset: 0)
+                try await APIClient.games(limit: Self.pageSize, offset: 0, query: appliedSearch)
             }
             games = page.games
             hasMore = page.hasMore
@@ -192,7 +217,7 @@ struct GameListView: View {
         isLoadingMore = true
         defer { isLoadingMore = false }
         do {
-            let page = try await APIClient.games(limit: Self.pageSize, offset: games.count)
+            let page = try await APIClient.games(limit: Self.pageSize, offset: games.count, query: appliedSearch)
             games.append(contentsOf: page.games)
             hasMore = page.hasMore
         } catch {

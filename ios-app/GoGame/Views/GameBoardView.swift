@@ -21,6 +21,10 @@ struct GameBoardView: View {
     @State private var showActionsSheet = false
     @State private var showSettingsSheet = false
     @State private var showResultSheet = false
+    @State private var showTagsSheet = false
+    // Measured from the tags sheet's own content, so its detent grows with
+    // the number of chip rows instead of guessing one height for all of them.
+    @State private var tagsSheetHeight: CGFloat = 200
     @State private var showDeleteConfirmation = false
     // Set once the SGF text has been fetched and written to a temp file —
     // its presence both drives the share sheet (.sheet(isPresented:), same
@@ -122,6 +126,15 @@ struct GameBoardView: View {
                     } label: {
                         Label("Export SGF", systemImage: "square.and.arrow.up")
                     }
+                    // Only a player can edit tags, same as the title —
+                    // hidden rather than disabled for anyone else.
+                    if game?.myColor != nil {
+                        Button {
+                            showTagsSheet = true
+                        } label: {
+                            Label("Tags", systemImage: "tag")
+                        }
+                    }
                     if let game, isAiTurn(game) {
                         Button {
                             Task { await recomputeAiMove() }
@@ -180,6 +193,18 @@ struct GameBoardView: View {
         .sheet(isPresented: $showSettingsSheet) {
             settingsSheetContent
                 .presentationDetents([.height(160)])
+        }
+        .sheet(isPresented: $showTagsSheet) {
+            if let game {
+                TagsSheetView(
+                    gameId: gameId,
+                    tags: game.tagList,
+                    onTagsChange: { tags in self.game?.tags = tags },
+                    contentHeight: $tagsSheetHeight
+                )
+                .presentationDetents([.height(tagsSheetHeight)])
+                .presentationBackground(sheetBackground)
+            }
         }
         .sheet(isPresented: $showResultSheet) {
             if let game {

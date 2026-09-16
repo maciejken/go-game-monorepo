@@ -33,6 +33,16 @@ struct GameRowView: View {
             Text(metaParts.joined(separator: " · "))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            // Read-only here (the game's own Tags sheet is where they're
+            // edited) so a row that turned up via a tag search shows why.
+            if !game.tagList.isEmpty {
+                FlowLayout(spacing: 6) {
+                    ForEach(game.tagList, id: \.self) { tag in
+                        TagChip(tag: tag)
+                    }
+                }
+                .padding(.top, 2)
+            }
         }
     }
 
