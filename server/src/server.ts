@@ -1625,6 +1625,7 @@ app.get('/api/games/:id', (req, res) => {
     result: game.result,
     handicap: game.handicap,
     komi: resolveKomi(game),
+    createdAt: game.created_at,
     title: game.title,
     board,
     currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),

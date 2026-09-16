@@ -184,7 +184,7 @@ struct GameBoardView: View {
         .sheet(isPresented: $showResultSheet) {
             if let game {
                 resultSheetContent(game)
-                    .presentationDetents([.height(190)])
+                    .presentationDetents([.height(resultSheetHeight(game))])
             }
         }
         .alert(
@@ -379,15 +379,19 @@ struct GameBoardView: View {
             parts.append("handicap \(game.handicap)")
         }
         parts.append(game.komi == 0 ? "no komi" : "komi \(game.komi)")
-        let timeControlLabel: String
-        switch game.timeControl {
-        case .standard: timeControlLabel = "10 min"
-        case .correspondence: timeControlLabel = "24h per move"
-        case nil: timeControlLabel = "Unlimited"
-        }
-        parts.append(timeControlLabel)
+        parts.append(timeControlLabel(game))
         parts.append("you play \(game.myColor == .black ? "Black" : "White")")
         return parts
+    }
+
+    // Same labels GameRowView gives a game-list row; a null timeControl is
+    // how the server stores "unlimited".
+    private func timeControlLabel(_ game: GameState) -> String {
+        switch game.timeControl {
+        case .standard: return "10 min"
+        case .correspondence: return "24h per move"
+        case nil: return "Unlimited"
+        }
     }
 
     private func inviteResponseSheetContent(_ game: GameState) -> some View {
@@ -862,44 +866,134 @@ struct GameBoardView: View {
             Text(plainResult(game))
                 .font(.headline)
                 .multilineTextAlignment(.center)
-            if let breakdown = game.resultBreakdown {
-                HStack(spacing: 8) {
-                    profileLink(username: game.blackUsername, userId: game.blackUserId)
-                    resultPointsStone(.black, score: breakdown.black)
-                    Spacer().frame(width: 20)
-                    resultPointsStone(.white, score: breakdown.white)
-                    profileLink(username: game.whiteUsername, userId: game.whiteUserId)
+            // The stone markers' own centre line is this row's centre line:
+            // each player's name-and-details column is centred against it
+            // (an HStack's default .center alignment), so extra detail lines
+            // grow either side of the stones instead of shifting them.
+            // Unscored finishes (B+R, W+T) keep the row, with empty stones —
+            // the setup details below are worth showing either way.
+            HStack(spacing: 8) {
+                playerColumn(
+                    username: game.blackUsername,
+                    userId: game.blackUserId,
+                    details: playerDetails(game, color: .black)
+                )
+                resultPointsStone(.black, score: game.resultBreakdown?.black)
+                Spacer().frame(width: 20)
+                resultPointsStone(.white, score: game.resultBreakdown?.white)
+                playerColumn(
+                    username: game.whiteUsername,
+                    userId: game.whiteUserId,
+                    details: playerDetails(game, color: .white)
+                )
+            }
+            .font(.subheadline)
+            VStack(spacing: 4) {
+                Text(setupLine(game))
+                if let startedLine = startedLine(game) {
+                    Text(startedLine)
                 }
-                .font(.subheadline)
-                // Only a scoring-based finish can be reopened (a
-                // resignation/timeout has no scoring to redo) — the same
-                // condition resultBreakdown itself is gated on server-side.
-                if game.myColor != nil {
-                    Group {
-                        if #available(iOS 26.0, *) {
-                            Button(reopenScoringLabel(game)) {
-                                Task { await reopenScoring() }
-                            }
-                            .buttonStyle(.glass)
-                        } else {
-                            Button(reopenScoringLabel(game)) {
-                                Task { await reopenScoring() }
-                            }
-                            .buttonStyle(.bordered)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            // Only a scoring-based finish can be reopened (a
+            // resignation/timeout has no scoring to redo) — the same
+            // condition resultBreakdown itself is gated on server-side.
+            if game.resultBreakdown != nil, game.myColor != nil {
+                Group {
+                    if #available(iOS 26.0, *) {
+                        Button(reopenScoringLabel(game)) {
+                            Task { await reopenScoring() }
                         }
+                        .buttonStyle(.glass)
+                    } else {
+                        Button(reopenScoringLabel(game)) {
+                            Task { await reopenScoring() }
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .disabled(isBusy)
-                    if let pendingReopenBy = game.pendingReopenBy {
-                        Text(pendingReopenBy == myStoneColor(game)
-                            ? "Waiting for the other player to confirm."
-                            : "The other player requested to reopen scoring.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                }
+                .disabled(isBusy)
+                if let pendingReopenBy = game.pendingReopenBy {
+                    Text(pendingReopenBy == myStoneColor(game)
+                        ? "Waiting for the other player to confirm."
+                        : "The other player requested to reopen scoring.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
         .padding()
+    }
+
+    // One player's name with their setup details stacked underneath it.
+    @ViewBuilder
+    private func playerColumn(username: String?, userId: String?, details: [String]) -> some View {
+        VStack(spacing: 2) {
+            profileLink(username: username, userId: userId)
+            ForEach(details, id: \.self) { detail in
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .multilineTextAlignment(.center)
+    }
+
+    // Per-player setup details: GNU Go's level goes under whichever side it
+    // plays, and the handicap stones always under black, who receives them.
+    private func playerDetails(_ game: GameState, color: StoneColor) -> [String] {
+        var details: [String] = []
+        if let level = game.gnugoLevel, isAiSide(game, color: color) {
+            details.append("level \(level)")
+        }
+        if color == .black, game.handicap > 0 {
+            details.append("handicap \(game.handicap)")
+        }
+        return details
+    }
+
+    // GNU Go plays through one shared account whose username is literally
+    // "gnugo" (server/src/seed.ts's AI_USERNAME), so matching on it is what
+    // tells the two sides apart — including for a spectator, whose own
+    // myColor is nil and so says nothing about which side the AI is on.
+    private func isAiSide(_ game: GameState, color: StoneColor) -> Bool {
+        game.isAiOpponent && (color == .black ? game.blackUsername : game.whiteUsername) == "gnugo"
+    }
+
+    // The settings both players share, mirroring the same two fields in
+    // GameRowView's metadata line.
+    private func setupLine(_ game: GameState) -> String {
+        let komi = game.komi == 0 ? "no komi" : "komi \(formatScore(game.komi))"
+        return "\(komi) · \(timeControlLabel(game))"
+    }
+
+    // nil only against a server that predates createdAt being included in
+    // GET /api/games/:id — the line is simply left out then.
+    private func startedLine(_ game: GameState) -> String? {
+        guard let createdAt = game.createdAt else { return nil }
+        let started = Date(timeIntervalSince1970: Double(createdAt) / 1000)
+        return "Game started on \(started.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    // Every row in this sheet has a fixed height, so adding them up sizes it
+    // to its content — snug whether or not there are per-player details, a
+    // score breakdown to reopen, or a pending reopen request.
+    private func resultSheetHeight(_ game: GameState) -> CGFloat {
+        let detailLines = max(
+            playerDetails(game, color: .black).count,
+            playerDetails(game, color: .white).count
+        )
+        // padding + result headline + the stone row + the setup/started lines
+        var height: CGFloat = 32 + 22 + 16 + max(52, 22 + CGFloat(detailLines) * 17)
+        height += 16 + (game.createdAt == nil ? 16 : 36)
+        if game.resultBreakdown != nil, game.myColor != nil {
+            height += 16 + 34
+            if game.pendingReopenBy != nil {
+                height += 4 + 16
+            }
+        }
+        return height
     }
 
     // A player's name in the result sheet, tappable to their profile. Safe
@@ -949,16 +1043,19 @@ struct GameBoardView: View {
     }
 
     // Sized to comfortably fit a 3-digit score (e.g. "182.5") without the
-    // text ellipsizing.
+    // text ellipsizing. A nil score (a resignation or timeout, which has no
+    // point count) leaves the stone empty rather than dropping it.
     @ViewBuilder
-    private func resultPointsStone(_ color: StoneColor, score: Double) -> some View {
+    private func resultPointsStone(_ color: StoneColor, score: Double?) -> some View {
         ZStack {
             Circle()
                 .fill(color == .black ? Color.black : Color.white)
                 .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
-            Text(formatScore(score))
-                .font(.subheadline.monospacedDigit())
-                .foregroundStyle(color == .black ? Color.white : Color.black)
+            if let score {
+                Text(formatScore(score))
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(color == .black ? Color.white : Color.black)
+            }
         }
         .frame(width: 52, height: 52)
     }

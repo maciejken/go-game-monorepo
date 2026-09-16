@@ -67,7 +67,13 @@ struct GameState: Codable {
     // local or AI game, request-then-confirm between two real players).
     let pendingReopenBy: StoneColor?
     let isAiOpponent: Bool
+    // nil for a human game; the level GNU Go was created to play at
+    // otherwise. Shown under GNU Go's name in the result sheet.
+    let gnugoLevel: Int?
     let komi: Double
+    // Epoch milliseconds. Optional so the app still decodes against a
+    // server that predates this field being added to GET /api/games/:id.
+    let createdAt: Int?
 
     // Clock fields — mirrors client/src/services/api.ts's ClockFields. A
     // null timeControl/mainTimeSeconds means the game is untimed, matching
