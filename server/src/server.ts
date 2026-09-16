@@ -378,6 +378,67 @@ function sweepTimeouts(): void {
 
 const MAX_TITLE_LENGTH = 100;
 
+// Tags are meant to be short labels, not free text — the title already
+// covers that. The charset is a deliberate allowlist rather than an escape
+// pass: letters (any script, so "końcówka" works), digits, and the three
+// separators below. Everything else — angle brackets, quotes, backslashes,
+// control characters — is rejected outright, so a tag can never carry
+// markup or an escape sequence into whatever renders it later. (Newlines
+// and tabs are the exception: they collapse into a single space along with
+// any other run of whitespace, since a pasted tag is far likelier than a
+// deliberately multi-line one.)
+const MAX_TAG_LENGTH = 24;
+const MAX_TAGS_PER_GAME = 12;
+const TAG_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u;
+
+// Returns the tag as it should be stored, or null if it isn't a usable tag.
+// Internal runs of whitespace collapse to a single space so "two  words"
+// and "two words" can't both exist.
+function sanitizeTag(rawTag: unknown): string | null {
+  if (typeof rawTag !== 'string') {
+    return null;
+  }
+  const trimmed = rawTag.trim().replace(/\s+/g, ' ');
+  if (trimmed.length === 0 || trimmed.length > MAX_TAG_LENGTH || !TAG_PATTERN.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+// Mirrors the 3-character floor /api/users/search already applies, for the
+// same reason: one or two letters match so much that the result is useless.
+const MIN_SEARCH_LENGTH = 3;
+const MAX_SEARCH_LENGTH = 100;
+
+// Normalizes ?q= into either a usable search term or null. Over-long input
+// is truncated rather than rejected, since a paste is far more likely than
+// an attack and there's no reason to fail the whole request over it.
+function searchQuery(rawQuery: unknown): string | null {
+  if (typeof rawQuery !== 'string') {
+    return null;
+  }
+  const trimmed = rawQuery.trim().slice(0, MAX_SEARCH_LENGTH).toLowerCase();
+  return trimmed.length >= MIN_SEARCH_LENGTH ? trimmed : null;
+}
+
+function matchesSearch(game: GameRow, query: string): boolean {
+  const haystack = [
+    game.title,
+    getUsername(game.black_user_id),
+    getUsername(game.white_user_id),
+    ...getGameTags(game.id),
+  ];
+  return haystack.some((value) => value != null && value.toLowerCase().includes(query));
+}
+
+function getGameTags(gameId: string): string[] {
+  return (
+    db
+      .prepare('SELECT tag FROM game_tags WHERE game_id = ? ORDER BY created_at ASC')
+      .all(gameId) as { tag: string }[]
+  ).map((row) => row.tag);
+}
+
 function sanitizeTitle(rawTitle: unknown): string | null {
   if (typeof rawTitle !== 'string') {
     return null;
@@ -1402,6 +1463,17 @@ app.get('/api/games', (req, res) => {
     rows = rows.filter((row) => isParticipant(row, currentUser.id) || isStarred(row.id, currentUser.id));
   }
 
+  // Free-text search over the title, both player names and the game's tags.
+  // Shorter than MIN_SEARCH_LENGTH is ignored rather than rejected: the
+  // clients only start searching at that length anyway, and a half-typed
+  // word matching nearly everything is noise, not a result set. Matching
+  // happens in JS over the rows already loaded above (this endpoint has
+  // always read them all), so the query text never reaches SQL at all.
+  const query = searchQuery(req.query.q);
+  if (query) {
+    rows = rows.filter((row) => matchesSearch(row, query));
+  }
+
   // Pagination is opt-in via `limit` — omitting it (as the iOS app still
   // does) returns every matching game, exactly as before. When present, one
   // extra row beyond `limit` is included so the caller can tell whether
@@ -1424,6 +1496,7 @@ app.get('/api/games', (req, res) => {
     handicap: row.handicap,
     komi: resolveKomi(row),
     title: row.title,
+    tags: getGameTags(row.id),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     blackUsername: getUsername(row.black_user_id),
@@ -1627,6 +1700,7 @@ app.get('/api/games/:id', (req, res) => {
     komi: resolveKomi(game),
     createdAt: game.created_at,
     title: game.title,
+    tags: getGameTags(game.id),
     board,
     currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
     captures: getCumulativeCaptures(game.id),
@@ -1688,6 +1762,81 @@ app.patch('/api/games/:id', (req, res) => {
   broadcastGamesListUpdate();
 
   res.json({ title });
+});
+
+// Tags are edited by the same people who can edit the title — both players,
+// and nobody else. Both routes answer with the game's full tag list so a
+// client never has to reconcile its own copy with a partial response.
+app.post('/api/games/:id/tags', (req, res) => {
+  const game = getGameRow(req.params.id);
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  if (!isParticipant(game, user.id)) {
+    res.status(403).json({ error: 'Only players in this game can edit it' });
+    return;
+  }
+
+  const tag = sanitizeTag(req.body?.tag);
+  if (!tag) {
+    res.status(400).json({
+      error: `A tag must be 1-${MAX_TAG_LENGTH} characters of letters, numbers, spaces, - or _`,
+    });
+    return;
+  }
+
+  const tagKey = tag.toLowerCase();
+  const existing = getGameTags(game.id);
+  // The limit is checked against a tag that isn't already there, so
+  // re-adding an existing one at the limit is a no-op rather than an error.
+  if (existing.length >= MAX_TAGS_PER_GAME && !existing.some((row) => row.toLowerCase() === tagKey)) {
+    res.status(400).json({ error: `A game can have at most ${MAX_TAGS_PER_GAME} tags` });
+    return;
+  }
+
+  db.prepare(
+    'INSERT OR IGNORE INTO game_tags (game_id, tag_key, tag, created_at) VALUES (?, ?, ?, ?)',
+  ).run(game.id, tagKey, tag, Date.now());
+
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
+
+  res.json({ tags: getGameTags(game.id) });
+});
+
+app.delete('/api/games/:id/tags/:tag', (req, res) => {
+  const game = getGameRow(req.params.id);
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  if (!isParticipant(game, user.id)) {
+    res.status(403).json({ error: 'Only players in this game can edit it' });
+    return;
+  }
+
+  // Matched on the same lowercased key the row is stored under, so removing
+  // works regardless of how the caller cased it.
+  db.prepare('DELETE FROM game_tags WHERE game_id = ? AND tag_key = ?').run(
+    game.id,
+    req.params.tag.trim().toLowerCase(),
+  );
+
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
+
+  res.json({ tags: getGameTags(game.id) });
 });
 
 // Anyone can star a game they're not playing in — it's how a game they're
@@ -1799,6 +1948,7 @@ function deleteGameRecord(gameId: string): void {
   db.prepare('DELETE FROM events WHERE game_id = ?').run(gameId);
   db.prepare('DELETE FROM snapshots WHERE game_id = ?').run(gameId);
   db.prepare('DELETE FROM stars WHERE game_id = ?').run(gameId);
+  db.prepare('DELETE FROM game_tags WHERE game_id = ?').run(gameId);
   db.prepare('DELETE FROM games WHERE id = ?').run(gameId);
 }
 
