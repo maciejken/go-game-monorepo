@@ -323,15 +323,20 @@ struct GameBoardView: View {
                     if #available(iOS 26.0, *) {
                         Rectangle()
                             .fill(.clear)
-                            // Darkened a touch in light mode only: the white
-                            // turn marker is a plain white circle with
-                            // nothing drawn on top of it (a rim would break
-                            // its press animation — see turnMarker), so it
-                            // needs the surface behind it to be darker than
-                            // the white it's made of. Dark mode already has
-                            // all the contrast it needs.
+                            // Nudged away from the turn marker's own colour
+                            // in both appearances: the marker is a plain
+                            // black or white circle with nothing drawn on
+                            // top of it (a rim would break its press
+                            // animation — see turnMarker), so all of its
+                            // contrast has to come from the surface behind
+                            // it. Darker than white in light mode, lighter
+                            // than black in dark mode.
                             .glassEffect(
-                                .regular.tint(colorScheme == .light ? Color.black.opacity(0.08) : nil),
+                                .regular.tint(
+                                    colorScheme == .light
+                                        ? Color.black.opacity(0.08)
+                                        : Color.white.opacity(0.08)
+                                ),
                                 in: Rectangle()
                             )
                             .ignoresSafeArea(edges: .bottom)
