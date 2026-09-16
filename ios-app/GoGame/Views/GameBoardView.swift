@@ -60,6 +60,7 @@ struct GameBoardView: View {
     // Bumped on every return from the background to restart the live
     // socket — see the .task(id:) below.
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
     @State private var socketGeneration = 0
     @State private var wasBackgrounded = false
 
@@ -322,7 +323,17 @@ struct GameBoardView: View {
                     if #available(iOS 26.0, *) {
                         Rectangle()
                             .fill(.clear)
-                            .glassEffect(.regular, in: Rectangle())
+                            // Darkened a touch in light mode only: the white
+                            // turn marker is a plain white circle with
+                            // nothing drawn on top of it (a rim would break
+                            // its press animation — see turnMarker), so it
+                            // needs the surface behind it to be darker than
+                            // the white it's made of. Dark mode already has
+                            // all the contrast it needs.
+                            .glassEffect(
+                                .regular.tint(colorScheme == .light ? Color.black.opacity(0.08) : nil),
+                                in: Rectangle()
+                            )
                             .ignoresSafeArea(edges: .bottom)
                     } else {
                         Rectangle()
