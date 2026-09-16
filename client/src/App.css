@@ -1270,3 +1270,94 @@
   opacity: 0.35;
   pointer-events: none;
 }
+
+.game-search {
+  font: inherit;
+  font-size: 15px;
+  width: 100%;
+  max-width: 420px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: inherit;
+}
+
+.tag-chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.tag-chip button {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tag-chip button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* On a game card the chips are labels, not controls — no × button, so the
+   right-hand padding matches the left. */
+.tag-chips--readonly {
+  margin-top: 4px;
+}
+
+.tag-chips--readonly .tag-chip {
+  padding: 1px 8px;
+  color: var(--text);
+}
+
+.tag-empty {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.tag-form {
+  display: flex;
+  gap: 8px;
+}
+
+.tag-form input {
+  font: inherit;
+  font-size: 15px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: inherit;
+}

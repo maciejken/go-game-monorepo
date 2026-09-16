@@ -26,6 +26,7 @@ export function useGame(gameId: string) {
   const [handicap, setHandicap] = useState(0);
   const [komi, setKomi] = useState(6.5);
   const [title, setTitle] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
   const [captures, setCaptures] = useState<Captures>({ black: 0, white: 0 });
   const [blackUsername, setBlackUsername] = useState<string | null>(null);
   const [whiteUsername, setWhiteUsername] = useState<string | null>(null);
@@ -65,6 +66,7 @@ export function useGame(gameId: string) {
         setHandicap(game.handicap);
         setKomi(game.komi);
         setTitle(game.title);
+        setTags(game.tags);
         setCaptures(game.captures);
         setBlackUsername(game.blackUsername);
         setWhiteUsername(game.whiteUsername);
@@ -230,6 +232,10 @@ export function useGame(gameId: string) {
     handicap,
     komi,
     title,
+    tags,
+    // Both tag endpoints answer with the full list, so the caller hands it
+    // straight back here instead of going through a refetch.
+    setTags,
     captures,
     blackUsername,
     whiteUsername,

@@ -24,6 +24,10 @@ const BOARD_SIZES = [9, 13, 19];
 
 const GAMES_PAGE_SIZE = 20;
 
+// Matches the server's own floor for ?q= — below this the filter is
+// ignored, so there's no point sending it.
+const MIN_SEARCH_LENGTH = 3;
+
 // Komi choices for an even (no handicap) game, supporting correct scoring
 // under each classic ruleset.
 const KOMI_OPTIONS_EVEN = [6.5, 5.5, 0.5, 0];
@@ -87,6 +91,12 @@ function Home() {
   const [opponentError, setOpponentError] = useState<string | null>(null);
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [scope, setScope] = useState<GameListScope>('mine');
+  const [search, setSearch] = useState('');
+  // The debounced, long-enough-to-use version of `search` — what actually
+  // gets sent. Kept separate so typing doesn't refetch on every keystroke
+  // and so a 1-2 character query cleanly means "no filter" rather than a
+  // request the server would ignore anyway.
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLLIElement | null>(null);
@@ -95,14 +105,24 @@ function Home() {
   // and every live-update/mutation refresh. Simpler than trying to merge
   // an in-place update into whatever pages are currently loaded, at the
   // cost of losing scroll-loaded pages on those refreshes.
+  // Same 300ms debounce the opponent autocomplete above uses, for the same
+  // reason: it drives visible feedback while typing.
+  useEffect(() => {
+    const query = search.trim();
+    const timeoutId = setTimeout(() => {
+      setAppliedSearch(query.length >= MIN_SEARCH_LENGTH ? query : '');
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [search]);
+
   const refresh = useCallback(() => {
-    listGames(scope, { limit: GAMES_PAGE_SIZE, offset: 0 })
+    listGames(scope, { limit: GAMES_PAGE_SIZE, offset: 0, q: appliedSearch })
       .then(({ games: page, hasMore: more }) => {
         setGames(page);
         setHasMore(more);
       })
       .catch((err: Error) => setError(err.message));
-  }, [scope]);
+  }, [scope, appliedSearch]);
 
   useEffect(() => {
     refresh();
@@ -113,14 +133,14 @@ function Home() {
       return;
     }
     setLoadingMore(true);
-    listGames(scope, { limit: GAMES_PAGE_SIZE, offset: games.length })
+    listGames(scope, { limit: GAMES_PAGE_SIZE, offset: games.length, q: appliedSearch })
       .then(({ games: page, hasMore: more }) => {
         setGames((prev) => (prev ? [...prev, ...page] : page));
         setHasMore(more);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoadingMore(false));
-  }, [games, scope, hasMore, loadingMore]);
+  }, [games, scope, appliedSearch, hasMore, loadingMore]);
 
   // Fires loadMore once the sentinel row at the end of the list scrolls
   // into view — re-observing whenever loadMore itself changes (i.e. after
@@ -312,18 +332,29 @@ function Home() {
         )}
       </div>
       {user ? (
-        <div className="home-toolbar">
-          <button type="button" className="new-game-trigger" onClick={() => setNewGameOpen(true)}>
-            New game
-          </button>
-          <button
-            type="button"
-            className="new-game-trigger"
-            onClick={() => setScope((s) => (s === 'mine' ? 'all' : 'mine'))}
-          >
-            {scope === 'mine' ? 'All games' : 'My games'}
-          </button>
-        </div>
+        <>
+          <div className="home-toolbar">
+            <button type="button" className="new-game-trigger" onClick={() => setNewGameOpen(true)}>
+              New game
+            </button>
+            <button
+              type="button"
+              className="new-game-trigger"
+              onClick={() => setScope((s) => (s === 'mine' ? 'all' : 'mine'))}
+            >
+              {scope === 'mine' ? 'All games' : 'My games'}
+            </button>
+          </div>
+          <input
+            type="search"
+            className="game-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search titles, players, tags"
+            aria-label="Search games"
+            maxLength={100}
+          />
+        </>
       ) : (
         <p>
           <Link to="/login">Log in</Link> to start a new game.
@@ -512,7 +543,7 @@ function Home() {
       {!games ? (
         <p>Loading games...</p>
       ) : games.length === 0 ? (
-        <p>No games yet.</p>
+        <p>{appliedSearch ? `No games match "${appliedSearch}".` : 'No games yet.'}</p>
       ) : (
         <ul className="game-list">
           {games.map((game) => (
@@ -607,6 +638,17 @@ function GameListItem({ game, onDelete, onRename, onStarChange }: GameListItemPr
         )}
         {metaParts.length > 1 && ` · ${metaParts.slice(1).join(' · ')}`}
       </div>
+      {/* Shown read-only here (the game view's Tags menu is where they're
+          edited) so a card that turned up via a tag search shows why. */}
+      {game.tags.length > 0 && (
+        <ul className="tag-chips tag-chips--readonly">
+          {game.tags.map((tag) => (
+            <li key={tag} className="tag-chip">
+              {tag}
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
 

@@ -6,7 +6,9 @@ import { useDialog } from '../hooks/useDialog';
 import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
 import {
+  addGameTag,
   deleteGame,
+  removeGameTag,
   sgfExportUrl,
   validateMoveRequest,
   type Captures,
@@ -157,6 +159,8 @@ function GameView({ gameId }: GameViewProps) {
     handicap,
     komi,
     title,
+    tags,
+    setTags,
     captures,
     blackUsername,
     whiteUsername,
@@ -208,6 +212,7 @@ function GameView({ gameId }: GameViewProps) {
   const [invalidMoveError, setInvalidMoveError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
   const [turnMenuOpen, setTurnMenuOpen] = useState(false);
   const [resultBalloonOpen, setResultBalloonOpen] = useState(false);
   const [pendingDead, setPendingDead] = useState<Set<string>>(new Set());
@@ -290,6 +295,17 @@ function GameView({ gameId }: GameViewProps) {
       >
         Settings
       </button>
+      {myColor && (
+        <button
+          type="button"
+          onClick={() => {
+            setMenuOpen(false);
+            setTagsOpen(true);
+          }}
+        >
+          Tags
+        </button>
+      )}
       {user ? (
         <button
           type="button"
@@ -315,6 +331,18 @@ function GameView({ gameId }: GameViewProps) {
         </button>
       )}
     </>
+  );
+
+  const tagsModal = tagsOpen && (
+    <div className="modal-overlay" onClick={() => setTagsOpen(false)}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Tags</h3>
+        <TagEditor gameId={gameId} tags={tags} onTagsChange={setTags} />
+        <button type="button" className="modal-action" onClick={() => setTagsOpen(false)}>
+          Close
+        </button>
+      </div>
+    </div>
   );
 
   const settingsModal = settingsOpen && (
@@ -486,6 +514,7 @@ function GameView({ gameId }: GameViewProps) {
           <div className="go-empty-state">Game not found.</div>
         </div>
         {settingsModal}
+        {tagsModal}
       </>
     );
   }
@@ -1247,6 +1276,85 @@ function GameView({ gameId }: GameViewProps) {
         </div>
       )}
       {settingsModal}
+      {tagsModal}
+    </>
+  );
+}
+
+// The Tags modal's contents: the game's current tags as removable chips,
+// plus one input for adding another. The server validates every tag and
+// answers with the whole list, so this holds no rules of its own beyond a
+// maxLength hint — anything it would reject comes back as a message shown
+// under the input.
+interface TagEditorProps {
+  gameId: string;
+  tags: string[];
+  onTagsChange: (tags: string[]) => void;
+}
+
+function TagEditor({ gameId, tags, onTagsChange }: TagEditorProps) {
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const tag = draft.trim();
+    if (!tag || busy) {
+      return;
+    }
+    setBusy(true);
+    addGameTag(gameId, tag)
+      .then(({ tags: updated }) => {
+        onTagsChange(updated);
+        setDraft('');
+        setError(null);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setBusy(false));
+  };
+
+  const remove = (tag: string) => {
+    setBusy(true);
+    removeGameTag(gameId, tag)
+      .then(({ tags: updated }) => {
+        onTagsChange(updated);
+        setError(null);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <>
+      {tags.length > 0 ? (
+        <ul className="tag-chips">
+          {tags.map((tag) => (
+            <li key={tag} className="tag-chip">
+              {tag}
+              <button type="button" aria-label={`Remove tag ${tag}`} disabled={busy} onClick={() => remove(tag)}>
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="tag-empty">No tags yet.</p>
+      )}
+      <form className="tag-form" onSubmit={submit}>
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Add a tag"
+          aria-label="Add a tag"
+          maxLength={24}
+        />
+        <button type="submit" className="modal-action" disabled={busy || !draft.trim()}>
+          Add
+        </button>
+      </form>
+      {error && <p className="error">{error}</p>}
     </>
   );
 }

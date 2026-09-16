@@ -44,6 +44,7 @@ export interface GameResponse {
   size: number;
   handicap: number;
   title: string | null;
+  tags: string[];
   status: string;
   board: Board;
   blackUsername: string | null;
@@ -91,6 +92,7 @@ export interface GameSummary {
   handicap: number;
   komi: number;
   title: string | null;
+  tags: string[];
   status: string;
   result: string | null;
   shortResult: string | null;
@@ -208,9 +210,12 @@ export interface GameListPage {
 // turns into `hasMore` so the caller never has to think about the trick.
 export async function listGames(
   scope: GameListScope = 'mine',
-  options?: { limit?: number; offset?: number },
+  options?: { limit?: number; offset?: number; q?: string },
 ): Promise<GameListPage> {
   const params = new URLSearchParams({ scope });
+  if (options?.q) {
+    params.set('q', options.q);
+  }
   if (options?.limit != null) {
     params.set('limit', String(options.limit));
     params.set('offset', String(options.offset ?? 0));
@@ -301,6 +306,22 @@ export function updateGameTitle(id: string, title: string): Promise<{ title: str
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title }),
   }).then((res) => handle<{ title: string | null }>(res));
+}
+
+// Both tag routes answer with the game's whole tag list, so the caller
+// replaces its copy rather than patching it.
+export function addGameTag(id: string, tag: string): Promise<{ tags: string[] }> {
+  return fetch(`${API_BASE}/games/${id}/tags`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tag }),
+  }).then((res) => handle<{ tags: string[] }>(res));
+}
+
+export function removeGameTag(id: string, tag: string): Promise<{ tags: string[] }> {
+  return fetch(`${API_BASE}/games/${id}/tags/${encodeURIComponent(tag)}`, {
+    method: 'DELETE',
+  }).then((res) => handle<{ tags: string[] }>(res));
 }
 
 export function getGameHistory(id: string): Promise<GameHistoryResponse> {
