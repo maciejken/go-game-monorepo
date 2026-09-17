@@ -1357,6 +1357,7 @@ app.get('/api/games/:id', (req, res) => {
         createdAt: game.created_at,
         title: game.title,
         tags: getGameTags(game.id),
+        starred: isStarred(game.id, currentUser?.id ?? null),
         board,
         currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
         captures: getCumulativeCaptures(game.id),
