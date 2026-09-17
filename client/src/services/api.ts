@@ -71,6 +71,7 @@ export interface LastEvent {
 export interface GameStateResponse extends GameResponse, ClockFields {
   currentColor: Color;
   komi: number;
+  createdAt: number;
   result: string | null;
   captures: Captures;
   myColor: MyColor;
@@ -323,6 +324,15 @@ export function removeGameTag(id: string, tag: string): Promise<{ tags: string[]
   return fetch(`${API_BASE}/games/${id}/tags/${encodeURIComponent(tag)}`, {
     method: 'DELETE',
   }).then((res) => handle<{ tags: string[] }>(res));
+}
+
+// Asks the server to have GNU Go think again about the move it owes —
+// the escape hatch for a request that died mid-thought (see the same
+// endpoint's use from the iOS app).
+export function recomputeAiMove(id: string): Promise<void> {
+  return fetch(`${API_BASE}/games/${id}/recompute-ai-move`, { method: 'POST' }).then((res) =>
+    handle<void>(res),
+  );
 }
 
 export function getGameHistory(id: string): Promise<GameHistoryResponse> {

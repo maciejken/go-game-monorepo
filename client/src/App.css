@@ -891,35 +891,6 @@
   cursor: default;
 }
 
-.go-result-balloon {
-  /* Overrides .go-turn-balloon's 170px min-width — this one should hug
-     its longest line instead of leaving empty space for short content. */
-  min-width: 0;
-  max-width: min(520px, 90vw);
-  color: #0a0a0a;
-  padding: 10px 12px;
-  text-align: left;
-  /* Flex items can shrink their text below its natural width by default,
-     which would let a line silently wrap during the shrink-to-fit sizing
-     pass and throw off the "widest line" width calculation — nowrap keeps
-     every line honest about its true width; the max-width/ellipsis above
-     and below are the fallback for a line so long it'd bust that width. */
-  white-space: nowrap;
-}
-
-.go-result-balloon-title,
-.go-result-balloon > div {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* A secondary detail line (mode/handicap/komi/time) next to the actual
-   result sentence — de-emphasized so it reads as a caption, not a peer. */
-.go-result-balloon-summary {
-  font-size: 0.85em;
-  color: #6b6b6b;
-}
-
 /* A row per player: the stone marker as a flex item alongside the text,
    centered against it regardless of font metrics (more reliable here than
    vertical-align on an inline element). */
@@ -1342,4 +1313,71 @@
   /* Against the modal's own background an unstarred star needs more
      contrast than the border grey it had as a corner button on a card. */
   color: var(--text);
+}
+
+/* The result modal, mirroring the iOS app's result sheet. */
+.result-modal {
+  max-width: min(420px, 90vw);
+  text-align: center;
+}
+
+.result-modal h3 {
+  text-align: center;
+}
+
+/* Each player's name-and-details column is centred against the stones'
+   own centre line, so extra detail lines grow either side of the stones
+   rather than pushing them off that axis. */
+.result-players {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.result-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.result-detail {
+  font-size: 0.85em;
+  color: var(--text);
+}
+
+.result-setup {
+  margin: 0;
+}
+
+/* Sized to fit a three-digit score (e.g. "182.5") without ellipsizing.
+   Empty for a resignation or timeout, which has no score to show. */
+.result-stone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-stone--black {
+  background: #000;
+  color: #fff;
+}
+
+.result-stone--white {
+  background: #fff;
+  color: #000;
+  /* The gap between the two stones is wider than the gap between a stone
+     and its own player's column, so each stone reads as belonging to the
+     name beside it. */
+  margin-left: 12px;
 }

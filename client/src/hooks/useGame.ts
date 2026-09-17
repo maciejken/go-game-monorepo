@@ -28,6 +28,7 @@ export function useGame(gameId: string) {
   const [title, setTitle] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [starred, setStarred] = useState(false);
+  const [createdAt, setCreatedAt] = useState<number | null>(null);
   const [captures, setCaptures] = useState<Captures>({ black: 0, white: 0 });
   const [blackUsername, setBlackUsername] = useState<string | null>(null);
   const [whiteUsername, setWhiteUsername] = useState<string | null>(null);
@@ -69,6 +70,7 @@ export function useGame(gameId: string) {
         setTitle(game.title);
         setTags(game.tags);
         setStarred(game.starred);
+        setCreatedAt(game.createdAt);
         setCaptures(game.captures);
         setBlackUsername(game.blackUsername);
         setWhiteUsername(game.whiteUsername);
@@ -242,6 +244,7 @@ export function useGame(gameId: string) {
     setTags,
     starred,
     setStarred,
+    createdAt,
     captures,
     blackUsername,
     whiteUsername,

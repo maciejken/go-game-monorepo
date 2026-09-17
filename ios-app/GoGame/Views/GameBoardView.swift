@@ -116,6 +116,15 @@ struct GameBoardView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    // Only meaningful while actually waiting on GNU Go —
+                    // the escape hatch for a request that died mid-thought.
+                    if let game, isAiTurn(game) {
+                        Button {
+                            Task { await recomputeAiMove() }
+                        } label: {
+                            Label("Recompute GNU Go's move", systemImage: "arrow.clockwise")
+                        }
+                    }
                     // Open to anyone: a spectator can't edit the title or
                     // tags (the sheet shows them read-only, as does the
                     // server) but can still favourite the game from here.
@@ -128,13 +137,6 @@ struct GameBoardView: View {
                         Task { await exportSgf() }
                     } label: {
                         Label("Export SGF", systemImage: "square.and.arrow.up")
-                    }
-                    if let game, isAiTurn(game) {
-                        Button {
-                            Task { await recomputeAiMove() }
-                        } label: {
-                            Label("Recompute GNU Go's move", systemImage: "arrow.clockwise")
-                        }
                     }
                     Button(role: .destructive) {
                         showDeleteConfirmation = true

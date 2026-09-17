@@ -8,6 +8,7 @@ import { useGameHistory } from '../hooks/useGameHistory';
 import {
   addGameTag,
   deleteGame,
+  recomputeAiMove,
   removeGameTag,
   sgfExportUrl,
   starGame,
@@ -167,6 +168,7 @@ function GameView({ gameId }: GameViewProps) {
     setTags,
     starred,
     setStarred,
+    createdAt,
     captures,
     blackUsername,
     whiteUsername,
@@ -220,7 +222,7 @@ function GameView({ gameId }: GameViewProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [turnMenuOpen, setTurnMenuOpen] = useState(false);
-  const [resultBalloonOpen, setResultBalloonOpen] = useState(false);
+  const [resultOpen, setResultOpen] = useState(false);
   const [pendingDead, setPendingDead] = useState<Set<string>>(new Set());
   // A group marked seki stays on the board (it's alive) but scores nothing
   // for either side — a separate declaration from marking it dead, since
@@ -232,7 +234,6 @@ function GameView({ gameId }: GameViewProps) {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const menuRef = useRef<HTMLDivElement>(null);
   const turnMenuRef = useRef<HTMLDivElement>(null);
-  const resultBalloonRef = useRef<HTMLDivElement>(null);
   const moveChainRef = useRef<HTMLOListElement>(null);
   // Click-and-drag horizontal scrolling for the review move chain (touch
   // already scrolls natively) — tracked via a ref rather than state so
@@ -384,20 +385,6 @@ function GameView({ gameId }: GameViewProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [turnMenuOpen]);
 
-  // Close the result balloon on any click outside it.
-  useEffect(() => {
-    if (!resultBalloonOpen) {
-      return;
-    }
-    const handleClickOutside = (e: MouseEvent) => {
-      if (resultBalloonRef.current && !resultBalloonRef.current.contains(e.target as Node)) {
-        setResultBalloonOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [resultBalloonOpen]);
-
   // Auto-dismiss the error toast after 5s — it can also be closed early.
   useEffect(() => {
     if (!error && !historyError && !invalidMoveError) {
@@ -518,47 +505,98 @@ function GameView({ gameId }: GameViewProps) {
   const isMyTurn = myColor === 'both' || myColor === currentColor;
   // status === 'in_progress' already rules out isReviewing being true.
   const canInteract = status === 'in_progress' && isMyTurn;
+  // Only while actually waiting on GNU Go: an AI game in progress whose
+  // turn it currently is. Mirrors GameBoardView.swift's isAiTurn.
+  const isAiTurn =
+    isAiOpponent && status === 'in_progress' && myColor !== null && myColor !== 'both' && currentColor !== myColor;
   // Gates marking groups at all, regardless of which mode (dead vs seki).
   // scoring (status === 'scoring') already rules out isReviewing being true.
   const canMarkGroups = scoring && isParticipant;
   const navDisabled = latestMoveNumber === null || reviewMoveNumber === null;
   // Local games and AI games undo immediately (no negotiation) — same split
   // describeUndoAction uses to pick a label.
-  const isImmediateUndo = myColor === 'both' || isAiOpponent;
-  // Reformats the server's own "(B: x, W: y)" breakdown suffix into
-  // "(winner to loser)", e.g. "White wins by 34.5 (64.5 to 30)".
-  const resultSummary = (() => {
-    if (!resultBreakdown) {
-      return result;
+  // The server's own result sentence without its "(B: x, W: y)" breakdown
+  // suffix — the modal shows those two numbers inside the stones instead.
+  const plainResult = result?.replace(/\s*\(B: [\d.]+, W: [\d.]+\)\s*$/, '') ?? 'Game over';
+  // Per-player setup details, shown under that player's name: GNU Go's
+  // level under whichever side it played (it plays through one shared
+  // account literally named "gnugo"), the handicap stones under black, who
+  // receives them.
+  const playerDetails = (color: Color): string[] => {
+    const details: string[] = [];
+    const username = color === 'black' ? blackUsername : whiteUsername;
+    if (isAiOpponent && gnugoLevel !== null && username === 'gnugo') {
+      details.push(`level ${gnugoLevel}`);
     }
-    const { black, white } = resultBreakdown;
-    const winnerScore = black > white ? black : white;
-    const loserScore = black > white ? white : black;
-    const base = result?.replace(/\s*\(B: [\d.]+, W: [\d.]+\)\s*$/, '');
-    return `${base} (${winnerScore} to ${loserScore})`;
-  })();
-  // Same "size · players · level · handicap · komi · time" shape as a
-  // games-list card, minus what's already shown elsewhere in this view:
-  // board size (implied by the board itself), the short result (its own
-  // button), and player names when the header is already showing them
-  // (it only falls back to the title there when one is set).
-  const balloonSummaryParts: string[] = [];
-  if (title) {
-    balloonSummaryParts.push(
-      myColor === 'both' ? `${blackUsername ?? '—'} (local)` : `${blackUsername ?? '—'} vs ${whiteUsername ?? '—'}`,
-    );
-  }
-  if (isAiOpponent && gnugoLevel !== null) {
-    balloonSummaryParts.push(`level ${gnugoLevel}`);
-  }
-  if (handicap > 0) {
-    balloonSummaryParts.push(`handicap ${handicap}`);
-  }
-  balloonSummaryParts.push(komi === 0 ? 'no komi' : `komi ${komi}`);
-  if (timeControl !== null) {
-    balloonSummaryParts.push(timeControlLabel(timeControl));
-  }
-  const balloonSummary = balloonSummaryParts.join(' · ');
+    if (color === 'black' && handicap > 0) {
+      details.push(`handicap ${handicap}`);
+    }
+    return details;
+  };
+  const resultSetupLine = [
+    komi === 0 ? 'no komi' : `komi ${komi}`,
+    timeControl === null ? 'Unlimited' : timeControlLabel(timeControl),
+  ].join(' · ');
+  const startedLine =
+    createdAt === null
+      ? null
+      : `Game started on ${new Date(createdAt).toLocaleString(undefined, {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })}`;
+
+  // Mirrors the iOS app's result sheet: the result sentence, each player's
+  // name over their setup details either side of their stone marker (with
+  // the final score inside it, or empty for a resignation/timeout, which
+  // has no score), the shared setup, when the game started, and the
+  // reopen-scoring action — which lives here rather than in the menu, since
+  // it only ever applies to the result this modal is about.
+  const resultModal = resultOpen && (
+    <div className="modal-overlay" onClick={() => setResultOpen(false)}>
+      <div className="modal result-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>{plainResult}</h3>
+        <div className="result-players">
+          <div className="result-player">
+            <PlayerLink username={blackUsername} userId={blackUserId} />
+            {playerDetails('black').map((detail) => (
+              <span key={detail} className="result-detail">
+                {detail}
+              </span>
+            ))}
+          </div>
+          <span className="result-stone result-stone--black">{resultBreakdown?.black ?? ''}</span>
+          <span className="result-stone result-stone--white">{resultBreakdown?.white ?? ''}</span>
+          <div className="result-player">
+            <PlayerLink username={whiteUsername} userId={whiteUserId} />
+            {playerDetails('white').map((detail) => (
+              <span key={detail} className="result-detail">
+                {detail}
+              </span>
+            ))}
+          </div>
+        </div>
+        <p className="result-detail result-setup">{resultSetupLine}</p>
+        {startedLine && <p className="result-detail result-setup">{startedLine}</p>}
+        {finished && endReason === 'scoring' && isParticipant && (
+          <button
+            type="button"
+            className="modal-action"
+            onClick={() => {
+              setResultOpen(false);
+              reopenScoring();
+            }}
+          >
+            {describeReopenAction(myColor, pendingReopenBy, isAiOpponent)}
+          </button>
+        )}
+        <button type="button" className="modal-action" onClick={() => setResultOpen(false)}>
+          Close
+        </button>
+      </div>
+    </div>
+  );
+
+  const isImmediateUndo = myColor === 'both' || isAiOpponent;
   // shortResult's leading letter names the winner regardless of how the
   // game ended (scored, resigned, or timed out) — reused here so the star
   // doesn't need its own separate parsing of `result`.
@@ -747,6 +785,12 @@ function GameView({ gameId }: GameViewProps) {
     });
   };
 
+  // Mirrors the iOS app's menu item of the same name: the server re-asks
+  // GNU Go for the move it owes, and the usual live refresh delivers it.
+  const handleRecomputeAiMove = () => {
+    recomputeAiMove(gameId).catch((err: Error) => alertDialog(err.message));
+  };
+
   const handleDeleteGame = () => {
     confirmDialog('Delete this game and all its moves? This cannot be undone.', 'Delete').then((confirmed) => {
       if (!confirmed) {
@@ -817,6 +861,19 @@ function GameView({ gameId }: GameViewProps) {
           </button>
           {menuOpen && (
             <div className="go-menu-dropdown">
+              {/* Only meaningful while actually waiting on GNU Go — the
+                  escape hatch for a request that died mid-thought. */}
+              {isAiTurn && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleRecomputeAiMove();
+                  }}
+                >
+                  Recompute GNU Go's move
+                </button>
+              )}
               {/* Open to anyone logged in: a spectator can't edit the title
                   or tags (the modal shows them read-only, as does the
                   server) but can still favourite the game from here. */}
@@ -840,17 +897,6 @@ function GameView({ gameId }: GameViewProps) {
               >
                 Export SGF
               </button>
-              {finished && endReason === 'scoring' && isParticipant && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    reopenScoring();
-                  }}
-                >
-                  {describeReopenAction(myColor, pendingReopenBy, isAiOpponent)}
-                </button>
-              )}
               {myColor === 'both' && !finished && (
                 <button
                   type="button"
@@ -1183,21 +1229,9 @@ function GameView({ gameId }: GameViewProps) {
                   </svg>
                 </button>
                 {shortResult ? (
-                  <div className="go-turn-menu" ref={resultBalloonRef}>
-                    <button
-                      type="button"
-                      className="footer-result"
-                      onClick={() => setResultBalloonOpen((open) => !open)}
-                    >
-                      {shortResult}
-                    </button>
-                    {resultBalloonOpen && (
-                      <div className="go-turn-balloon go-result-balloon">
-                        <div className="go-result-balloon-summary">{balloonSummary}</div>
-                        <div>{resultSummary}</div>
-                      </div>
-                    )}
-                  </div>
+                  <button type="button" className="footer-result" onClick={() => setResultOpen(true)}>
+                    {shortResult}
+                  </button>
                 ) : (
                   endReason === 'ended' && <span className="footer-result footer-result--static">No result</span>
                 )}
@@ -1260,6 +1294,7 @@ function GameView({ gameId }: GameViewProps) {
       )}
       {settingsModal}
       {tagsModal}
+      {resultModal}
     </>
   );
 }
