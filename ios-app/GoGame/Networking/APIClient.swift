@@ -359,6 +359,23 @@ enum APIClient {
         try await post("api/games/\(gameId)/reopen-scoring")
     }
 
+    // An empty title clears it server-side (sanitizeTitle turns a blank
+    // string into null), which is how the sheet's field removes one.
+    static func setTitle(gameId: String, title: String) async throws {
+        struct Body: Encodable { let title: String }
+        try await patch("api/games/\(gameId)", body: Body(title: title))
+    }
+
+    // "Starred" server-side, shown as a favourite in the app. Anyone can
+    // star any game, including one they're playing in themselves.
+    static func setStarred(gameId: String, starred: Bool) async throws {
+        if starred {
+            try await post("api/games/\(gameId)/star")
+        } else {
+            try await delete("api/games/\(gameId)/star")
+        }
+    }
+
     static func deleteGame(gameId: String) async throws {
         try await delete("api/games/\(gameId)")
     }

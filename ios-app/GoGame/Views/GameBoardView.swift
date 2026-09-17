@@ -126,14 +126,13 @@ struct GameBoardView: View {
                     } label: {
                         Label("Export SGF", systemImage: "square.and.arrow.up")
                     }
-                    // Only a player can edit tags, same as the title —
-                    // hidden rather than disabled for anyone else.
-                    if game?.myColor != nil {
-                        Button {
-                            showTagsSheet = true
-                        } label: {
-                            Label("Tags", systemImage: "tag")
-                        }
+                    // Open to anyone: a spectator can't edit the title or
+                    // tags (the sheet shows them read-only, as does the
+                    // server) but can still favourite the game from here.
+                    Button {
+                        showTagsSheet = true
+                    } label: {
+                        Label("Title & tags", systemImage: "tag")
                     }
                     if let game, isAiTurn(game) {
                         Button {
@@ -196,10 +195,15 @@ struct GameBoardView: View {
         }
         .sheet(isPresented: $showTagsSheet) {
             if let game {
-                TagsSheetView(
+                TitleTagsSheetView(
                     gameId: gameId,
+                    title: game.title,
                     tags: game.tagList,
+                    starred: game.starred ?? false,
+                    canEdit: game.myColor != nil,
+                    onTitleChange: { title in self.game?.title = title },
                     onTagsChange: { tags in self.game?.tags = tags },
+                    onStarredChange: { starred in self.game?.starred = starred },
                     contentHeight: $tagsSheetHeight
                 )
                 .presentationDetents([.height(tagsSheetHeight)])

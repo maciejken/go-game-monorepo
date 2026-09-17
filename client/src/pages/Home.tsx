@@ -3,20 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { Color } from 'shared';
 import {
   createGame,
-  deleteGame,
   listGames,
   recentGameVs,
   searchUsernames,
-  starGame,
-  unstarGame,
-  updateGameTitle,
   type GameListScope,
   type GameSummary,
   type TimeControlName,
   type UsernameSearchResult,
 } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-import { useDialog } from '../hooks/useDialog';
 import { useLiveSocket } from '../hooks/useLiveSocket';
 import { timeControlLabel } from '../utils/clock';
 
@@ -70,7 +65,6 @@ function SliderTicks({ count }: { count: number }) {
 
 function Home() {
   const { user, logout } = useAuth();
-  const { confirm: confirmDialog } = useDialog();
   const navigate = useNavigate();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -300,18 +294,6 @@ function Home() {
           setError(err.message);
         }
       });
-  };
-
-  const handleDelete = (id: string) => {
-    confirmDialog('Delete this game and all its moves? This cannot be undone.', 'Delete').then((confirmed) => {
-      if (!confirmed) {
-        return;
-      }
-      setError(null);
-      deleteGame(id)
-        .then(refresh)
-        .catch((err: Error) => setError(err.message));
-    });
   };
 
   return (
@@ -547,7 +529,7 @@ function Home() {
       ) : (
         <ul className="game-list">
           {games.map((game) => (
-            <GameListItem key={game.id} game={game} onDelete={handleDelete} onRename={refresh} onStarChange={refresh} />
+            <GameListItem key={game.id} game={game} />
           ))}
           {hasMore && <li ref={sentinelRef} aria-hidden="true" />}
         </ul>
@@ -558,59 +540,17 @@ function Home() {
 
 interface GameListItemProps {
   game: GameSummary;
-  onDelete: (id: string) => void;
-  onRename: () => void;
-  onStarChange: () => void;
 }
 
-// A player's name inside the game card, linked to their profile — stops
-// propagation since the whole card is itself a link to the game.
-function PlayerLink({ username, userId }: { username: string | null; userId: string | null }) {
-  if (!username || !userId) {
-    return <>{username ?? '—'}</>;
-  }
-  return (
-    <Link to={`/profile/${userId}`} onClick={(e) => e.stopPropagation()}>
-      {username}
-    </Link>
-  );
-}
-
-function GameListItem({ game, onDelete, onRename, onStarChange }: GameListItemProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [titleInput, setTitleInput] = useState(game.title ?? '');
-  const [error, setError] = useState<string | null>(null);
-  const canEdit = game.myColor !== null;
-
-  const toggleStar = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setError(null);
-    (game.starred ? unstarGame(game.id) : starGame(game.id))
-      .then(onStarChange)
-      .catch((err: Error) => setError(err.message));
-  };
-
-  const startEdit = () => {
-    setError(null);
-    setTitleInput(game.title ?? '');
-    setIsEditing(true);
-  };
-
-  const cancelEdit = () => setIsEditing(false);
-
-  const saveEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    updateGameTitle(game.id, titleInput.trim())
-      .then(() => {
-        setIsEditing(false);
-        onRename();
-      })
-      .catch((err: Error) => setError(err.message));
-  };
-
+// One card, one action. The whole card is a link into the game, and nothing
+// inside it is separately clickable: the title, tags, favourite and delete
+// all live in the game view now, so a card no longer carries edit/delete/
+// star buttons or a link per player name competing with its own tap target.
+function GameListItem({ game }: GameListItemProps) {
   const metaParts = [`${game.size}x${game.size}`];
+  if (game.myColor !== 'both') {
+    metaParts.push(`${game.blackUsername ?? '—'} vs ${game.whiteUsername ?? '—'}`);
+  }
   if (game.isAiOpponent && game.gnugoLevel !== null) {
     metaParts.push(`level ${game.gnugoLevel}`);
   }
@@ -625,122 +565,21 @@ function GameListItem({ game, onDelete, onRename, onStarChange }: GameListItemPr
     metaParts.push(game.shortResult ?? 'no result');
   }
 
-  const metaRows = (
-    <>
-      <div className="game-card-row">
-        {metaParts[0]}
-        {game.myColor !== 'both' && (
-          <>
-            {' · '}
-            <PlayerLink username={game.blackUsername} userId={game.blackUserId} /> vs{' '}
-            <PlayerLink username={game.whiteUsername} userId={game.whiteUserId} />
-          </>
-        )}
-        {metaParts.length > 1 && ` · ${metaParts.slice(1).join(' · ')}`}
-      </div>
-      {/* Shown read-only here (the game view's Tags menu is where they're
-          edited) so a card that turned up via a tag search shows why. */}
-      {game.tags.length > 0 && (
-        <ul className="tag-chips tag-chips--readonly">
-          {game.tags.map((tag) => (
-            <li key={tag} className="tag-chip">
-              {tag}
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
-  );
-
-  // Nested inside the card (an <a> when not editing), so clicks must stop
-  // propagation or they'd also trigger the card's own navigation.
-  const actions = canEdit ? (
-    <div className="game-card-actions">
-      <button
-        type="button"
-        className="edit-button"
-        aria-label="Edit game title"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          startEdit();
-        }}
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-          />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="delete-button"
-        aria-label="Delete game"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onDelete(game.id);
-        }}
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M9 3a1 1 0 0 0-1 1v1H4v2h16V5h-4V4a1 1 0 0 0-1-1H9zM5 9l1 11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-11H5z"
-          />
-        </svg>
-      </button>
-    </div>
-  ) : (
-    <div className="game-card-actions">
-      <button
-        type="button"
-        className={`star-button${game.starred ? ' star-button--active' : ''}`}
-        aria-label={game.starred ? 'Unstar game' : 'Star game'}
-        aria-pressed={game.starred}
-        onClick={toggleStar}
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
-          />
-        </svg>
-      </button>
-    </div>
-  );
-
   return (
     <li>
-      {isEditing ? (
-        <div className="game-card">
-          {actions}
-          <form onSubmit={saveEdit}>
-            <input
-              type="text"
-              className="game-card-title-input"
-              value={titleInput}
-              onChange={(e) => setTitleInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') cancelEdit();
-              }}
-              onBlur={cancelEdit}
-              placeholder="Title (optional)"
-              aria-label="Game title"
-              maxLength={100}
-              autoFocus
-            />
-          </form>
-          {metaRows}
-        </div>
-      ) : (
-        <Link to={`/games/${game.id}`} className="game-card">
-          {actions}
-          {game.title && <div className="game-card-title">{game.title}</div>}
-          {metaRows}
-        </Link>
-      )}
-      {error && <p className="error">{error}</p>}
+      <Link to={`/games/${game.id}`} className="game-card">
+        {game.title && <div className="game-card-title">{game.title}</div>}
+        <div className="game-card-row">{metaParts.join(' · ')}</div>
+        {game.tags.length > 0 && (
+          <ul className="tag-chips tag-chips--readonly">
+            {game.tags.map((tag) => (
+              <li key={tag} className="tag-chip">
+                {tag}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Link>
     </li>
   );
 }

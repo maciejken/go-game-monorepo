@@ -37,7 +37,9 @@ struct GameState: Codable {
     let id: String
     let size: Int
     let handicap: Int
-    let title: String?
+    // var, not let: the Title & tags sheet writes the new title straight
+    // back here rather than refetching the whole game for one field.
+    var title: String?
     let status: String
     var board: Board
     let blackUsername: String?
@@ -77,6 +79,9 @@ struct GameState: Codable {
     // Short shared labels both players can edit, searchable from the game
     // list. Optional for the same reason as createdAt above.
     var tags: [String]?
+    // Whether this game is one of the viewer's favourites. Optional for the
+    // same reason as the two fields above.
+    var starred: Bool?
 
     var tagList: [String] { tags ?? [] }
 

@@ -468,13 +468,12 @@
 }
 
 .game-card {
-  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
   flex: 1;
   min-width: 0;
-  padding: 8px 78px 8px 10px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   color: inherit;
@@ -484,27 +483,9 @@
   cursor: pointer;
 }
 
-.game-card-actions {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  display: flex;
-  gap: 4px;
-}
-
 .game-card-title {
   font-weight: 600;
   color: var(--text-h);
-}
-
-.game-card-title-input {
-  font: inherit;
-  font-weight: 600;
-  color: var(--text-h);
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 2px 4px;
 }
 
 .game-card-row {
@@ -512,8 +493,6 @@
   color: var(--text);
 }
 
-.edit-button,
-.delete-button,
 .star-button {
   display: flex;
   align-items: center;
@@ -523,14 +502,6 @@
   height: 32px;
   padding: 0;
   cursor: pointer;
-}
-
-.edit-button {
-  color: var(--text);
-}
-
-.delete-button {
-  color: #d1242f;
 }
 
 .star-button {
@@ -1360,4 +1331,15 @@
   border-radius: 4px;
   background: var(--bg);
   color: inherit;
+}
+
+/* The favourite toggle in the Title & tags modal sits against the right
+   edge, level with the heading it follows, rather than taking a row of its
+   own on the left. */
+.star-button--modal {
+  align-self: flex-end;
+  margin-top: -40px;
+  /* Against the modal's own background an unstarred star needs more
+     contrast than the border grey it had as a corner button on a card. */
+  color: var(--text);
 }

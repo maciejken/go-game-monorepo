@@ -10,6 +10,9 @@ import {
   deleteGame,
   removeGameTag,
   sgfExportUrl,
+  starGame,
+  unstarGame,
+  updateGameTitle,
   validateMoveRequest,
   type Captures,
   type HistoryEntry,
@@ -159,8 +162,11 @@ function GameView({ gameId }: GameViewProps) {
     handicap,
     komi,
     title,
+    setTitle,
     tags,
     setTags,
+    starred,
+    setStarred,
     captures,
     blackUsername,
     whiteUsername,
@@ -295,7 +301,10 @@ function GameView({ gameId }: GameViewProps) {
       >
         Settings
       </button>
-      {myColor && (
+      {/* Open to anyone: a spectator can't edit the title or tags (the
+          modal shows them read-only, as does the server) but can still
+          favourite the game from here. */}
+      {user && (
         <button
           type="button"
           onClick={() => {
@@ -303,7 +312,7 @@ function GameView({ gameId }: GameViewProps) {
             setTagsOpen(true);
           }}
         >
-          Tags
+          Title &amp; tags
         </button>
       )}
       {user ? (
@@ -336,8 +345,17 @@ function GameView({ gameId }: GameViewProps) {
   const tagsModal = tagsOpen && (
     <div className="modal-overlay" onClick={() => setTagsOpen(false)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Tags</h3>
-        <TagEditor gameId={gameId} tags={tags} onTagsChange={setTags} />
+        <h3>Title &amp; tags</h3>
+        <TitleTagsEditor
+          gameId={gameId}
+          title={title}
+          tags={tags}
+          starred={starred}
+          canEdit={myColor !== null}
+          onTitleChange={setTitle}
+          onTagsChange={setTags}
+          onStarredChange={setStarred}
+        />
         <button type="button" className="modal-action" onClick={() => setTagsOpen(false)}>
           Close
         </button>
@@ -1281,21 +1299,68 @@ function GameView({ gameId }: GameViewProps) {
   );
 }
 
-// The Tags modal's contents: the game's current tags as removable chips,
-// plus one input for adding another. The server validates every tag and
-// answers with the whole list, so this holds no rules of its own beyond a
-// maxLength hint — anything it would reject comes back as a message shown
-// under the input.
-interface TagEditorProps {
+// The Title & tags modal's contents: the game's title in an editable field,
+// its tags as removable chips with one input for adding another, and a star
+// toggling the game in and out of the viewer's favourites. The server
+// validates the title and every tag and answers with the whole tag list, so
+// this holds no rules of its own beyond a maxLength hint — anything it
+// rejects comes back as a message shown under the fields.
+//
+// Only the two players can edit a title or tags; anyone else sees them
+// read-only, since the star is open to everyone and is reached through this
+// same modal.
+interface TitleTagsEditorProps {
   gameId: string;
+  title: string | null;
   tags: string[];
+  starred: boolean;
+  canEdit: boolean;
+  onTitleChange: (title: string | null) => void;
   onTagsChange: (tags: string[]) => void;
+  onStarredChange: (starred: boolean) => void;
 }
 
-function TagEditor({ gameId, tags, onTagsChange }: TagEditorProps) {
+function TitleTagsEditor({
+  gameId,
+  title,
+  tags,
+  starred,
+  canEdit,
+  onTitleChange,
+  onTagsChange,
+  onStarredChange,
+}: TitleTagsEditorProps) {
+  const [titleDraft, setTitleDraft] = useState(title ?? '');
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const saveTitle = (e: React.FormEvent) => {
+    e.preventDefault();
+    const next = titleDraft.trim();
+    if (busy || next === (title ?? '')) {
+      return;
+    }
+    setBusy(true);
+    updateGameTitle(gameId, next)
+      .then((saved) => {
+        onTitleChange(saved.title);
+        setError(null);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setBusy(false));
+  };
+
+  const toggleStarred = () => {
+    setBusy(true);
+    (starred ? unstarGame(gameId) : starGame(gameId))
+      .then(() => {
+        onStarredChange(!starred);
+        setError(null);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setBusy(false));
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1327,33 +1392,69 @@ function TagEditor({ gameId, tags, onTagsChange }: TagEditorProps) {
 
   return (
     <>
+      <button
+        type="button"
+        className={`star-button star-button--modal${starred ? ' star-button--active' : ''}`}
+        aria-label={starred ? 'Remove from favourites' : 'Add to favourites'}
+        aria-pressed={starred}
+        disabled={busy}
+        onClick={toggleStarred}
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+          />
+        </svg>
+      </button>
+      {canEdit ? (
+        <form className="tag-form" onSubmit={saveTitle}>
+          <input
+            type="text"
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            placeholder="Game title"
+            aria-label="Game title"
+            maxLength={100}
+          />
+          <button type="submit" className="modal-action" disabled={busy || titleDraft.trim() === (title ?? '')}>
+            Save
+          </button>
+        </form>
+      ) : (
+        title && <p className="tag-empty">{title}</p>
+      )}
       {tags.length > 0 ? (
         <ul className="tag-chips">
           {tags.map((tag) => (
             <li key={tag} className="tag-chip">
               {tag}
-              <button type="button" aria-label={`Remove tag ${tag}`} disabled={busy} onClick={() => remove(tag)}>
-                ×
-              </button>
+              {canEdit && (
+                <button type="button" aria-label={`Remove tag ${tag}`} disabled={busy} onClick={() => remove(tag)}>
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
       ) : (
         <p className="tag-empty">No tags yet.</p>
       )}
-      <form className="tag-form" onSubmit={submit}>
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Add a tag"
-          aria-label="Add a tag"
-          maxLength={24}
-        />
-        <button type="submit" className="modal-action" disabled={busy || !draft.trim()}>
-          Add
-        </button>
-      </form>
+      {canEdit && (
+        <form className="tag-form" onSubmit={submit}>
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Add a tag"
+            aria-label="Add a tag"
+            maxLength={24}
+          />
+          <button type="submit" className="modal-action" disabled={busy || !draft.trim()}>
+            Add
+          </button>
+        </form>
+      )}
       {error && <p className="error">{error}</p>}
     </>
   );

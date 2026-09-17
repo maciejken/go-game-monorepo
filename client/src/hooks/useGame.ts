@@ -27,6 +27,7 @@ export function useGame(gameId: string) {
   const [komi, setKomi] = useState(6.5);
   const [title, setTitle] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
+  const [starred, setStarred] = useState(false);
   const [captures, setCaptures] = useState<Captures>({ black: 0, white: 0 });
   const [blackUsername, setBlackUsername] = useState<string | null>(null);
   const [whiteUsername, setWhiteUsername] = useState<string | null>(null);
@@ -67,6 +68,7 @@ export function useGame(gameId: string) {
         setKomi(game.komi);
         setTitle(game.title);
         setTags(game.tags);
+        setStarred(game.starred);
         setCaptures(game.captures);
         setBlackUsername(game.blackUsername);
         setWhiteUsername(game.whiteUsername);
@@ -232,10 +234,14 @@ export function useGame(gameId: string) {
     handicap,
     komi,
     title,
+    // The Title & tags modal writes all three of these back directly
+    // rather than refetching the whole game for one field; both tag
+    // endpoints already answer with the full list.
+    setTitle,
     tags,
-    // Both tag endpoints answer with the full list, so the caller hands it
-    // straight back here instead of going through a refetch.
     setTags,
+    starred,
+    setStarred,
     captures,
     blackUsername,
     whiteUsername,

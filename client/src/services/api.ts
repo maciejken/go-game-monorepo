@@ -45,6 +45,7 @@ export interface GameResponse {
   handicap: number;
   title: string | null;
   tags: string[];
+  starred: boolean;
   status: string;
   board: Board;
   blackUsername: string | null;
