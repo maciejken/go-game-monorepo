@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Numeral outline from Quantico Bold by Matthew Desmond, SIL OFL 1.1 -->
   <rect width="100" height="100" rx="18" fill="#ffd43b"/>
-  <path d="M26 10 L76 10 L76 26 L42 26 L42 36 L70 36 L76 42 L76 84 L70 90 L39 90 L39 74 L60 74 L60 52 L26 52 Z" fill="#111111"/>
+  <path d="M77.70 22.30L40.17 22.30L40.17 38.26L65.07 38.26L78.89 46.25L78.89 84.02L65.07 92L34.93 92L21.11 84.02L21.11 66.98L37.79 66.98L37.79 77.70L62.21 77.70L62.21 52.56L23.49 52.56L23.49 8L77.70 8 Z" fill="#111111"/>
 </svg>
