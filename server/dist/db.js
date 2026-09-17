@@ -64,6 +64,20 @@ db.exec(`
     PRIMARY KEY (user_id, game_id)
   );
 
+  -- Free-text labels a player attaches to their own game ("teaching",
+  -- "tournament"), searchable alongside the title and player names. Shared
+  -- by both players rather than private per-user, matching the title they
+  -- already share. tag_key is the lowercased tag, which is what the primary
+  -- key dedupes on so "Teaching" and "teaching" can't both be added; tag
+  -- keeps the casing it was entered with, for display.
+  CREATE TABLE IF NOT EXISTS game_tags (
+    game_id TEXT NOT NULL,
+    tag_key TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (game_id, tag_key)
+  );
+
   -- Scoped credential for an external board-vision service: lets it submit
   -- moves for one specific game without a full player login. Valid for
   -- either color, since the camera identifies a move by stone color, not by
