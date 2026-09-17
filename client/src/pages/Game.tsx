@@ -205,7 +205,7 @@ function GameView({ gameId }: GameViewProps) {
     clearError,
   } = useGame(gameId);
   const { history, error: historyError, load: loadHistory, clearError: clearHistoryError } = useGameHistory(gameId);
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { confirm: confirmDialog, alert: alertDialog } = useDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -279,67 +279,18 @@ function GameView({ gameId }: GameViewProps) {
     }
   };
 
+  // Everything below the divider: just Settings now. Profile and log
+  // in/out live on the home screen, not on a game.
   const userMenuItems = (
-    <>
-      {user && (
-        <button
-          type="button"
-          onClick={() => {
-            setMenuOpen(false);
-            navigate(`/profile/${user.id}`);
-          }}
-        >
-          View profile
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={() => {
-          setMenuOpen(false);
-          setSettingsOpen(true);
-        }}
-      >
-        Settings
-      </button>
-      {/* Open to anyone: a spectator can't edit the title or tags (the
-          modal shows them read-only, as does the server) but can still
-          favourite the game from here. */}
-      {user && (
-        <button
-          type="button"
-          onClick={() => {
-            setMenuOpen(false);
-            setTagsOpen(true);
-          }}
-        >
-          Title &amp; tags
-        </button>
-      )}
-      {user ? (
-        <button
-          type="button"
-          onClick={() => {
-            setMenuOpen(false);
-            // Permissions (myColor, etc.) were fetched under the old
-            // session and won't update in place — leave the game view
-            // instead of showing stale, now-wrong controls.
-            logout().then(() => navigate('/'));
-          }}
-        >
-          Log out ({user.username})
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setMenuOpen(false);
-            navigate('/login', { state: { from: `${location.pathname}${location.search}` } });
-          }}
-        >
-          Log in
-        </button>
-      )}
-    </>
+    <button
+      type="button"
+      onClick={() => {
+        setMenuOpen(false);
+        setSettingsOpen(true);
+      }}
+    >
+      Settings
+    </button>
   );
 
   const tagsModal = tagsOpen && (
@@ -866,6 +817,20 @@ function GameView({ gameId }: GameViewProps) {
           </button>
           {menuOpen && (
             <div className="go-menu-dropdown">
+              {/* Open to anyone logged in: a spectator can't edit the title
+                  or tags (the modal shows them read-only, as does the
+                  server) but can still favourite the game from here. */}
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setTagsOpen(true);
+                  }}
+                >
+                  Title &amp; tags
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {

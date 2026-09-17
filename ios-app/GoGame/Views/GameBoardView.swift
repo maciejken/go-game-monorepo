@@ -116,16 +116,6 @@ struct GameBoardView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button {
-                        showSettingsSheet = true
-                    } label: {
-                        Label("Settings", systemImage: "gearshape")
-                    }
-                    Button {
-                        Task { await exportSgf() }
-                    } label: {
-                        Label("Export SGF", systemImage: "square.and.arrow.up")
-                    }
                     // Open to anyone: a spectator can't edit the title or
                     // tags (the sheet shows them read-only, as does the
                     // server) but can still favourite the game from here.
@@ -133,6 +123,11 @@ struct GameBoardView: View {
                         showTagsSheet = true
                     } label: {
                         Label("Title & tags", systemImage: "tag")
+                    }
+                    Button {
+                        Task { await exportSgf() }
+                    } label: {
+                        Label("Export SGF", systemImage: "square.and.arrow.up")
                     }
                     if let game, isAiTurn(game) {
                         Button {
@@ -145,6 +140,11 @@ struct GameBoardView: View {
                         showDeleteConfirmation = true
                     } label: {
                         Label("Delete", systemImage: "trash")
+                    }
+                    Button {
+                        showSettingsSheet = true
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
                     }
                 } label: {
                     Image(systemName: "ellipsis")
