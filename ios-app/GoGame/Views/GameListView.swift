@@ -141,6 +141,10 @@ struct GameListView: View {
             .refreshable { await loadGames() }
             .task { await loadGames() }
             .searchable(text: $searchText, prompt: "Search titles, players, tags")
+            // Favourites is meant to stay short, so its field collapses to
+            // a magnifying glass in the toolbar rather than taking a row of
+            // its own; Home's list grows long enough to keep the field out.
+            .modifier(MinimizedSearchField(enabled: !isHome))
             // Debounced the same way the web client's search input is: the
             // task restarts on every keystroke, and only the last one
             // survives the sleep to actually apply the query.
@@ -281,6 +285,20 @@ struct GameListView: View {
             }
         } else {
             selectedGameId = id
+        }
+    }
+}
+
+// searchToolbarBehavior is iOS 26+, and there's no pre-26 equivalent —
+// older versions simply keep the always-visible field.
+private struct MinimizedSearchField: ViewModifier {
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled, #available(iOS 26.0, *) {
+            content.searchToolbarBehavior(.minimize)
+        } else {
+            content
         }
     }
 }
