@@ -33,7 +33,12 @@ struct ShareSheet: UIViewControllerRepresentable {
             activities.insert(CopyUrlActivity(url: gameURL), at: 0)
         }
         let controller = UIActivityViewController(
-            activityItems: [GameShareItemSource(share: share)],
+            // Two items, because a share extension binds to the type its
+            // placeholder advertises: the file one carries the .sgf for
+            // Save to Files/AirDrop/Mail, and the text one exists so Notes
+            // has something it can actually put in a note. The file comes
+            // first so the sheet's header still previews an SGF document.
+            activityItems: [SgfFileItemSource(share: share), NoteTextItemSource(share: share)],
             applicationActivities: activities
         )
         // The system's own Copy would put the temp file's URL on the
@@ -46,10 +51,15 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-// Hands each activity the representation it can actually use: Notes wants
-// text (handed a file it makes an empty-looking note), everything else
-// wants the .sgf file.
-private final class GameShareItemSource: NSObject, UIActivityItemSource {
+// True for Notes, whose share extension backs both its own row and New
+// Quick Note. Matched on the identifier rather than a hardcoded constant:
+// there is more than one, and they have been renamed across releases.
+private func isNotes(_ activityType: UIActivity.ActivityType?) -> Bool {
+    activityType?.rawValue.localizedCaseInsensitiveContains("note") ?? false
+}
+
+// The .sgf itself, for anything that takes a file.
+private final class SgfFileItemSource: NSObject, UIActivityItemSource {
     private let share: GameShare
 
     init(share: GameShare) {
@@ -57,7 +67,7 @@ private final class GameShareItemSource: NSObject, UIActivityItemSource {
         super.init()
     }
 
-    // Decides the sheet's own header preview, before any activity is
+    // Also decides the sheet's header preview, before any activity is
     // picked — the file, so it shows as an SGF document.
     func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
         share.sgfFileURL
@@ -67,8 +77,7 @@ private final class GameShareItemSource: NSObject, UIActivityItemSource {
         _ activityViewController: UIActivityViewController,
         itemForActivityType activityType: UIActivity.ActivityType?
     ) -> Any? {
-        guard let activityType else { return share.sgfFileURL }
-        return isNotes(activityType) ? share.noteText : share.sgfFileURL
+        share.sgfFileURL
     }
 
     func activityViewController(
@@ -77,12 +86,38 @@ private final class GameShareItemSource: NSObject, UIActivityItemSource {
     ) -> String {
         share.title
     }
+}
 
-    // Matched on the identifier rather than a hardcoded constant: Notes
-    // ships more than one (its share extension and Quick Note), and they
-    // have been renamed across releases.
-    private func isNotes(_ activityType: UIActivity.ActivityType) -> Bool {
-        activityType.rawValue.localizedCaseInsensitiveContains("note")
+// The same game as plain text, offered only to Notes — everything else
+// gets nil and is left with the file above, so Save to Files still writes
+// one .sgf rather than picking up a stray .txt beside it.
+private final class NoteTextItemSource: NSObject, UIActivityItemSource {
+    private let share: GameShare
+
+    init(share: GameShare) {
+        self.share = share
+        super.init()
+    }
+
+    // An empty string rather than the note itself: the placeholder is what
+    // tells the system this item is text (so Notes activates for it), and
+    // it is never the value anything receives.
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        ""
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        itemForActivityType activityType: UIActivity.ActivityType?
+    ) -> Any? {
+        isNotes(activityType) ? share.noteText : nil
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        subjectForActivityType activityType: UIActivity.ActivityType?
+    ) -> String {
+        share.title
     }
 }
 
