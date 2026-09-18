@@ -1,34 +1,19 @@
+import LinkPresentation
 import SwiftUI
 import UIKit
 
-// What Share game hands to the system: the SGF as both a file (for Save to
-// Files, AirDrop, Mail) and as text (for Notes), plus the game's own
-// address for the copy actions.
+// What Share game hands to the system: the SGF as a file (for Save to
+// Files, AirDrop, Mail), the game's own address (for Notes, and for Copy
+// URL), and the SGF as text (for Copy SGF).
 struct GameShare {
     let sgfFileURL: URL
     let sgfText: String
     let gameURL: URL?
-    // The note's first line, which Notes turns into its title.
+    // The note's title, via the sheet's subject.
     let title: String
     // The same, but for a quick note — where the game's start time is a
     // more useful stand-in for a missing title than the two player names.
     let quickNoteTitle: String
-
-    // What the Notes app receives in place of the file: a title line, the
-    // link under it, then the record itself.
-    var noteText: String {
-        [title, gameURL?.absoluteString, "", sgfText]
-            .compactMap { $0 }
-            .joined(separator: "\n")
-    }
-
-    // A quick note is meant to be a jotting, so it gets the title and the
-    // link only — the SGF would bury both.
-    var quickNoteText: String {
-        [quickNoteTitle, gameURL?.absoluteString]
-            .compactMap { $0 }
-            .joined(separator: "\n")
-    }
 }
 
 // Thin wrapper around UIActivityViewController — SwiftUI's own ShareLink
@@ -44,12 +29,12 @@ struct ShareSheet: UIViewControllerRepresentable {
             activities.insert(CopyUrlActivity(url: gameURL), at: 0)
         }
         let controller = UIActivityViewController(
-            // Two items, because a share extension binds to the type its
-            // placeholder advertises: the file one carries the .sgf for
-            // Save to Files/AirDrop/Mail, and the text one exists so Notes
-            // has something it can actually put in a note. The file comes
-            // first so the sheet's header still previews an SGF document.
-            activityItems: [SgfFileItemSource(share: share), NoteTextItemSource(share: share)],
+            // Two items, each with its own source so every activity gets
+            // only what it can use: the .sgf file for Save to Files/
+            // AirDrop/Mail, and the game's address for Notes, which
+            // renders a URL item as a link in the note body. The file
+            // comes first so the sheet's header previews it.
+            activityItems: [SgfFileItemSource(share: share), GameLinkItemSource(share: share)],
             applicationActivities: activities
         )
         // The system's own Copy would put the temp file's URL on the
@@ -76,7 +61,9 @@ private func isQuickNote(_ activityType: UIActivity.ActivityType?) -> Bool {
     return !rawValue.localizedCaseInsensitiveContains("sharing")
 }
 
-// The .sgf itself, for anything that takes a file.
+// The .sgf itself, for anything that takes a file. A quick note is the
+// exception: it is meant to stay a jotting, and it can't read a file out
+// of this app's sandbox anyway.
 private final class SgfFileItemSource: NSObject, UIActivityItemSource {
     private let share: GameShare
 
@@ -95,21 +82,32 @@ private final class SgfFileItemSource: NSObject, UIActivityItemSource {
         _ activityViewController: UIActivityViewController,
         itemForActivityType activityType: UIActivity.ActivityType?
     ) -> Any? {
-        share.sgfFileURL
+        isQuickNote(activityType) ? nil : share.sgfFileURL
     }
 
     func activityViewController(
         _ activityViewController: UIActivityViewController,
         subjectForActivityType activityType: UIActivity.ActivityType?
     ) -> String {
-        share.title
+        isQuickNote(activityType) ? share.quickNoteTitle : share.title
+    }
+
+    // Without this the sheet's header counts raw items ("2 documents"),
+    // since the link below advertises itself as a file too — this names
+    // the share after the game instead.
+    func activityViewControllerLinkMetadata(_ activityViewController: UIActivityViewController) -> LPLinkMetadata? {
+        let metadata = LPLinkMetadata()
+        metadata.title = share.title
+        metadata.originalURL = share.gameURL
+        return metadata
     }
 }
 
-// The same game as plain text, offered only to Notes — everything else
-// gets nil and is left with the file above, so Save to Files still writes
-// one .sgf rather than picking up a stray .txt beside it.
-private final class NoteTextItemSource: NSObject, UIActivityItemSource {
+// The game's address, offered to Notes only: it lands in the note as a
+// link, which is what both a full note and a quick note can actually show.
+// Everything else gets nil and keeps the file alone, so Save to Files
+// still writes one .sgf rather than a .webloc beside it.
+private final class GameLinkItemSource: NSObject, UIActivityItemSource {
     private let share: GameShare
 
     init(share: GameShare) {
@@ -117,21 +115,21 @@ private final class NoteTextItemSource: NSObject, UIActivityItemSource {
         super.init()
     }
 
-    // An empty string rather than the note itself: the placeholder is what
-    // tells the system this item is text (so Notes activates for it), and
-    // it is never the value anything receives.
+    // Deliberately the .sgf file, not the link: the sheet decides which
+    // activities to offer from placeholders alone, and a web URL among
+    // them makes the whole share a link share — Save to Files disappears
+    // and Add to Reading List takes its place. Advertising a file keeps
+    // the offer list as it was; the real link is handed over below, to
+    // Notes only.
     func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
-        ""
+        share.sgfFileURL
     }
 
     func activityViewController(
         _ activityViewController: UIActivityViewController,
         itemForActivityType activityType: UIActivity.ActivityType?
     ) -> Any? {
-        if isQuickNote(activityType) {
-            return share.quickNoteText
-        }
-        return isNotes(activityType) ? share.noteText : nil
+        isNotes(activityType) ? share.gameURL : nil
     }
 
     func activityViewController(
