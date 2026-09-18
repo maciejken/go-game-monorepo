@@ -78,6 +78,25 @@ db.exec(`
     PRIMARY KEY (game_id, tag_key)
   );
 
+  -- One saved new-game configuration per user, for the iOS app's shake-to-
+  -- play gesture: shaking creates a game from this rather than walking
+  -- through the new-game form. Server-side rather than device-local so it
+  -- follows the account, and one row per user because there is exactly one
+  -- quick game — a list of presets would be a different feature.
+  CREATE TABLE IF NOT EXISTS quick_game_presets (
+    user_id TEXT PRIMARY KEY,
+    mode TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    handicap INTEGER NOT NULL,
+    komi REAL NOT NULL,
+    time_control TEXT,
+    gnugo_level INTEGER,
+    color TEXT NOT NULL,
+    opponent_username TEXT,
+    shake_to_play INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+  );
+
   -- Scoped credential for an external board-vision service: lets it submit
   -- moves for one specific game without a full player login. Valid for
   -- either color, since the camera identifies a move by stone color, not by

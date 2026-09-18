@@ -1144,6 +1144,100 @@ app.get('/api/games/recent-vs', (req, res) => {
         .get(user.id, opponentId, opponentId, user.id);
     res.json(row ? { handicap: row.handicap, gnugoLevel: row.gnugo_level } : null);
 });
+// What a user who has never saved one gets: the quickest game there is,
+// a small board against the computer.
+const DEFAULT_QUICK_GAME_PRESET = {
+    mode: 'gnugo',
+    size: 9,
+    handicap: 0,
+    komi: 6.5,
+    time_control: 'standard',
+    gnugo_level: 5,
+    color: 'black',
+    opponent_username: null,
+    shake_to_play: 0,
+};
+function quickGamePresetResponse(row) {
+    return {
+        mode: row.mode,
+        size: row.size,
+        handicap: row.handicap,
+        komi: row.komi,
+        timeControl: row.time_control,
+        gnugoLevel: row.gnugo_level,
+        color: row.color,
+        opponentUsername: row.opponent_username,
+        shakeToPlay: row.shake_to_play === 1,
+    };
+}
+app.get('/api/quick-game-preset', (req, res) => {
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    const row = db
+        .prepare('SELECT * FROM quick_game_presets WHERE user_id = ?')
+        .get(user.id);
+    res.json(quickGamePresetResponse(row ?? DEFAULT_QUICK_GAME_PRESET));
+});
+// Validated the same way POST /api/games validates its body, so a preset
+// can't smuggle in a board size or komi that endpoint would reject — out
+// of range values fall back rather than failing, since a preset is a set
+// of preferences, not a command.
+app.put('/api/quick-game-preset', (req, res) => {
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    const mode = req.body?.mode === 'local' || req.body?.mode === 'remote' ? req.body.mode : 'gnugo';
+    const requestedSize = Number(req.body?.size);
+    const size = ALLOWED_BOARD_SIZES.includes(requestedSize) ? requestedSize : 9;
+    const maxHandicap = size === 19 ? 9 : 5;
+    const handicap = Math.min(Math.max(0, Number(req.body?.handicap) || 0), maxHandicap);
+    const requestedKomi = Number(req.body?.komi);
+    const allowedKomi = handicap > 0 ? ALLOWED_KOMI_HANDICAP : ALLOWED_KOMI_EVEN;
+    const komi = allowedKomi.includes(requestedKomi) ? requestedKomi : handicap > 0 ? 0.5 : 6.5;
+    const timeControl = req.body?.timeControl === 'standard' || req.body?.timeControl === 'correspondence' ? req.body.timeControl : null;
+    const requestedLevel = Number(req.body?.gnugoLevel);
+    const gnugoLevel = Number.isInteger(requestedLevel) && requestedLevel >= 1 && requestedLevel <= 10 ? requestedLevel : 5;
+    const color = req.body?.color === 'white' || req.body?.color === 'random' ? req.body.color : 'black';
+    // Not checked against the users table here: who is accepting invitations
+    // changes over time, so it's POST /api/games at shake time that decides
+    // whether this opponent can still be invited.
+    const opponentUsername = mode === 'remote' && typeof req.body?.opponentUsername === 'string' && req.body.opponentUsername.trim()
+        ? req.body.opponentUsername.trim().slice(0, MAX_USERNAME_LENGTH)
+        : null;
+    if (mode === 'remote' && !opponentUsername) {
+        res.status(400).json({ error: "Opponent's username is required for a remote game" });
+        return;
+    }
+    const row = {
+        mode,
+        size,
+        handicap,
+        komi,
+        time_control: timeControl,
+        gnugo_level: gnugoLevel,
+        color,
+        opponent_username: opponentUsername,
+        shake_to_play: req.body?.shakeToPlay === true ? 1 : 0,
+    };
+    db.prepare(`INSERT INTO quick_game_presets
+       (user_id, mode, size, handicap, komi, time_control, gnugo_level, color, opponent_username, shake_to_play, updated_at)
+     VALUES (@user_id, @mode, @size, @handicap, @komi, @time_control, @gnugo_level, @color, @opponent_username, @shake_to_play, @updated_at)
+     ON CONFLICT(user_id) DO UPDATE SET
+       mode = excluded.mode,
+       size = excluded.size,
+       handicap = excluded.handicap,
+       komi = excluded.komi,
+       time_control = excluded.time_control,
+       gnugo_level = excluded.gnugo_level,
+       color = excluded.color,
+       opponent_username = excluded.opponent_username,
+       shake_to_play = excluded.shake_to_play,
+       updated_at = excluded.updated_at`).run({ ...row, user_id: user.id, updated_at: Date.now() });
+    res.json(quickGamePresetResponse(row));
+});
 app.get('/api/games', (req, res) => {
     const currentUser = getSessionUser(req);
     // "mine" and "starred" are meaningless without an identity to filter by —
