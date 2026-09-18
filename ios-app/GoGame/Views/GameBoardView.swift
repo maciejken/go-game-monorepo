@@ -26,10 +26,10 @@ struct GameBoardView: View {
     // the number of chip rows instead of guessing one height for all of them.
     @State private var tagsSheetHeight: CGFloat = 200
     @State private var showDeleteConfirmation = false
-    // Set once the SGF text has been fetched and written to a temp file —
-    // its presence both drives the share sheet (.sheet(isPresented:), same
-    // pattern as errorMessage below) and holds the file to share.
-    @State private var sgfExportURL: URL?
+    // Set once the SGF has been fetched and written to a temp file — its
+    // presence both drives the share sheet (.sheet(isPresented:), same
+    // pattern as errorMessage below) and holds everything the sheet shares.
+    @State private var gameShare: GameShare?
     // Set before the delete request is even issued (see deleteGame()): the
     // server broadcasts a game-update event as part of handling that
     // request itself, so the push can reach this view's own live socket
@@ -136,7 +136,7 @@ struct GameBoardView: View {
                     Button {
                         Task { await exportSgf() }
                     } label: {
-                        Label("Share…", systemImage: "square.and.arrow.up")
+                        Label("Share game", systemImage: "square.and.arrow.up")
                     }
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
@@ -174,9 +174,9 @@ struct GameBoardView: View {
                     .presentationBackground(sheetBackground)
             }
         }
-        .sheet(isPresented: Binding(get: { sgfExportURL != nil }, set: { if !$0 { sgfExportURL = nil } })) {
-            if let sgfExportURL {
-                ShareSheet(activityItems: [sgfExportURL], copyLinkURL: gameLink)
+        .sheet(isPresented: Binding(get: { gameShare != nil }, set: { if !$0 { gameShare = nil } })) {
+            if let gameShare {
+                ShareSheet(share: gameShare)
             }
         }
         .sheet(isPresented: $showActionsSheet) {
@@ -1561,6 +1561,16 @@ struct GameBoardView: View {
         URL(string: "\(Config.baseURL.absoluteString)/games/\(gameId)")
     }
 
+    // What a shared note or mail is called: the game's own title when it
+    // has one, the two players otherwise — the same fallback the game-list
+    // row makes when a game is untitled.
+    private var shareTitle: String {
+        if let title = game?.title, !title.isEmpty {
+            return title
+        }
+        return "\(game?.blackUsername ?? "Black") vs \(game?.whiteUsername ?? "White")"
+    }
+
     private func exportSgf() async {
         do {
             let sgf = try await APIClient.getSgf(id: gameId)
@@ -1570,7 +1580,7 @@ struct GameBoardView: View {
             let filename = "\(safeName?.isEmpty == false ? safeName! : gameId).sgf"
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
             try sgf.write(to: url, atomically: true, encoding: .utf8)
-            sgfExportURL = url
+            gameShare = GameShare(sgfFileURL: url, sgfText: sgf, gameURL: gameLink, title: shareTitle)
         } catch {
             errorMessage = error.localizedDescription
         }
