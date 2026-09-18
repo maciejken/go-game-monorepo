@@ -10,11 +10,22 @@ struct GameShare {
     let gameURL: URL?
     // The note's first line, which Notes turns into its title.
     let title: String
+    // The same, but for a quick note — where the game's start time is a
+    // more useful stand-in for a missing title than the two player names.
+    let quickNoteTitle: String
 
-    // Notes receives this rather than the file: a title line, the link
-    // under it, then the record itself.
+    // What the Notes app receives in place of the file: a title line, the
+    // link under it, then the record itself.
     var noteText: String {
         [title, gameURL?.absoluteString, "", sgfText]
+            .compactMap { $0 }
+            .joined(separator: "\n")
+    }
+
+    // A quick note is meant to be a jotting, so it gets the title and the
+    // link only — the SGF would bury both.
+    var quickNoteText: String {
+        [quickNoteTitle, gameURL?.absoluteString]
             .compactMap { $0 }
             .joined(separator: "\n")
     }
@@ -51,11 +62,18 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-// True for Notes, whose share extension backs both its own row and New
-// Quick Note. Matched on the identifier rather than a hardcoded constant:
-// there is more than one, and they have been renamed across releases.
+// Notes appears twice in the sheet: its app row, served by the sharing
+// extension, and New Quick Note among the actions. Matched on substrings
+// rather than hardcoded constants — Apple ships more than one of these and
+// has renamed them across releases — and only the sharing extension is
+// named as such, so anything else note-ish is the quick one.
 private func isNotes(_ activityType: UIActivity.ActivityType?) -> Bool {
     activityType?.rawValue.localizedCaseInsensitiveContains("note") ?? false
+}
+
+private func isQuickNote(_ activityType: UIActivity.ActivityType?) -> Bool {
+    guard isNotes(activityType), let rawValue = activityType?.rawValue else { return false }
+    return !rawValue.localizedCaseInsensitiveContains("sharing")
 }
 
 // The .sgf itself, for anything that takes a file.
@@ -110,14 +128,17 @@ private final class NoteTextItemSource: NSObject, UIActivityItemSource {
         _ activityViewController: UIActivityViewController,
         itemForActivityType activityType: UIActivity.ActivityType?
     ) -> Any? {
-        isNotes(activityType) ? share.noteText : nil
+        if isQuickNote(activityType) {
+            return share.quickNoteText
+        }
+        return isNotes(activityType) ? share.noteText : nil
     }
 
     func activityViewController(
         _ activityViewController: UIActivityViewController,
         subjectForActivityType activityType: UIActivity.ActivityType?
     ) -> String {
-        share.title
+        isQuickNote(activityType) ? share.quickNoteTitle : share.title
     }
 }
 

@@ -1571,6 +1571,17 @@ struct GameBoardView: View {
         return "\(game?.blackUsername ?? "Black") vs \(game?.whiteUsername ?? "White")"
     }
 
+    // A quick note carries no move record, so an untitled game falls back
+    // to when it started rather than to the players — the one detail that
+    // still tells two otherwise identical notes apart.
+    private var quickNoteTitle: String {
+        if let title = game?.title, !title.isEmpty {
+            return title
+        }
+        guard let game, let startedLine = startedLine(game) else { return shareTitle }
+        return startedLine
+    }
+
     private func exportSgf() async {
         do {
             let sgf = try await APIClient.getSgf(id: gameId)
@@ -1580,7 +1591,13 @@ struct GameBoardView: View {
             let filename = "\(safeName?.isEmpty == false ? safeName! : gameId).sgf"
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
             try sgf.write(to: url, atomically: true, encoding: .utf8)
-            gameShare = GameShare(sgfFileURL: url, sgfText: sgf, gameURL: gameLink, title: shareTitle)
+            gameShare = GameShare(
+                sgfFileURL: url,
+                sgfText: sgf,
+                gameURL: gameLink,
+                title: shareTitle,
+                quickNoteTitle: quickNoteTitle
+            )
         } catch {
             errorMessage = error.localizedDescription
         }
