@@ -34,11 +34,7 @@ struct ShareSheet: UIViewControllerRepresentable {
             // AirDrop/Mail, and the game's address for Notes, which
             // renders a URL item as a link in the note body. The file
             // comes first so the sheet's header previews it.
-            activityItems: [
-                SgfFileItemSource(share: share),
-                QuickNoteTitleItemSource(share: share),
-                GameLinkItemSource(share: share),
-            ],
+            activityItems: [SgfFileItemSource(share: share), GameLinkItemSource(share: share)],
             applicationActivities: activities
         )
         // The system's own Copy would put the temp file's URL on the
@@ -95,49 +91,6 @@ private final class SgfFileItemSource: NSObject, UIActivityItemSource {
     ) -> String {
         isQuickNote(activityType) ? share.quickNoteTitle : share.title
     }
-
-    // Without this the sheet's header counts raw items ("2 documents"),
-    // since the link below advertises itself as a file too — this names
-    // the share after the game instead.
-    func activityViewControllerLinkMetadata(_ activityViewController: UIActivityViewController) -> LPLinkMetadata? {
-        let metadata = LPLinkMetadata()
-        metadata.title = share.title
-        metadata.originalURL = share.gameURL
-        return metadata
-    }
-}
-
-// A quick note's title line. Ordered before the link above so it lands
-// above it in the note, and offered to nothing else — the subject alone
-// isn't enough, since a quick note ignores it.
-private final class QuickNoteTitleItemSource: NSObject, UIActivityItemSource {
-    private let share: GameShare
-
-    init(share: GameShare) {
-        self.share = share
-        super.init()
-    }
-
-    // The .sgf file for the same reason as the link source below: a
-    // placeholder's type decides which activities the sheet offers, and
-    // only the delivered item needs to be the text.
-    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
-        share.sgfFileURL
-    }
-
-    func activityViewController(
-        _ activityViewController: UIActivityViewController,
-        itemForActivityType activityType: UIActivity.ActivityType?
-    ) -> Any? {
-        isQuickNote(activityType) ? share.quickNoteTitle : nil
-    }
-
-    func activityViewController(
-        _ activityViewController: UIActivityViewController,
-        subjectForActivityType activityType: UIActivity.ActivityType?
-    ) -> String {
-        isQuickNote(activityType) ? share.quickNoteTitle : share.title
-    }
 }
 
 // The game's address, offered to Notes only: it lands in the note as a
@@ -174,6 +127,18 @@ private final class GameLinkItemSource: NSObject, UIActivityItemSource {
         subjectForActivityType activityType: UIActivity.ActivityType?
     ) -> String {
         isQuickNote(activityType) ? share.quickNoteTitle : share.title
+    }
+
+    // How a link carries a title: a quick note takes nothing but the URL
+    // item — not the subject, not a separate text item — so the name has
+    // to travel as the link's own metadata, the same way Safari's quick
+    // notes get a page title.
+    func activityViewControllerLinkMetadata(_ activityViewController: UIActivityViewController) -> LPLinkMetadata? {
+        let metadata = LPLinkMetadata()
+        metadata.title = share.quickNoteTitle
+        metadata.originalURL = share.gameURL
+        metadata.url = share.gameURL
+        return metadata
     }
 }
 
