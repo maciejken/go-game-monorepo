@@ -1146,13 +1146,21 @@ app.get('/api/games/recent-vs', (req, res) => {
 });
 app.get('/api/games', (req, res) => {
     const currentUser = getSessionUser(req);
-    // "mine" is meaningless without an identity to filter by — fall back to
-    // the unfiltered list rather than showing an anonymous visitor nothing.
-    const scope = req.query.scope === 'mine' && currentUser ? 'mine' : 'all';
+    // "mine" and "starred" are meaningless without an identity to filter by —
+    // fall back to the unfiltered list rather than showing an anonymous
+    // visitor nothing.
+    const requestedScope = req.query.scope;
+    const scope = currentUser && (requestedScope === 'mine' || requestedScope === 'starred') ? requestedScope : 'all';
     const ids = db.prepare('SELECT id FROM games ORDER BY updated_at DESC').all();
     let rows = ids.map((row) => withTimeoutCheck(getGameRow(row.id)));
     if (scope === 'mine' && currentUser) {
         rows = rows.filter((row) => isParticipant(row, currentUser.id) || isStarred(row.id, currentUser.id));
+    }
+    else if (scope === 'starred' && currentUser) {
+        // Only the games this user actually starred — a subset of "mine",
+        // which also includes every game they play in. Backs the iOS app's
+        // Favourites tab.
+        rows = rows.filter((row) => isStarred(row.id, currentUser.id));
     }
     // Free-text search over the title, both player names and the game's tags.
     // Shorter than MIN_SEARCH_LENGTH is ignored rather than rejected: the
