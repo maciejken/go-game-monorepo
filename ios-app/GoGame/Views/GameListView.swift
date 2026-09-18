@@ -12,6 +12,11 @@ struct GameListView: View {
     // to .home whenever a game link arrives; that change flows down here
     // and re-triggers consumeDeepLink() once it's actually safe to push.
     let isActiveTab: Bool
+    // Which server-side list this tab shows: "mine" (games you play in or
+    // starred) for Home, "starred" for Favourites. Only the Home tab
+    // creates games and consumes game deep links; everything else here is
+    // the same list behaviour either way.
+    var scope: String = "mine"
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
     @State private var games: [GameSummary] = []
     @State private var hasMore = false
@@ -26,6 +31,8 @@ struct GameListView: View {
     // keystroke, and a 1-2 character query cleanly means "no filter"
     // rather than a request the server would ignore anyway.
     @State private var appliedSearch = ""
+
+    private var isHome: Bool { scope == "mine" }
 
     private static let pageSize = 20
     // Matches the server's own floor for ?q=.
@@ -78,43 +85,54 @@ struct GameListView: View {
             }
             .overlay {
                 if games.isEmpty && errorMessage == nil {
-                    if appliedSearch.isEmpty {
+                    if !appliedSearch.isEmpty {
+                        ContentUnavailableView.search(text: appliedSearch)
+                    } else if isHome {
                         ContentUnavailableView("No games yet", systemImage: "circle.grid.cross")
                     } else {
-                        ContentUnavailableView.search(text: appliedSearch)
+                        ContentUnavailableView(
+                            "No favourites yet",
+                            systemImage: "star",
+                            description: Text("Star a game from its Title & tags sheet to keep it here.")
+                        )
                     }
                 }
             }
             .overlay(alignment: .bottomTrailing) {
                 Group {
-                    // Regular (non-prominent) glass rather than
-                    // .glassProminent — prominent fills the shape with a
-                    // solid tint (accentColor blue by default), which is
-                    // exactly the opaque look being replaced; regular glass
-                    // is the translucent one, adaptive in both themes with
-                    // no color of its own beyond what shows through it.
-                    if #available(iOS 26.0, *) {
-                        Button {
-                            showNewGame = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.title2.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .frame(width: 56, height: 56)
-                        }
-                        .buttonStyle(.glass)
-                        .buttonBorderShape(.circle)
-                    } else {
-                        Button {
-                            showNewGame = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.title2.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .frame(width: 56, height: 56)
-                                .background(.ultraThinMaterial, in: Circle())
-                                .overlay(Circle().stroke(Color.primary.opacity(0.2), lineWidth: 1))
-                                .shadow(radius: 4, y: 2)
+                    // Creating a game belongs to Home; Favourites is a
+                    // filtered view of games that already exist.
+                    if isHome {
+                        // Regular (non-prominent) glass rather than
+                        // .glassProminent — prominent fills the shape with a
+                        // solid tint (accentColor blue by default), which is
+                        // exactly the opaque look being replaced; regular
+                        // glass is the translucent one, adaptive in both
+                        // themes with no color of its own beyond what shows
+                        // through it.
+                        if #available(iOS 26.0, *) {
+                            Button {
+                                showNewGame = true
+                            } label: {
+                                Image(systemName: "plus")
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .frame(width: 56, height: 56)
+                            }
+                            .buttonStyle(.glass)
+                            .buttonBorderShape(.circle)
+                        } else {
+                            Button {
+                                showNewGame = true
+                            } label: {
+                                Image(systemName: "plus")
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .frame(width: 56, height: 56)
+                                    .background(.ultraThinMaterial, in: Circle())
+                                    .overlay(Circle().stroke(Color.primary.opacity(0.2), lineWidth: 1))
+                                    .shadow(radius: 4, y: 2)
+                            }
                         }
                     }
                 }
@@ -157,7 +175,7 @@ struct GameListView: View {
             // only refreshed a list nobody was looking away from anyway —
             // .task on appear plus pull-to-refresh cover that case without
             // the socket's reconnect churn or its navigation hazard.
-            .navigationTitle("Your Games")
+            .navigationTitle(isHome ? "Your Games" : "Favourites")
             .navigationDestination(item: $selectedGameId) { gameId in
                 GameBoardView(gameId: gameId)
             }
@@ -199,7 +217,7 @@ struct GameListView: View {
             // flashing this screen's error alert for something that
             // resolves itself a couple of seconds later.
             let page = try await APIClient.withRetry {
-                try await APIClient.games(limit: Self.pageSize, offset: 0, query: appliedSearch)
+                try await APIClient.games(scope: scope, limit: Self.pageSize, offset: 0, query: appliedSearch)
             }
             games = page.games
             hasMore = page.hasMore
@@ -217,7 +235,9 @@ struct GameListView: View {
         isLoadingMore = true
         defer { isLoadingMore = false }
         do {
-            let page = try await APIClient.games(limit: Self.pageSize, offset: games.count, query: appliedSearch)
+            let page = try await APIClient.games(
+                scope: scope, limit: Self.pageSize, offset: games.count, query: appliedSearch
+            )
             games.append(contentsOf: page.games)
             hasMore = page.hasMore
         } catch {
@@ -240,7 +260,11 @@ struct GameListView: View {
     // stack pop has no equivalent callback for.
     private func consumeDeepLink() {
         guard let id = deepLinkRouter.targetGameId else { return }
-        guard isActiveTab else { return }
+        // MainTabView switches to Home for a game link, so only that tab's
+        // list ever consumes one — isActiveTab alone would already be
+        // false here, but saying so directly makes it obvious why the
+        // Favourites tab never pushes.
+        guard isHome, isActiveTab else { return }
         guard pendingGameId == nil, !showNewGame else { return }
         guard selectedGameId != id else { return }
         deepLinkRouter.targetGameId = nil
