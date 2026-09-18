@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // Which click-a-group action a tap during scoring performs — mirrors
 // client/src/pages/Game.tsx's markMode.
@@ -22,6 +23,9 @@ struct GameBoardView: View {
     @State private var showSettingsSheet = false
     @State private var showResultSheet = false
     @State private var showTagsSheet = false
+    // Drives the brief "Link copied" confirmation — copying to the
+    // pasteboard is otherwise completely silent.
+    @State private var didCopyLink = false
     // Measured from the tags sheet's own content, so its detent grows with
     // the number of chip rows instead of guessing one height for all of them.
     @State private var tagsSheetHeight: CGFloat = 200
@@ -74,6 +78,19 @@ struct GameBoardView: View {
                 boardContent(game)
             } else {
                 ProgressView()
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if didCopyLink {
+                Text("Link copied")
+                    .font(.footnote)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    // Clears the footer (turn marker/captures/clock row),
+                    // which this view draws over the bottom of the screen.
+                    .padding(.bottom, 92)
+                    .transition(.opacity)
             }
         }
         // The Home tab's bottom tab bar would otherwise stack on top of
@@ -133,10 +150,22 @@ struct GameBoardView: View {
                     } label: {
                         Label("Title & tags", systemImage: "tag")
                     }
-                    Button {
-                        Task { await exportSgf() }
+                    // A submenu rather than two more top-level items: both
+                    // are ways of handing this game to someone (or to
+                    // another app), and the menu is long enough already.
+                    Menu {
+                        Button {
+                            copyGameLink()
+                        } label: {
+                            Label("Copy Link", systemImage: "link")
+                        }
+                        Button {
+                            Task { await exportSgf() }
+                        } label: {
+                            Label("Export SGF", systemImage: "doc.text")
+                        }
                     } label: {
-                        Label("Export SGF", systemImage: "square.and.arrow.up")
+                        Label("Share…", systemImage: "square.and.arrow.up")
                     }
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
@@ -1554,6 +1583,18 @@ struct GameBoardView: View {
     // via Content-Disposition — recomputed here since fetching as plain
     // text (rather than URLSession's download(for:), which would honor
     // that header for a saved file's name) doesn't pick it up on its own.
+    // The same https://<host>/games/<id> address the app itself opens as a
+    // Universal Link and the web client serves as a page, so a pasted link
+    // works for whoever receives it either way.
+    private func copyGameLink() {
+        UIPasteboard.general.url = URL(string: "\(Config.baseURL.absoluteString)/games/\(gameId)")
+        withAnimation { didCopyLink = true }
+        Task {
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            withAnimation { didCopyLink = false }
+        }
+    }
+
     private func exportSgf() async {
         do {
             let sgf = try await APIClient.getSgf(id: gameId)
