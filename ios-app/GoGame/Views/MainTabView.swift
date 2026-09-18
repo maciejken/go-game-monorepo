@@ -21,6 +21,9 @@ struct MainTabView: View {
     // tab's own (self) profile root via the same item-based navigation
     // pattern GameListView uses for game ids.
     @State private var linkedProfileId: String?
+    @State private var quickGame = QuickGameStore()
+    @State private var quickGameError: String?
+    @State private var isCreatingQuickGame = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -45,6 +48,20 @@ struct MainTabView: View {
             .tabItem { Image(systemName: "person") }
             .tag(AppTab.account)
         }
+        .environment(quickGame)
+        // Shake to play: creates a game from the saved preset and opens
+        // it. Attached here rather than per-screen so it works from any
+        // tab, and gated below on no board being open.
+        .onShake { Task { await startQuickGame() } }
+        .task { await quickGame.load() }
+        .alert(
+            "Couldn't start a game",
+            isPresented: Binding(get: { quickGameError != nil }, set: { if !$0 { quickGameError = nil } })
+        ) {
+            Button("OK") { quickGameError = nil }
+        } message: {
+            Text(quickGameError ?? "")
+        }
         .task { consumeProfileDeepLink() }
         .onChange(of: deepLinkRouter.targetProfileId) { _, _ in consumeProfileDeepLink() }
         // GameListView (the Home tab) does the actual push onto its own
@@ -58,6 +75,23 @@ struct MainTabView: View {
             if newValue != nil {
                 selectedTab = .home
             }
+        }
+    }
+
+    // The one-open-short-game limits, GNU Go's availability and whether
+    // the saved opponent still accepts invitations are all decided by the
+    // create endpoint, so a shake can legitimately fail — hence the alert
+    // rather than silence. Routing through deepLinkRouter reuses the same
+    // path a game link takes, including its pop-then-push handling.
+    private func startQuickGame() async {
+        guard quickGame.isShakeEnabled, !quickGame.isBoardOpen, !isCreatingQuickGame else { return }
+        guard let preset = quickGame.preset else { return }
+        isCreatingQuickGame = true
+        defer { isCreatingQuickGame = false }
+        do {
+            deepLinkRouter.targetGameId = try await APIClient.createGame(from: preset)
+        } catch {
+            quickGameError = error.localizedDescription
         }
     }
 

@@ -62,6 +62,13 @@ struct ProfileView: View {
                                     .foregroundStyle(.red)
                             }
                         }
+                        Section {
+                            NavigationLink {
+                                QuickGamePresetView()
+                            } label: {
+                                Text("Quick game preset")
+                            }
+                        }
                         Section("Change Password") {
                             SecureField("Current password", text: $currentPassword)
                                 .textContentType(.password)

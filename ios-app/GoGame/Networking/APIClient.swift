@@ -141,6 +141,14 @@ enum APIClient {
         try await send(request)
     }
 
+    private static func put<Body: Encodable, Response: Decodable>(_ path: String, body: Body) async throws -> Response {
+        var request = URLRequest(url: url(path))
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        return try await send(request)
+    }
+
     private static func delete(_ path: String) async throws {
         var request = URLRequest(url: url(path))
         request.httpMethod = "DELETE"
@@ -374,6 +382,35 @@ enum APIClient {
         } else {
             try await delete("api/games/\(gameId)/star")
         }
+    }
+
+    // The shake-to-play configuration, shared across this user's devices.
+    static func getQuickGamePreset() async throws -> QuickGamePreset {
+        try await get("api/quick-game-preset")
+    }
+
+    // Answers with the stored preset, which is the request normalized (an
+    // out-of-range value falls back rather than failing), so the caller
+    // should adopt what comes back instead of what it sent.
+    static func setQuickGamePreset(_ preset: QuickGamePreset) async throws -> QuickGamePreset {
+        try await put("api/quick-game-preset", body: preset)
+    }
+
+    // Creates the game a shake asks for. Just POST /api/games with the
+    // preset's own values, so the one-open-short-game limits and invite
+    // rules are enforced exactly as they are for the new-game form.
+    static func createGame(from preset: QuickGamePreset) async throws -> String {
+        try await createGame(
+            size: preset.size,
+            handicap: preset.handicap,
+            komi: preset.komi,
+            title: nil,
+            mode: preset.mode,
+            timeControl: preset.timeControlName,
+            color: preset.mode == "local" ? nil : preset.color,
+            opponentUsername: preset.mode == "remote" ? preset.opponentUsername : nil,
+            level: preset.mode == "gnugo" ? preset.gnugoLevel : nil
+        )
     }
 
     static func deleteGame(gameId: String) async throws {

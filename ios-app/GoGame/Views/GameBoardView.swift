@@ -47,6 +47,9 @@ struct GameBoardView: View {
     // Account tab and push a profile for it regardless of what's currently
     // on screen.
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
+    // Suppresses shake-to-play while this board is on screen — see
+    // QuickGameStore.isBoardOpen.
+    @Environment(QuickGameStore.self) private var quickGame
     // Mirrors client/src/pages/Game.tsx's confirmMoves setting (persisted
     // the same way, via a device-local preference) and pendingMove: with it
     // on, a first tap on a valid point just marks it; tapping that same
@@ -112,6 +115,8 @@ struct GameBoardView: View {
                 break
             }
         }
+        .onAppear { quickGame.isBoardOpen = true }
+        .onDisappear { quickGame.isBoardOpen = false }
         .refreshable { await load() }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

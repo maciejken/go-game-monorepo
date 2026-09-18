@@ -8,6 +8,7 @@ struct NewGameView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(SessionStore.self) private var session
+    @Environment(QuickGameStore.self) private var quickGame
 
     @State private var title = ""
     @State private var mode = "remote" // "local" | "remote" | "gnugo"
@@ -28,6 +29,9 @@ struct NewGameView: View {
     @State private var opponentLookupTask: Task<Void, Never>?
     @State private var usernameSearchTask: Task<Void, Never>?
     @State private var usernameSuggestions: [APIClient.UsernameSearchResult] = []
+    // Saves this form as the shake-to-play preset when the game is
+    // created — "these settings, again, by shaking".
+    @State private var shakeToPlay = false
 
     private static let boardSizes = [9, 13, 19]
 
@@ -179,6 +183,12 @@ struct NewGameView: View {
                         Text("Unlimited").tag("unlimited")
                     }
                 }
+
+                Section {
+                    Toggle("Shake to play", isOn: $shakeToPlay)
+                } footer: {
+                    Text("Saves these settings as your quick game preset when the game starts, and shakes start one like it.")
+                }
             }
             .navigationTitle("New Game")
             .navigationBarTitleDisplayMode(.inline)
@@ -192,6 +202,24 @@ struct NewGameView: View {
                 }
             }
         }
+    }
+
+    // Saved only once the game itself was created, so a form that the
+    // server rejected can't become the preset. A failure here is silent:
+    // the game exists either way, and the preset is a convenience.
+    private func saveAsQuickPreset(opponent: String) async {
+        let preset = QuickGamePreset(
+            mode: mode,
+            size: boardSize,
+            handicap: handicap,
+            komi: komi,
+            timeControl: timeControl == "unlimited" ? nil : timeControl,
+            gnugoLevel: mode == "gnugo" ? gnugoLevel : nil,
+            color: color,
+            opponentUsername: mode == "remote" ? opponent : nil,
+            shakeToPlay: true
+        )
+        quickGame.preset = try? await APIClient.setQuickGamePreset(preset)
     }
 
     // An unknown/not-yet-valid username, or any other request error, just
@@ -251,6 +279,9 @@ struct NewGameView: View {
                 opponentUsername: mode == "remote" ? trimmedOpponent : nil,
                 level: mode == "gnugo" ? gnugoLevel : nil
             )
+            if shakeToPlay {
+                await saveAsQuickPreset(opponent: trimmedOpponent)
+            }
             onCreated(gameId)
         } catch {
             if mode == "remote" {
