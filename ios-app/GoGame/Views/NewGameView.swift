@@ -62,6 +62,11 @@ struct NewGameView: View {
                         Button("Add", action: addTag)
                             .disabled(trimmedTagDraft.isEmpty)
                     }
+                    // Without this the row separator is inset to wherever
+                    // SwiftUI thinks the row's content starts — here the Add
+                    // button, which leaves a stub of a line under it rather
+                    // than a full-width rule like every other row.
+                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                     Picker("Mode", selection: $mode) {
                         Text("Local").tag("local")
                         Text("Remote").tag("remote")
