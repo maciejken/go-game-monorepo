@@ -1594,65 +1594,6 @@
         }
       }
     },
-    "All games": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "All games"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wszystkie gry"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Усі ігри"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Все партии"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alle Partien"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toutes les parties"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tutte le partite"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "全部对局"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべての対局"
-          }
-        }
-      }
-    },
     "Already have an account? Log in": {
       "extractionState": "manual",
       "localizations": {
@@ -9217,7 +9158,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wznów liczenie"
+            "value": "Licz od nowa"
           }
         },
         "uk": {
@@ -9276,7 +9217,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Poproś o ponowne liczenie"
+            "value": "Poproś o liczenie od nowa"
           }
         },
         "uk": {
@@ -9394,7 +9335,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Poddaj"
+            "value": "Poddaj się"
           }
         },
         "uk": {
@@ -9453,7 +9394,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wznów"
+            "value": "Graj dalej"
           }
         },
         "uk": {

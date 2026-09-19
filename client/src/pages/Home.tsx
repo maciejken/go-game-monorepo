@@ -325,9 +325,9 @@ function Home() {
             <button
               type="button"
               className="new-game-trigger"
-              onClick={() => setScope((s) => (s === 'mine' ? 'all' : 'mine'))}
+              onClick={() => setScope((s) => (s === 'mine' ? 'starred' : 'mine'))}
             >
-              {scope === 'mine' ? t('All games') : t('My games')}
+              {scope === 'mine' ? t('Favourites') : t('My games')}
             </button>
           </div>
           <input

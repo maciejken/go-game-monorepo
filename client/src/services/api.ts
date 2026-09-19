@@ -208,7 +208,7 @@ async function handle<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-export type GameListScope = 'mine' | 'all';
+export type GameListScope = 'mine' | 'starred';
 
 export interface GameListPage {
   games: GameSummary[];
