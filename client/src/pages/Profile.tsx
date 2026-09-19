@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { changePassword, getUser, setAcceptsInvitations, type UserProfile } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { t } from '../i18n';
 
 function formatJoinDate(ms: number): string {
   return new Date(ms).toLocaleDateString(undefined, { dateStyle: 'long' });
@@ -22,7 +23,7 @@ function ChangePasswordForm() {
     setError(null);
     setSuccess(false);
     if (newPassword !== confirmPassword) {
-      setError('New passwords do not match');
+      setError(t('New passwords do not match'));
       return;
     }
     setSubmitting(true);
@@ -39,10 +40,10 @@ function ChangePasswordForm() {
 
   return (
     <>
-      <h3>Change password</h3>
+      <h3>{t('Change password')}</h3>
       <form className="auth-form" onSubmit={submit}>
         <label>
-          Current password
+          {t('Current password')}
           <input
             type="password"
             value={currentPassword}
@@ -52,7 +53,7 @@ function ChangePasswordForm() {
           />
         </label>
         <label>
-          New password
+          {t('New password')}
           <input
             type="password"
             value={newPassword}
@@ -64,7 +65,7 @@ function ChangePasswordForm() {
           />
         </label>
         <label>
-          Confirm new password
+          {t('Confirm new password')}
           <input
             type="password"
             value={confirmPassword}
@@ -74,9 +75,9 @@ function ChangePasswordForm() {
           />
         </label>
         {error && <p className="error">{error}</p>}
-        {success && <p className="success">Password changed.</p>}
+        {success && <p className="success">{t('Password changed.')}</p>}
         <button type="submit" disabled={submitting}>
-          Change password
+          {t('Change password')}
         </button>
       </form>
     </>
@@ -129,19 +130,19 @@ function Profile() {
 
   return (
     <div className="auth-wrap">
-      <h2>Profile</h2>
+      <h2>{t('Profile')}</h2>
       {error && <p className="error">{error}</p>}
       {profile && (
         <dl className="profile-fields">
-          <dt>Username</dt>
+          <dt>{t('Username')}</dt>
           <dd>{profile.username}</dd>
-          <dt>Joined</dt>
+          <dt>{t('Joined')}</dt>
           <dd>{formatJoinDate(profile.createdAt)}</dd>
-          <dt>Games played</dt>
+          <dt>{t('Games played')}</dt>
           <dd>{profile.gamesPlayed}</dd>
-          <dt>Won</dt>
+          <dt>{t('Won')}</dt>
           <dd>{profile.gamesWon}</dd>
-          <dt>Lost</dt>
+          <dt>{t('Lost')}</dt>
           <dd>{profile.gamesLost}</dd>
         </dl>
       )}
@@ -151,7 +152,7 @@ function Profile() {
           <ChangePasswordForm />
         </>
       )}
-      <Link to="/">Back to games</Link>
+      <Link to="/">{t('Back to games')}</Link>
     </div>
   );
 }

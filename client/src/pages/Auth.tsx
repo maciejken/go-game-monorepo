@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { t } from '../i18n';
 
 function Auth() {
   const { login, register } = useAuth();
@@ -28,10 +29,10 @@ function Auth() {
 
   return (
     <div className="auth-wrap">
-      <h2>{mode === 'login' ? 'Log in' : 'Create an account'}</h2>
+      <h2>{mode === 'login' ? t('Log in') : t('Create an account')}</h2>
       <form className="auth-form" onSubmit={submit}>
         <label>
-          Username
+          {t('Username')}
           <input
             type="text"
             value={username}
@@ -42,7 +43,7 @@ function Auth() {
           />
         </label>
         <label>
-          Password
+          {t('Password')}
           <div className="password-field">
             <input
               type={showPassword ? 'text' : 'password'}
@@ -55,7 +56,7 @@ function Auth() {
             <button
               type="button"
               className="password-toggle"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? t('Hide password') : t('Show password')}
               onClick={() => setShowPassword((v) => !v)}
             >
               {showPassword ? (
@@ -78,7 +79,7 @@ function Auth() {
         </label>
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={submitting}>
-          {mode === 'login' ? 'Log in' : 'Create account'}
+          {mode === 'login' ? t('Log in') : t('Create account')}
         </button>
       </form>
       <button
@@ -89,7 +90,7 @@ function Auth() {
           setError(null);
         }}
       >
-        {mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Log in'}
+        {mode === 'login' ? t("Don't have an account? Register") : t('Already have an account? Log in')}
       </button>
     </div>
   );

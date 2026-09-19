@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { useLiveSocket } from '../hooks/useLiveSocket';
 import { timeControlLabel } from '../utils/clock';
+import { t } from '../i18n';
 
 const BOARD_SIZES = [9, 13, 19];
 
@@ -41,10 +42,10 @@ const GNUGO_LEVEL_MAX = 10;
 
 // Ascending "how much time you get", ending at unlimited — matches the
 // board-size/handicap sliders' low-to-high feel.
-const TIME_CONTROL_STEPS: { value: TimeControlName; label: string }[] = [
-  { value: 'standard', label: '10 minutes' },
-  { value: 'correspondence', label: '24h per move' },
-  { value: 'unlimited', label: 'Unlimited' },
+const TIME_CONTROL_STEPS: { value: TimeControlName; label: () => string }[] = [
+  { value: 'standard', label: () => t('10 minutes') },
+  { value: 'correspondence', label: () => t('24h per move') },
+  { value: 'unlimited', label: () => t('Unlimited') },
 ];
 
 function getMaxHandicap(size: number): number {
@@ -301,30 +302,32 @@ function Home() {
       <div className="auth-status">
         {user ? (
           <>
-            Logged in as{' '}
+            {/* The whole phrase is the link: splitting it around the
+                username would fix the word order to English's, and
+                Japanese puts the name first. */}
             <Link to={`/profile/${user.id}`}>
-              <strong>{user.username}</strong>
+              <strong>{t('Logged in as %@', user.username)}</strong>
             </Link>
             <button type="button" onClick={() => logout().then(refresh)}>
-              Log out
+              {t('Log out')}
             </button>
           </>
         ) : (
-          <Link to="/login">Log in / Register</Link>
+          <Link to="/login">{t('Log in / Register')}</Link>
         )}
       </div>
       {user ? (
         <>
           <div className="home-toolbar">
             <button type="button" className="new-game-trigger" onClick={() => setNewGameOpen(true)}>
-              New game
+              {t('New game')}
             </button>
             <button
               type="button"
               className="new-game-trigger"
               onClick={() => setScope((s) => (s === 'mine' ? 'all' : 'mine'))}
             >
-              {scope === 'mine' ? 'All games' : 'My games'}
+              {scope === 'mine' ? t('All games') : t('My games')}
             </button>
           </div>
           <input
@@ -332,42 +335,42 @@ function Home() {
             className="game-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search titles, players, tags"
-            aria-label="Search games"
+            placeholder={t('Search titles, players, tags')}
+            aria-label={t('Search games')}
             maxLength={100}
           />
         </>
       ) : (
         <p>
-          <Link to="/login">Log in</Link> to start a new game.
+          <Link to="/login">{t('Log in')}</Link> {t('Log in to start a new game.')}
         </p>
       )}
       {error && <p className="error">{error}</p>}
       {newGameOpen && (
         <div className="modal-overlay" onClick={() => setNewGameOpen(false)}>
           <form className="modal new-game-modal" onClick={(e) => e.stopPropagation()} onSubmit={startNewGame}>
-            <h3>New game</h3>
+            <h3>{t('New game')}</h3>
             <label className="modal-form-row">
-              <span className="modal-form-label">Title</span>
+              <span className="modal-form-label">{t('Title')}</span>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Optional"
+                placeholder={t('Optional')}
                 maxLength={100}
               />
             </label>
             <label className="modal-form-row">
-              <span className="modal-form-label">Mode</span>
+              <span className="modal-form-label">{t('Mode')}</span>
               <select value={mode} onChange={(e) => handleModeChange(e.target.value as 'local' | 'remote' | 'gnugo')}>
-                <option value="local">Local</option>
-                <option value="remote">Remote</option>
-                <option value="gnugo">Vs. computer</option>
+                <option value="local">{t('Local')}</option>
+                <option value="remote">{t('Remote')}</option>
+                <option value="gnugo">{t('Vs. Computer')}</option>
               </select>
             </label>
             {mode === 'remote' && (
               <label className="modal-form-row">
-                <span className="modal-form-label">Opponent</span>
+                <span className="modal-form-label">{t('Opponent')}</span>
                 <div className="opponent-field">
                   <input
                     type="text"
@@ -377,7 +380,7 @@ function Home() {
                       setOpponentError(null);
                     }}
                     onBlur={() => setTimeout(() => setUsernameSuggestions([]), 150)}
-                    placeholder="Username"
+                    placeholder={t('Username')}
                     required
                   />
                   {opponentUsername.trim().length >= 1 && usernameSuggestions.length > 0 && (
@@ -398,7 +401,7 @@ function Home() {
               </label>
             )}
             <label className="modal-form-row">
-              <span className="modal-form-label">Komi</span>
+              <span className="modal-form-label">{t('Komi')}</span>
               <select value={komi} onChange={(e) => setKomi(Number(e.target.value))}>
                 {(handicap > 0 ? KOMI_OPTIONS_HANDICAP : KOMI_OPTIONS_EVEN).map((option) => (
                   <option key={option} value={option}>
@@ -410,10 +413,10 @@ function Home() {
             {(mode === 'remote' || mode === 'gnugo') && (
               <div className="modal-wide-row">
                 <div className="modal-wide-row-label">
-                  <span className="modal-form-label">Your color</span>
+                  <span className="modal-form-label">{t('Your color')}</span>
                   <span>{color === 'black' ? 'Black' : color === 'white' ? 'White' : 'Random'}</span>
                 </div>
-                <div className="color-radio-group" role="radiogroup" aria-label="Your color">
+                <div className="color-radio-group" role="radiogroup" aria-label={t('Your color')}>
                   {(['black', 'white', 'random'] as const).map((option) => (
                     <label
                       key={option}
@@ -427,7 +430,7 @@ function Home() {
                         value={option}
                         checked={color === option}
                         onChange={() => setColor(option)}
-                        aria-label={option === 'black' ? 'Black' : option === 'white' ? 'White' : 'Random'}
+                        aria-label={option === 'black' ? t('Black') : option === 'white' ? t('White') : t('Random')}
                       />
                     </label>
                   ))}
@@ -436,7 +439,7 @@ function Home() {
             )}
             <div className="modal-wide-row">
               <div className="modal-wide-row-label">
-                <span className="modal-form-label">Board size</span>
+                <span className="modal-form-label">{t('Board size')}</span>
                 <span>
                   {size}x{size}
                 </span>
@@ -457,7 +460,7 @@ function Home() {
             {mode === 'gnugo' && (
               <div className="modal-wide-row">
                 <div className="modal-wide-row-label">
-                  <span className="modal-form-label">GNU Go level</span>
+                  <span className="modal-form-label">{t('GNU Go level')}</span>
                   <span>{gnugoLevel}</span>
                 </div>
                 <div className="modal-slider-wrap">
@@ -476,7 +479,7 @@ function Home() {
             )}
             <div className="modal-wide-row">
               <div className="modal-wide-row-label">
-                <span className="modal-form-label">Handicap</span>
+                <span className="modal-form-label">{t('Handicap')}</span>
                 <span>{handicap === 0 ? 'None' : handicap}</span>
               </div>
               <div className="modal-slider-wrap">
@@ -494,8 +497,8 @@ function Home() {
             </div>
             <div className="modal-wide-row">
               <div className="modal-wide-row-label">
-                <span className="modal-form-label">Time control</span>
-                <span>{TIME_CONTROL_STEPS[TIME_CONTROL_STEPS.findIndex((s) => s.value === timeControl)].label}</span>
+                <span className="modal-form-label">{t('Time control')}</span>
+                <span>{TIME_CONTROL_STEPS[TIME_CONTROL_STEPS.findIndex((s) => s.value === timeControl)].label()}</span>
               </div>
               <div className="modal-slider-wrap">
                 <input
@@ -523,9 +526,9 @@ function Home() {
         </div>
       )}
       {!games ? (
-        <p>Loading games...</p>
+        <p>{t('Loading games...')}</p>
       ) : games.length === 0 ? (
-        <p>{appliedSearch ? `No games match "${appliedSearch}".` : 'No games yet.'}</p>
+        <p>{appliedSearch ? t('No games match "%@".', appliedSearch) : t('No games yet')}</p>
       ) : (
         <ul className="game-list">
           {games.map((game) => (
@@ -549,20 +552,20 @@ interface GameListItemProps {
 function GameListItem({ game }: GameListItemProps) {
   const metaParts = [`${game.size}x${game.size}`];
   if (game.myColor !== 'both') {
-    metaParts.push(`${game.blackUsername ?? '—'} vs ${game.whiteUsername ?? '—'}`);
+    metaParts.push(t('%@ vs %@', game.blackUsername ?? '—', game.whiteUsername ?? '—'));
   }
   if (game.isAiOpponent && game.gnugoLevel !== null) {
-    metaParts.push(`level ${game.gnugoLevel}`);
+    metaParts.push(t('level %lld', game.gnugoLevel));
   }
   if (game.handicap > 0) {
-    metaParts.push(`handicap ${game.handicap}`);
+    metaParts.push(t('handicap %lld', game.handicap));
   }
-  metaParts.push(game.komi === 0 ? 'no komi' : `komi ${game.komi}`);
+  metaParts.push(game.komi === 0 ? t('no komi') : t('komi %@', game.komi));
   if (game.timeControl !== null) {
     metaParts.push(timeControlLabel(game.timeControl));
   }
   if (game.status === 'finished') {
-    metaParts.push(game.shortResult ?? 'no result');
+    metaParts.push(game.shortResult ?? t('no result'));
   }
 
   return (

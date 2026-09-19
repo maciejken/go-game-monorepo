@@ -24,8 +24,33 @@ const LANGUAGES = ['en', 'pl', 'uk', 'ru', 'de', 'fr', 'it', 'zh-Hans', 'ja'];
 
 const load = (lang) => JSON.parse(fs.readFileSync(path.join(localesDir, `${lang}.json`), 'utf8'));
 
-// %@ and %lld, in order of appearance — what has to survive translation.
-const placeholders = (value) => (value.match(/%(?:\d+\$)?(?:@|lld|ld|d)/g) ?? []).sort();
+// The placeholders a string takes, as a sorted list of their types. A
+// translation may reorder them — languages put the subject in different
+// places — so "%1$@ %2$lld" counts as the same set as "%@ %lld"; what it
+// may not do is drop one or change @ to lld, which is what breaks at
+// runtime.
+function placeholders(value) {
+  const found = [...value.matchAll(/%(?:(\d+)\$)?(@|lld|ld|d)/g)];
+  const positional = found.filter(([, position]) => position !== undefined);
+  if (positional.length > 0 && positional.length !== found.length) {
+    return ['mixed positional and sequential placeholders'];
+  }
+  if (positional.length > 0) {
+    const positions = positional.map(([, position]) => Number(position)).sort((a, b) => a - b);
+    const expected = positions.map((_, index) => index + 1);
+    if (positions.join() !== expected.join()) {
+      return [`positions ${positions.join(',')} are not 1..${found.length}`];
+    }
+    // Compared by type in positional order, which is the order the
+    // arguments are passed in.
+    return positional
+      .slice()
+      .sort(([, a], [, b]) => Number(a) - Number(b))
+      .map(([, , type]) => type)
+      .sort();
+  }
+  return found.map(([, , type]) => type).sort();
+}
 
 const source = load(SOURCE);
 const problems = [];

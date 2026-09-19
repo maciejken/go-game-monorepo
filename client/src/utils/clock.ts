@@ -1,12 +1,15 @@
+import { t } from '../i18n';
 import type { StoredTimeControl } from '../services/api';
 
-export const TIME_CONTROL_LABELS: Record<Exclude<StoredTimeControl, null>, string> = {
-  standard: '10 min',
-  correspondence: '24h per move',
-};
-
 export function timeControlLabel(timeControl: StoredTimeControl): string {
-  return timeControl ? TIME_CONTROL_LABELS[timeControl] : 'Unlimited';
+  switch (timeControl) {
+    case 'standard':
+      return t('10 min');
+    case 'correspondence':
+      return t('24h per move');
+    default:
+      return t('Unlimited');
+  }
 }
 
 // mm:ss under an hour, h:mm:ss at/above an hour — a byoyomi period display

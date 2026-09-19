@@ -20,6 +20,7 @@ import {
   type MyColor,
 } from '../services/api';
 import { computeLiveClock, formatClock, timeControlLabel } from '../utils/clock';
+import { t } from '../i18n';
 
 // Go board columns skip the letter "I" to avoid confusion with the numeral 1
 const COLUMN_LABELS = 'ABCDEFGHJKLMNOPQRST';
@@ -40,26 +41,27 @@ function getHoshiPoints(size: number): [number, number][] {
 }
 
 function colorLabel(color: string | null): string {
-  return color === 'black' ? 'Black' : color === 'white' ? 'White' : '';
+  return color === 'black' ? t('Black') : color === 'white' ? t('White') : '';
 }
 
 function describeEntry(entry: Pick<HistoryEntry, 'eventType' | 'color' | 'point' | 'capturedPoints'>, size: number): string {
   switch (entry.eventType) {
     case 'START':
-      return 'Start of game';
+      return t('Start of game');
     case 'HANDICAP':
-      return 'Handicap stones placed';
+      return t('Handicap stones placed');
     case 'PASS':
-      return `${colorLabel(entry.color)} passed`;
+      return t('%@ passed', colorLabel(entry.color));
     case 'RESIGN':
-      return `${colorLabel(entry.color)} resigned`;
+      return t('%@ resigned', colorLabel(entry.color));
     case 'MOVE': {
       if (!entry.point) {
-        return `${colorLabel(entry.color)} played`;
+        return t('%@ played %@', colorLabel(entry.color), '');
       }
       const label = `${COLUMN_LABELS[entry.point.x]}${size - entry.point.y}`;
-      const captureNote = entry.capturedPoints.length > 0 ? ` (captured ${entry.capturedPoints.length})` : '';
-      return `${colorLabel(entry.color)} played ${label}${captureNote}`;
+      const captureNote =
+        entry.capturedPoints.length > 0 ? t(' (captured %lld)', entry.capturedPoints.length) : '';
+      return t('%@ played %@', colorLabel(entry.color), label) + captureNote;
     }
     default:
       return '';
@@ -106,30 +108,30 @@ function describeUndoAction(
   isAiOpponent: boolean,
 ): string {
   if (myColor === 'both' || isAiOpponent) {
-    return scoring ? 'Resume' : 'Undo';
+    return scoring ? t('Resume') : t('Undo');
   }
   if (pendingUndoBy === null) {
-    return 'Request Undo';
+    return t('Request Undo');
   }
   if (pendingUndoBy === myColor) {
-    return 'Cancel Undo Request';
+    return t('Cancel Undo Request');
   }
-  return 'Confirm Undo';
+  return t('Confirm Undo');
 }
 
 // Same immediate-vs-negotiate split as describeUndoAction, for reopening a
 // scoring-finished game to re-mark dead stones.
 function describeReopenAction(myColor: MyColor, pendingReopenBy: Color | null, isAiOpponent: boolean): string {
   if (myColor === 'both' || isAiOpponent) {
-    return 'Reopen scoring';
+    return t('Reopen Scoring');
   }
   if (pendingReopenBy === null) {
-    return 'Request reopen scoring';
+    return t('Request Reopen Scoring');
   }
   if (pendingReopenBy === myColor) {
-    return 'Cancel reopen scoring request';
+    return t('Cancel Reopen Request');
   }
-  return 'Confirm reopen scoring';
+  return t('Confirm Reopen Scoring');
 }
 
 // A player's name shown in the header/status text, linked to their profile.
@@ -144,7 +146,7 @@ function Game() {
   const { id: gameId } = useParams<{ id: string }>();
 
   if (!gameId) {
-    return <p>Game not found.</p>;
+    return <p>{t('Game not found.')}</p>;
   }
 
   return <GameView gameId={gameId} />;
@@ -290,14 +292,14 @@ function GameView({ gameId }: GameViewProps) {
         setSettingsOpen(true);
       }}
     >
-      Settings
+      {t('Settings')}
     </button>
   );
 
   const tagsModal = tagsOpen && (
     <div className="modal-overlay" onClick={() => setTagsOpen(false)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Title &amp; tags</h3>
+        <h3>{t('Title & tags')}</h3>
         <TitleTagsEditor
           gameId={gameId}
           title={title}
@@ -309,7 +311,7 @@ function GameView({ gameId }: GameViewProps) {
           onStarredChange={setStarred}
         />
         <button type="button" className="modal-action" onClick={() => setTagsOpen(false)}>
-          Close
+          {t('Close')}
         </button>
       </div>
     </div>
@@ -318,21 +320,21 @@ function GameView({ gameId }: GameViewProps) {
   const settingsModal = settingsOpen && (
     <div className="modal-overlay" onClick={() => setSettingsOpen(false)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Settings</h3>
+        <h3>{t('Settings')}</h3>
         <label className="modal-checkbox-row">
           <input type="checkbox" checked={showCoords} onChange={toggleCoords} />
-          Show coordinates
+          {t('Show coordinates')}
         </label>
         <label className="modal-checkbox-row">
           <input type="checkbox" checked={showUndo} onChange={toggleUndo} />
-          Show Undo button
+          {t('Show Undo button')}
         </label>
         <label className="modal-checkbox-row">
           <input type="checkbox" checked={confirmMoves} onChange={toggleConfirmMoves} />
-          Confirm moves before playing them
+          {t('Confirm moves before playing them')}
         </label>
         <button type="button" className="modal-action" onClick={() => setSettingsOpen(false)}>
-          Close
+          {t('Close')}
         </button>
       </div>
     </div>
@@ -456,18 +458,18 @@ function GameView({ gameId }: GameViewProps) {
       <>
         <header className="go-header">
           <button type="button" className="back-toggle" onClick={goBack}>
-            Back
+            {t('Back')}
           </button>
           <span />
           <div className="go-menu" ref={menuRef}>
             <button type="button" className="go-menu-toggle" onClick={() => setMenuOpen((open) => !open)}>
-              Menu ▾
+              {t('Menu')} ▾
             </button>
             {menuOpen && <div className="go-menu-dropdown">{userMenuItems}</div>}
           </div>
         </header>
         <div className="go-board-wrap">
-          <div className="go-empty-state">Game not found.</div>
+          <div className="go-empty-state">{t('Game not found.')}</div>
         </div>
         {settingsModal}
         {tagsModal}
@@ -476,7 +478,7 @@ function GameView({ gameId }: GameViewProps) {
   }
 
   if (!liveBoard) {
-    return <p>Loading game...</p>;
+    return <p>{t('Loading game...')}</p>;
   }
 
   const size = liveBoard.length;
@@ -590,7 +592,7 @@ function GameView({ gameId }: GameViewProps) {
           </button>
         )}
         <button type="button" className="modal-action" onClick={() => setResultOpen(false)}>
-          Close
+          {t('Close')}
         </button>
       </div>
     </div>
@@ -839,7 +841,7 @@ function GameView({ gameId }: GameViewProps) {
     <>
       <header className="go-header">
         <button type="button" className="back-toggle" onClick={goBack}>
-          Back
+          {t('Back')}
         </button>
         {myColor === 'both' ? (
           <h2 className="game-title">
@@ -857,7 +859,7 @@ function GameView({ gameId }: GameViewProps) {
         )}
         <div className="go-menu" ref={menuRef}>
           <button type="button" className="go-menu-toggle" onClick={() => setMenuOpen((open) => !open)}>
-            Menu ▾
+            {t('Menu')} ▾
           </button>
           {menuOpen && (
             <div className="go-menu-dropdown">
@@ -871,7 +873,7 @@ function GameView({ gameId }: GameViewProps) {
                     handleRecomputeAiMove();
                   }}
                 >
-                  Recompute GNU Go's move
+                  {t("Recompute GNU Go's move")}
                 </button>
               )}
               {/* Open to anyone logged in: a spectator can't edit the title
@@ -885,7 +887,7 @@ function GameView({ gameId }: GameViewProps) {
                     setTagsOpen(true);
                   }}
                 >
-                  Title &amp; tags
+                  {t('Title & tags')}
                 </button>
               )}
               <button
@@ -895,7 +897,7 @@ function GameView({ gameId }: GameViewProps) {
                   window.location.href = sgfExportUrl(gameId);
                 }}
               >
-                Export SGF
+                {t('Export SGF')}
               </button>
               {myColor === 'both' && !finished && (
                 <button
@@ -905,7 +907,7 @@ function GameView({ gameId }: GameViewProps) {
                     handleEndGame();
                   }}
                 >
-                  End game
+                  {t('End game')}
                 </button>
               )}
               {isParticipant && (
@@ -916,7 +918,7 @@ function GameView({ gameId }: GameViewProps) {
                     handleDeleteGame();
                   }}
                 >
-                  Delete game
+                  {t('Delete game')}
                 </button>
               )}
               <hr className="go-menu-divider" />
@@ -1017,7 +1019,7 @@ function GameView({ gameId }: GameViewProps) {
               aria-pressed={markMode === 'dead'}
               onClick={() => setMarkMode('dead')}
             >
-              Dead
+              {t('Dead')}
             </button>
             <button
               type="button"
@@ -1025,63 +1027,59 @@ function GameView({ gameId }: GameViewProps) {
               aria-pressed={markMode === 'seki'}
               onClick={() => setMarkMode('seki')}
             >
-              Seki
+              {t('Seki')}
             </button>
           </div>
         )}
         {status === 'in_progress' && lastEvent?.eventType === 'PASS' && (
-          <p>{colorLabel(lastEvent.color)} passed.</p>
+          <p>{t('%@ passed.', colorLabel(lastEvent.color))}</p>
         )}
         {scoring && (
           <p>
             {markMode === 'dead'
-              ? 'Marking dead stones — click a stone to toggle its group.'
-              : 'Marking seki groups — click a stone to toggle its group. Stays on the board; scores nothing for either side.'}
-            {provisionalResult && <> Estimated: {provisionalResult}</>}
+              ? t('Marking dead stones — click a stone to toggle its group.')
+              : t(
+                  'Marking seki groups — click a stone to toggle its group. Stays on the board; scores nothing for either side.',
+                )}
+            {provisionalResult && <> {t('Estimated: %@', provisionalResult)}</>}
           </p>
         )}
         {!isReviewing && isParticipant && pendingUndoBy && myColor !== 'both' && (
           <p>
             {pendingUndoBy === myColor
-              ? 'Waiting for the other player to confirm your undo request.'
-              : `${colorLabel(pendingUndoBy)} requested to undo the last move.`}
+              ? t('Waiting for the other player to confirm your undo request.')
+              : t('%@ requested to undo the last move.', colorLabel(pendingUndoBy))}
           </p>
         )}
         {!isReviewing && isParticipant && pendingReopenBy && myColor !== 'both' && (
           <p>
             {pendingReopenBy === myColor
-              ? 'Waiting for the other player to confirm reopening scoring.'
-              : `${colorLabel(pendingReopenBy)} requested to reopen scoring.`}
+              ? t('Waiting for the other player to confirm reopening scoring.')
+              : t('%@ requested to reopen scoring.', colorLabel(pendingReopenBy))}
           </p>
         )}
         {status === 'in_progress' && isParticipant && !isMyTurn && !pendingUndoBy && (
           <p>
-            Waiting for{' '}
-            {(currentColor === 'black' ? blackUsername : whiteUsername) ? (
-              <PlayerLink
-                username={currentColor === 'black' ? blackUsername : whiteUsername}
-                userId={currentColor === 'black' ? blackUserId : whiteUserId}
-              />
-            ) : (
-              colorLabel(currentColor)
-            )}{' '}
-            to move.
+            {t(
+              'Waiting for %@ to move.',
+              (currentColor === 'black' ? blackUsername : whiteUsername) ?? colorLabel(currentColor),
+            )}
           </p>
         )}
         {!isParticipant && status !== 'finished' && (
-          <p>You're viewing as a spectator — log in as a player in this game to make moves.</p>
+          <p>{t("You're viewing as a spectator — log in as a player in this game to make moves.")}</p>
         )}
         {isReviewing && (
           <p>
-            {reviewEntry ? describeEntry(reviewEntry, size) : 'Loading history...'}
-            {!navDisabled && <> — move {reviewMoveNumber} of {latestMoveNumber}</>}
+            {reviewEntry ? describeEntry(reviewEntry, size) : t('Loading history...')}
+            {!navDisabled && <> — {t('move %lld of %lld', reviewMoveNumber ?? 0, latestMoveNumber ?? 0)}</>}
           </p>
         )}
         {isReviewing && history && (
           <ol
             ref={moveChainRef}
             className="go-move-chain"
-            aria-label="Move history"
+            aria-label={t('Move history')}
             onMouseDown={handleChainMouseDown}
             onMouseMove={handleChainMouseMove}
             onMouseUp={stopChainDrag}
@@ -1124,7 +1122,7 @@ function GameView({ gameId }: GameViewProps) {
                 <button
                   type="button"
                   className="go-turn-toggle"
-                  aria-label="Game actions"
+                  aria-label={t('Game actions')}
                   disabled={!isParticipant}
                   onClick={() => setTurnMenuOpen((open) => !open)}
                 >
@@ -1158,7 +1156,7 @@ function GameView({ gameId }: GameViewProps) {
                       }}
                       disabled={!isMyTurn}
                     >
-                      Pass
+                      {t('Pass')}
                     </button>
                     <button
                       type="button"
@@ -1167,7 +1165,7 @@ function GameView({ gameId }: GameViewProps) {
                         resign();
                       }}
                     >
-                      Resign
+                      {t('Resign')}
                     </button>
                   </div>
                 )}
@@ -1192,7 +1190,7 @@ function GameView({ gameId }: GameViewProps) {
                     </button>
                   );
                 })()}
-                <button type="button" className="icon-action-button" aria-label="Finalize scoring" onClick={finalize}>
+                <button type="button" className="icon-action-button" aria-label={t('Finalize scoring')} onClick={finalize}>
                   <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                     <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                   </svg>
@@ -1209,7 +1207,7 @@ function GameView({ gameId }: GameViewProps) {
                 <button
                   type="button"
                   className="review-nav-button"
-                  aria-label="First move"
+                  aria-label={t('First move')}
                   onClick={() => goToMove(0)}
                   disabled={navDisabled || reviewMoveNumber === 0}
                 >
@@ -1238,7 +1236,7 @@ function GameView({ gameId }: GameViewProps) {
                 <button
                   type="button"
                   className="review-nav-button"
-                  aria-label="Last move"
+                  aria-label={t('Last move')}
                   onClick={() => goToMove(latestMoveNumber ?? 0)}
                   disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
                 >
@@ -1281,7 +1279,7 @@ function GameView({ gameId }: GameViewProps) {
           <span>{error || historyError || invalidMoveError}</span>
           <button
             type="button"
-            aria-label="Dismiss"
+            aria-label={t('Dismiss')}
             onClick={() => {
               clearError();
               clearHistoryError();
@@ -1395,7 +1393,7 @@ function TitleTagsEditor({
       <button
         type="button"
         className={`star-button star-button--modal${starred ? ' star-button--active' : ''}`}
-        aria-label={starred ? 'Remove from favourites' : 'Add to favourites'}
+        aria-label={starred ? t('Remove from favourites') : t('Add to favourites')}
         aria-pressed={starred}
         disabled={busy}
         onClick={toggleStarred}
@@ -1413,12 +1411,12 @@ function TitleTagsEditor({
             type="text"
             value={titleDraft}
             onChange={(e) => setTitleDraft(e.target.value)}
-            placeholder="Game title"
-            aria-label="Game title"
+            placeholder={t('Game title')}
+            aria-label={t('Game title')}
             maxLength={100}
           />
           <button type="submit" className="modal-action" disabled={busy || titleDraft.trim() === (title ?? '')}>
-            Save
+            {t('Save')}
           </button>
         </form>
       ) : (
@@ -1430,7 +1428,7 @@ function TitleTagsEditor({
             <li key={tag} className="tag-chip">
               {tag}
               {canEdit && (
-                <button type="button" aria-label={`Remove tag ${tag}`} disabled={busy} onClick={() => remove(tag)}>
+                <button type="button" aria-label={t('Remove tag %@', tag)} disabled={busy} onClick={() => remove(tag)}>
                   ×
                 </button>
               )}
@@ -1438,7 +1436,7 @@ function TitleTagsEditor({
           ))}
         </ul>
       ) : (
-        <p className="tag-empty">No tags yet.</p>
+        <p className="tag-empty">{t('No tags yet.')}</p>
       )}
       {canEdit && (
         <form className="tag-form" onSubmit={submit}>
@@ -1446,12 +1444,12 @@ function TitleTagsEditor({
             type="text"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Add a tag"
-            aria-label="Add a tag"
+            placeholder={t('Add a tag')}
+            aria-label={t('Add a tag')}
             maxLength={24}
           />
           <button type="submit" className="modal-action" disabled={busy || !draft.trim()}>
-            Add
+            {t('Add')}
           </button>
         </form>
       )}
