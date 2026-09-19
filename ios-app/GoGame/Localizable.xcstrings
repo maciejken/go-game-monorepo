@@ -249,7 +249,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ spasowały"
+            "value": "%@ spasował"
           }
         },
         "uk": {
@@ -308,7 +308,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ spasowały."
+            "value": "%@ spasował."
           }
         },
         "uk": {
@@ -367,7 +367,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ zagrały %@"
+            "value": "%@ zagrał %@"
           }
         },
         "uk": {
@@ -426,7 +426,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ proszą o ponowne liczenie."
+            "value": "%@ prosi o ponowne liczenie."
           }
         },
         "uk": {
@@ -485,7 +485,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ proszą o cofnięcie ostatniego ruchu."
+            "value": "%@ prosi o cofnięcie ostatniego ruchu."
           }
         },
         "uk": {
@@ -544,7 +544,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ poddały partię"
+            "value": "%@ poddał partię"
           }
         },
         "uk": {
@@ -1901,7 +1901,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Czarne"
+            "value": "Czarny"
           }
         },
         "uk": {
@@ -11341,7 +11341,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Czekamy, aż drugi gracz potwierdzi ponowne liczenie."
+            "value": "Oczekiwanie zgody na ponowne liczenie."
           }
         },
         "uk": {
@@ -11400,7 +11400,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Czekamy, aż drugi gracz potwierdzi cofnięcie ruchu."
+            "value": "Oczekiwanie zgody na cofnięcie ruchu."
           }
         },
         "uk": {
@@ -11459,7 +11459,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Czekamy na potwierdzenie drugiego gracza."
+            "value": "Oczekiwanie zgody drugiego gracza."
           }
         },
         "uk": {
@@ -11518,7 +11518,7 @@
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Białe"
+            "value": "Biały"
           }
         },
         "uk": {
