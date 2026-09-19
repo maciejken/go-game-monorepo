@@ -111,8 +111,15 @@ function AcceptInvitationsToggle({ initialValue }: { initialValue: boolean }) {
   );
 }
 
+// Keyed by id so moving between profiles mounts a fresh ProfileView — its
+// state starts empty instead of showing the previous user until the new
+// one loads, and a late response for the old id lands on the unmounted one.
 function Profile() {
   const { id } = useParams<{ id: string }>();
+  return <ProfileView key={id} id={id} />;
+}
+
+function ProfileView({ id }: { id: string | undefined }) {
   const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -121,8 +128,6 @@ function Profile() {
     if (!id) {
       return;
     }
-    setProfile(null);
-    setError(null);
     getUser(id)
       .then(setProfile)
       .catch((err: Error) => setError(err.message));

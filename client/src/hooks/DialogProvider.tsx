@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { t } from '../i18n';
 import { DialogContext } from './useDialog';
 
 interface DialogState {
@@ -22,7 +23,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
 
   const alert = useCallback((message: string) => {
     return new Promise<void>((resolve) => {
-      setDialog({ message, variant: 'alert', confirmLabel: 'OK', resolve: () => resolve() });
+      setDialog({ message, variant: 'alert', confirmLabel: t('OK'), resolve: () => resolve() });
     });
   }, []);
 
@@ -66,7 +67,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
             <div className="modal-actions">
               {dialog.variant === 'confirm' && (
                 <button type="button" className="modal-action" onClick={() => close(false)}>
-                  Cancel
+                  {t('Cancel')}
                 </button>
               )}
               <button type="button" className="modal-action" autoFocus onClick={() => close(true)}>

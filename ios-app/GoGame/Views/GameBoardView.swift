@@ -880,15 +880,27 @@ struct GameBoardView: View {
         }
     }
 
-    // Mirrors client/src/pages/Game.tsx's resultSummary: strips the
-    // server's own "(B: x, W: y)" breakdown suffix, leaving just the plain
-    // sentence — the breakdown is shown separately, as black/white stones.
+    // Mirrors client/src/pages/Game.tsx's describeResult: the sentence is
+    // built from the SGF-style shortResult ("W+6.5", "B+R", "W+T"), with a
+    // catalogue entry per color so translators write whole sentences.
     private func plainResult(_ game: GameState) -> String {
-        guard let result = game.result else { return String(localized: "Game over") }
-        guard let range = result.range(of: #"\s*\(B: [\d.]+, W: [\d.]+\)\s*$"#, options: .regularExpression) else {
-            return result
+        switch game.shortResult {
+        case nil:
+            return String(localized: "Game over")
+        case "B+R":
+            return String(localized: "B+R", defaultValue: "Black wins by resignation")
+        case "W+R":
+            return String(localized: "W+R", defaultValue: "White wins by resignation")
+        case "B+T":
+            return String(localized: "B+T", defaultValue: "Black wins on time")
+        case "W+T":
+            return String(localized: "W+T", defaultValue: "White wins on time")
+        case let shortResult?:
+            let margin = String(shortResult.dropFirst(2))
+            return shortResult.hasPrefix("B")
+                ? String(localized: "B+%@", defaultValue: "Black wins by \(margin)")
+                : String(localized: "W+%@", defaultValue: "White wins by \(margin)")
         }
-        return String(result[result.startIndex..<range.lowerBound])
     }
 
     @ViewBuilder

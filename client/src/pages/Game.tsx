@@ -44,6 +44,25 @@ function colorLabel(color: string | null): string {
   return color === 'black' ? t('Black') : color === 'white' ? t('White') : '';
 }
 
+// The result sentence, built from the server's SGF-style shortResult
+// ("W+6.5", "B+R", "W+T") — each color gets its own catalogue entry so
+// translators write whole sentences instead of fitting a color into one.
+function describeResult(shortResult: string | null): string {
+  switch (shortResult) {
+    case null:
+      return t('Game over');
+    case 'B+R':
+      return t('B+R');
+    case 'W+R':
+      return t('W+R');
+    case 'B+T':
+      return t('B+T');
+    case 'W+T':
+      return t('W+T');
+  }
+  return shortResult.startsWith('B') ? t('B+%@', shortResult.slice(2)) : t('W+%@', shortResult.slice(2));
+}
+
 function describeEntry(entry: Pick<HistoryEntry, 'eventType' | 'color' | 'point' | 'capturedPoints'>, size: number): string {
   switch (entry.eventType) {
     case 'START':
@@ -161,7 +180,6 @@ function GameView({ gameId }: GameViewProps) {
     board: liveBoard,
     currentColor,
     status,
-    result,
     handicap,
     komi,
     title,
@@ -449,9 +467,14 @@ function GameView({ gameId }: GameViewProps) {
   // was placed on — clear it once that turn ends, one way or another (our
   // own confirmed move, the opponent's move arriving live, or entering
   // review), so it can't linger and mislead about whose turn it is.
-  useEffect(() => {
+  // Reset during render rather than in an effect, so the stale marker is
+  // never painted for a frame first.
+  const turnKey = `${currentColor}-${isReviewing}`;
+  const [pendingTurnKey, setPendingTurnKey] = useState(turnKey);
+  if (pendingTurnKey !== turnKey) {
+    setPendingTurnKey(turnKey);
     setPendingMove(null);
-  }, [currentColor, isReviewing]);
+  }
 
   if (notFound) {
     return (
@@ -517,9 +540,7 @@ function GameView({ gameId }: GameViewProps) {
   const navDisabled = latestMoveNumber === null || reviewMoveNumber === null;
   // Local games and AI games undo immediately (no negotiation) — same split
   // describeUndoAction uses to pick a label.
-  // The server's own result sentence without its "(B: x, W: y)" breakdown
-  // suffix — the modal shows those two numbers inside the stones instead.
-  const plainResult = result?.replace(/\s*\(B: [\d.]+, W: [\d.]+\)\s*$/, '') ?? 'Game over';
+  const plainResult = describeResult(shortResult);
   // Per-player setup details, shown under that player's name: GNU Go's
   // level under whichever side it played (it plays through one shared
   // account literally named "gnugo"), the handicap stones under black, who
@@ -528,24 +549,27 @@ function GameView({ gameId }: GameViewProps) {
     const details: string[] = [];
     const username = color === 'black' ? blackUsername : whiteUsername;
     if (isAiOpponent && gnugoLevel !== null && username === 'gnugo') {
-      details.push(`level ${gnugoLevel}`);
+      details.push(t('level %lld', gnugoLevel));
     }
     if (color === 'black' && handicap > 0) {
-      details.push(`handicap ${handicap}`);
+      details.push(t('handicap %lld', handicap));
     }
     return details;
   };
   const resultSetupLine = [
-    komi === 0 ? 'no komi' : `komi ${komi}`,
-    timeControl === null ? 'Unlimited' : timeControlLabel(timeControl),
+    komi === 0 ? t('no komi') : t('komi %@', komi),
+    timeControl === null ? t('Unlimited') : timeControlLabel(timeControl),
   ].join(' · ');
   const startedLine =
     createdAt === null
       ? null
-      : `Game started on ${new Date(createdAt).toLocaleString(undefined, {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        })}`;
+      : t(
+          'Game started on %@',
+          new Date(createdAt).toLocaleString(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          }),
+        );
 
   // Mirrors the iOS app's result sheet: the result sentence, each player's
   // name over their setup details either side of their stone marker (with
@@ -617,9 +641,8 @@ function GameView({ gameId }: GameViewProps) {
     const sekiPointsArray = Array.from(pendingSeki, parsePointKey);
     const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(liveBoard, captures, deadPointsArray);
     const score = scoreBoard(effectiveBoard, adjustedCaptures, komi, sekiPointsArray);
-    const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
     const marginLabel = Number.isInteger(score.margin) ? String(score.margin) : score.margin.toFixed(1);
-    provisionalResult = `${winnerLabel} wins by ${marginLabel}`;
+    provisionalResult = t('Estimated: %@ wins by %@', colorLabel(score.winner), marginLabel);
     blackTerritoryKeys = new Set(score.blackTerritoryPoints.map(pointKey));
     whiteTerritoryKeys = new Set(score.whiteTerritoryPoints.map(pointKey));
   }
@@ -780,7 +803,7 @@ function GameView({ gameId }: GameViewProps) {
   };
 
   const handleEndGame = () => {
-    confirmDialog('End this game now? It will finish with no result.', 'End game').then((confirmed) => {
+    confirmDialog(t('End this game now? It will finish with no result.'), t('End game')).then((confirmed) => {
       if (confirmed) {
         endGame();
       }
@@ -794,7 +817,7 @@ function GameView({ gameId }: GameViewProps) {
   };
 
   const handleDeleteGame = () => {
-    confirmDialog('Delete this game and all its moves? This cannot be undone.', 'Delete').then((confirmed) => {
+    confirmDialog(t('Delete this game and all its moves? This cannot be undone.'), t('Delete')).then((confirmed) => {
       if (!confirmed) {
         return;
       }
@@ -831,7 +854,7 @@ function GameView({ gameId }: GameViewProps) {
         if (result.valid) {
           setPendingMove({ x, y });
         } else {
-          setInvalidMoveError(result.error ?? 'Invalid move');
+          setInvalidMoveError(result.error ?? t('Invalid move'));
         }
       })
       .catch((err: Error) => setInvalidMoveError(err.message));
@@ -1011,7 +1034,7 @@ function GameView({ gameId }: GameViewProps) {
           )}
         </div>
         {canMarkGroups && (
-          <div className="go-mark-mode" role="group" aria-label="Marking mode">
+          <div className="go-mark-mode" role="group" aria-label={t('Marking mode')}>
             <span className={`go-mark-mode-thumb go-mark-mode-thumb--${markMode}`} aria-hidden="true" />
             <button
               type="button"
@@ -1041,7 +1064,7 @@ function GameView({ gameId }: GameViewProps) {
               : t(
                   'Marking seki groups — click a stone to toggle its group. Stays on the board; scores nothing for either side.',
                 )}
-            {provisionalResult && <> {t('Estimated: %@', provisionalResult)}</>}
+            {provisionalResult && <> {provisionalResult}</>}
           </p>
         )}
         {!isReviewing && isParticipant && pendingUndoBy && myColor !== 'both' && (
@@ -1175,8 +1198,8 @@ function GameView({ gameId }: GameViewProps) {
               <div className="go-actions">
                 {(() => {
                   const resumeLabel = describeUndoAction(myColor, pendingUndoBy, true, isAiOpponent);
-                  return resumeLabel === 'Resume' ? (
-                    <button type="button" className="icon-action-button" aria-label="Resume" onClick={resume}>
+                  return resumeLabel === t('Resume') ? (
+                    <button type="button" className="icon-action-button" aria-label={t('Resume')} onClick={resume}>
                       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                         <path
                           fill="currentColor"
@@ -1231,7 +1254,7 @@ function GameView({ gameId }: GameViewProps) {
                     {shortResult}
                   </button>
                 ) : (
-                  endReason === 'ended' && <span className="footer-result footer-result--static">No result</span>
+                  endReason === 'ended' && <span className="footer-result footer-result--static">{t('No result')}</span>
                 )}
                 <button
                   type="button"
