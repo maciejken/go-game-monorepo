@@ -22,7 +22,7 @@ struct AuthView: View {
                 }
 
                 Section {
-                    Button("Log In") {
+                    Button("Log in") {
                         Task {
                             isSubmitting = true
                             await session.login(username: username, password: password)
@@ -41,7 +41,7 @@ struct AuthView: View {
                     .disabled(isSubmitting || username.isEmpty || password.isEmpty)
                 }
             }
-            .navigationTitle("Go Game")
+            .navigationTitle("Igo5")
         }
     }
 }

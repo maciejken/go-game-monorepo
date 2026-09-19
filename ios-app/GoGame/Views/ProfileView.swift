@@ -69,7 +69,7 @@ struct ProfileView: View {
                                 Text("Quick game preset")
                             }
                         }
-                        Section("Change Password") {
+                        Section("Change password") {
                             SecureField("Current password", text: $currentPassword)
                                 .textContentType(.password)
                             SecureField("New password", text: $newPassword)
@@ -86,7 +86,7 @@ struct ProfileView: View {
                                     .font(.footnote)
                                     .foregroundStyle(.green)
                             }
-                            Button("Change Password") {
+                            Button("Change password") {
                                 Task { await submitPasswordChange() }
                             }
                             .disabled(
@@ -95,7 +95,7 @@ struct ProfileView: View {
                             )
                         }
                         Section {
-                            Button("Log Out", role: .destructive) {
+                            Button("Log out", role: .destructive) {
                                 Task { await session.logout() }
                             }
                         }

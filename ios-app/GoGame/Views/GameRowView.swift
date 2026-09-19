@@ -8,18 +8,27 @@ struct GameRowView: View {
     private var metaParts: [String] {
         var parts = ["\(game.size)x\(game.size)"]
         if game.myColor != .both {
-            parts.append("\(game.blackUsername ?? "—") vs \(game.whiteUsername ?? "—")")
+            let black = game.blackUsername ?? "—"
+            let white = game.whiteUsername ?? "—"
+            parts.append(String(localized: "%@ vs %@", defaultValue: "\(black) vs \(white)"))
         }
         if game.isAiOpponent, let level = game.gnugoLevel {
-            parts.append("level \(level)")
+            parts.append(String(localized: "level %lld", defaultValue: "level \(level)"))
         }
         if game.handicap > 0 {
-            parts.append("handicap \(game.handicap)")
+            parts.append(String(localized: "handicap %lld", defaultValue: "handicap \(game.handicap)"))
         }
-        parts.append(game.komi == 0 ? "no komi" : "komi \(game.komi)")
-        parts.append(game.timeControl.map(timeControlLabel) ?? "Unlimited")
+        let komi = game.komi.truncatingRemainder(dividingBy: 1) == 0
+            ? String(Int(game.komi))
+            : String(format: "%.1f", game.komi)
+        parts.append(
+            game.komi == 0
+                ? String(localized: "no komi")
+                : String(localized: "komi %@", defaultValue: "komi \(komi)")
+        )
+        parts.append(game.timeControl.map(timeControlLabel) ?? String(localized: "Unlimited"))
         if game.status == "finished" {
-            parts.append(game.shortResult ?? "no result")
+            parts.append(game.shortResult ?? String(localized: "no result"))
         }
         return parts
     }
@@ -48,8 +57,8 @@ struct GameRowView: View {
 
     private func timeControlLabel(_ timeControl: TimeControl) -> String {
         switch timeControl {
-        case .standard: return "10 min"
-        case .correspondence: return "24h per move"
+        case .standard: return String(localized: "10 min")
+        case .correspondence: return String(localized: "24h per move")
         }
     }
 }

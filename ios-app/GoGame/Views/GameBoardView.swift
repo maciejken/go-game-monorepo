@@ -345,7 +345,7 @@ struct GameBoardView: View {
                 // changed. Moving both below the board means only content
                 // beneath it reflows.
                 if game.status == "scoring" {
-                    Picker("Mark mode", selection: $markMode) {
+                    Picker("Marking mode", selection: $markMode) {
                         Text("Dead").tag(MarkMode.dead)
                         Text("Seki").tag(MarkMode.seki)
                     }
@@ -425,11 +425,16 @@ struct GameBoardView: View {
     private func inviteMetaParts(_ game: GameState) -> [String] {
         var parts = ["\(game.size)x\(game.size)"]
         if game.handicap > 0 {
-            parts.append("handicap \(game.handicap)")
+            parts.append(String(localized: "handicap %lld", defaultValue: "handicap \(game.handicap)"))
         }
-        parts.append(game.komi == 0 ? "no komi" : "komi \(game.komi)")
+        parts.append(
+            game.komi == 0
+                ? String(localized: "no komi")
+                : String(localized: "komi %@", defaultValue: "komi \(formatScore(game.komi))")
+        )
         parts.append(timeControlLabel(game))
-        parts.append("you play \(game.myColor == .black ? "Black" : "White")")
+        let myColor = reviewColorLabel(game.myColor == .black ? .black : .white)
+        parts.append(String(localized: "you play %@", defaultValue: "you play \(myColor)"))
         return parts
     }
 
@@ -437,9 +442,9 @@ struct GameBoardView: View {
     // how the server stores "unlimited".
     private func timeControlLabel(_ game: GameState) -> String {
         switch game.timeControl {
-        case .standard: return "10 min"
-        case .correspondence: return "24h per move"
-        case nil: return "Unlimited"
+        case .standard: return String(localized: "10 min")
+        case .correspondence: return String(localized: "24h per move")
+        case nil: return String(localized: "Unlimited")
         }
     }
 
@@ -879,7 +884,7 @@ struct GameBoardView: View {
     // server's own "(B: x, W: y)" breakdown suffix, leaving just the plain
     // sentence — the breakdown is shown separately, as black/white stones.
     private func plainResult(_ game: GameState) -> String {
-        guard let result = game.result else { return "Game over" }
+        guard let result = game.result else { return String(localized: "Game over") }
         guard let range = result.range(of: #"\s*\(B: [\d.]+, W: [\d.]+\)\s*$"#, options: .regularExpression) else {
             return result
         }
@@ -971,10 +976,10 @@ struct GameBoardView: View {
     private func playerDetails(_ game: GameState, color: StoneColor) -> [String] {
         var details: [String] = []
         if let level = game.gnugoLevel, isAiSide(game, color: color) {
-            details.append("level \(level)")
+            details.append(String(localized: "level %lld", defaultValue: "level \(level)"))
         }
         if color == .black, game.handicap > 0 {
-            details.append("handicap \(game.handicap)")
+            details.append(String(localized: "handicap %lld", defaultValue: "handicap \(game.handicap)"))
         }
         return details
     }
@@ -990,7 +995,9 @@ struct GameBoardView: View {
     // The settings both players share, mirroring the same two fields in
     // GameRowView's metadata line.
     private func setupLine(_ game: GameState) -> String {
-        let komi = game.komi == 0 ? "no komi" : "komi \(formatScore(game.komi))"
+        let komi = game.komi == 0
+            ? String(localized: "no komi")
+            : String(localized: "komi %@", defaultValue: "komi \(formatScore(game.komi))")
         return "\(komi) · \(timeControlLabel(game))"
     }
 
@@ -999,7 +1006,8 @@ struct GameBoardView: View {
     private func startedLine(_ game: GameState) -> String? {
         guard let createdAt = game.createdAt else { return nil }
         let started = Date(timeIntervalSince1970: Double(createdAt) / 1000)
-        return "Game started on \(started.formatted(date: .abbreviated, time: .shortened))"
+        let date = started.formatted(date: .abbreviated, time: .shortened)
+        return String(localized: "Game started on %@", defaultValue: "Game started on \(date)")
     }
 
     // Every row in this sheet has a fixed height, so adding them up sizes it
@@ -1060,12 +1068,14 @@ struct GameBoardView: View {
     // Mirrors client/src/pages/Game.tsx's describeReopenAction.
     private func reopenScoringLabel(_ game: GameState) -> String {
         if game.myColor == .both || game.isAiOpponent {
-            return "Reopen Scoring"
+            return String(localized: "Reopen Scoring")
         }
         guard let pendingReopenBy = game.pendingReopenBy else {
-            return "Request Reopen Scoring"
+            return String(localized: "Request Reopen Scoring")
         }
-        return pendingReopenBy == myStoneColor(game) ? "Cancel Reopen Request" : "Confirm Reopen Scoring"
+        return pendingReopenBy == myStoneColor(game)
+            ? String(localized: "Cancel Reopen Request")
+            : String(localized: "Confirm Reopen Scoring")
     }
 
     // Sized to comfortably fit a 3-digit score (e.g. "182.5") without the
@@ -1091,8 +1101,10 @@ struct GameBoardView: View {
         case "finished", "scoring":
             return ""
         default:
-            let toMove = game.currentColor == .black ? "Black" : "White"
-            return canAct(game) ? "\(toMove) to move — your turn" : "\(toMove) to move"
+            let toMove = reviewColorLabel(game.currentColor)
+            return canAct(game)
+                ? String(localized: "%@ to move — your turn", defaultValue: "\(toMove) to move — your turn")
+                : String(localized: "%@ to move", defaultValue: "\(toMove) to move")
         }
     }
 
@@ -1102,8 +1114,11 @@ struct GameBoardView: View {
     // that changes as marks are toggled) from affecting anything above it.
     private func estimateText(_ game: GameState) -> String? {
         guard let preview = livePreview(game) else { return nil }
-        let winner = preview.winner == .black ? "Black" : "White"
-        return "Estimated: \(winner) wins by \(formatScore(preview.margin))"
+        let winner = reviewColorLabel(preview.winner)
+        return String(
+            localized: "Estimated: %@ wins by %@",
+            defaultValue: "Estimated: \(winner) wins by \(formatScore(preview.margin))"
+        )
     }
 
     private func formatScore(_ value: Double) -> String {
@@ -1181,8 +1196,8 @@ struct GameBoardView: View {
 
     private func reviewColorLabel(_ color: StoneColor?) -> String {
         switch color {
-        case .black: return "Black"
-        case .white: return "White"
+        case .black: return String(localized: "Black")
+        case .white: return String(localized: "White")
         case nil: return ""
         }
     }
@@ -1191,18 +1206,29 @@ struct GameBoardView: View {
     private func describeEntry(_ entry: some MoveEventDescribable, size: Int) -> String {
         switch entry.eventType {
         case "START":
-            return "Start of game"
+            return String(localized: "Start of game")
         case "HANDICAP":
-            return "Handicap stones placed"
+            return String(localized: "Handicap stones placed")
         case "PASS":
-            return "\(reviewColorLabel(entry.color)) passed"
+            let color = reviewColorLabel(entry.color)
+            return String(localized: "%@ passed", defaultValue: "\(color) passed")
         case "RESIGN":
-            return "\(reviewColorLabel(entry.color)) resigned"
+            let color = reviewColorLabel(entry.color)
+            return String(localized: "%@ resigned", defaultValue: "\(color) resigned")
         case "MOVE":
-            guard let point = entry.point else { return "\(reviewColorLabel(entry.color)) played" }
+            let color = reviewColorLabel(entry.color)
+            guard let point = entry.point else {
+                return String(localized: "%@ played %@", defaultValue: "\(color) played \("")")
+            }
             let label = "\(Self.reviewColumnLabels[point.x])\(size - point.y)"
-            let captureNote = entry.capturedPoints.isEmpty ? "" : " (captured \(entry.capturedPoints.count))"
-            return "\(reviewColorLabel(entry.color)) played \(label)\(captureNote)"
+            let captureNote = entry.capturedPoints.isEmpty
+                ? ""
+                : String(
+                    localized: " (captured %lld)",
+                    defaultValue: " (captured \(entry.capturedPoints.count))"
+                )
+            let move = String(localized: "%@ played %@", defaultValue: "\(color) played \(label)")
+            return move + captureNote
         default:
             return ""
         }
@@ -1563,7 +1589,9 @@ struct GameBoardView: View {
         if let title = game?.title, !title.isEmpty {
             return title
         }
-        return "\(game?.blackUsername ?? "Black") vs \(game?.whiteUsername ?? "White")"
+        let black = game?.blackUsername ?? String(localized: "Black")
+        let white = game?.whiteUsername ?? String(localized: "White")
+        return String(localized: "%@ vs %@", defaultValue: "\(black) vs \(white)")
     }
 
     // A quick note carries no move record, so an untitled game falls back
