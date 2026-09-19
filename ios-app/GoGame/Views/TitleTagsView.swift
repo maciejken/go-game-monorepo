@@ -46,19 +46,32 @@ struct FlowLayout: Layout {
     }
 }
 
-// A tag as it appears on a game-list row: a plain capsule, no remove button
-// (the game's own Tags sheet is where they're edited).
+// A tag as a capsule: plain on a game-list row, and with an × wherever it
+// can be removed.
 struct TagChip: View {
     let tag: String
+    var onRemove: (() -> Void)?
 
     var body: some View {
-        Text(tag)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Color.primary.opacity(0.08), in: Capsule())
+        HStack(spacing: 4) {
+            Text(tag)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            if let onRemove {
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove tag \(tag)")
+            }
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, onRemove == nil ? 8 : 5)
+        .padding(.vertical, 3)
+        .background(Color.primary.opacity(0.08), in: Capsule())
     }
 }
 

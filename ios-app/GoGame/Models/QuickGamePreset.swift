@@ -16,6 +16,9 @@ struct QuickGamePreset: Codable, Equatable {
     var gnugoLevel: Int?
     var color: String
     var opponentUsername: String?
+    // Stamped onto every game this preset starts, so quick games are
+    // findable as a group afterwards.
+    var tags: [String]
     var shakeToPlay: Bool
 
     // Only used until the first fetch lands; the server has its own copy
@@ -29,6 +32,7 @@ struct QuickGamePreset: Codable, Equatable {
         gnugoLevel: 5,
         color: "black",
         opponentUsername: nil,
+        tags: [],
         shakeToPlay: false
     )
 

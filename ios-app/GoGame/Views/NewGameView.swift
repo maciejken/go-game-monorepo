@@ -217,6 +217,9 @@ struct NewGameView: View {
             gnugoLevel: mode == "gnugo" ? gnugoLevel : nil,
             color: color,
             opponentUsername: mode == "remote" ? opponent : nil,
+            // A game being created has no tags yet; they're added from its
+            // own Title & tags sheet, or here via the preset editor.
+            tags: quickGame.preset?.tags ?? [],
             shakeToPlay: true
         )
         quickGame.preset = try? await APIClient.setQuickGamePreset(preset)

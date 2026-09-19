@@ -14,6 +14,7 @@ struct QuickGamePresetView: View {
     @State private var errorMessage: String?
     @State private var usernameSuggestions: [APIClient.UsernameSearchResult] = []
     @State private var usernameSearchTask: Task<Void, Never>?
+    @State private var tagDraft = ""
 
     private static let boardSizes = [9, 13, 19]
 
@@ -96,6 +97,29 @@ struct QuickGamePresetView: View {
 
             if preset.mode == "gnugo" {
                 Stepper("GNU Go level: \(preset.gnugoLevel ?? 5)", value: gnugoLevelBinding, in: 1...10)
+            }
+
+            Section {
+                if !preset.tags.isEmpty {
+                    FlowLayout(spacing: 6) {
+                        ForEach(preset.tags, id: \.self) { tag in
+                            TagChip(tag: tag) { remove(tag: tag) }
+                        }
+                    }
+                }
+                HStack(spacing: 8) {
+                    TextField("Add a tag", text: $tagDraft)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .submitLabel(.done)
+                        .onSubmit { addTag() }
+                    Button("Add", action: addTag)
+                        .disabled(trimmedTagDraft.isEmpty)
+                }
+            } header: {
+                Text("Tags")
+            } footer: {
+                Text("Every quick game starts with these tags, so they're easy to find later.")
             }
 
             Section("Time control") {
@@ -190,6 +214,26 @@ struct QuickGamePresetView: View {
         if preset.mode != "remote" {
             usernameSuggestions = []
         }
+    }
+
+    private var trimmedTagDraft: String {
+        tagDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // The server applies the same rules it applies to a tag on a game —
+    // charset, length, cap, case-insensitive dedupe — and answers with
+    // what it stored, so a rejected tag simply doesn't come back.
+    private func addTag() {
+        let tag = trimmedTagDraft
+        guard !tag.isEmpty else { return }
+        preset.tags.append(tag)
+        tagDraft = ""
+        save()
+    }
+
+    private func remove(tag: String) {
+        preset.tags.removeAll { $0 == tag }
+        save()
     }
 
     private func save() {

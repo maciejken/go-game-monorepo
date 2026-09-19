@@ -268,7 +268,10 @@ enum APIClient {
         timeControl: String,
         color: String?,
         opponentUsername: String?,
-        level: Int?
+        level: Int?,
+        // Applied by the create endpoint itself, so a preset's tags land
+        // with the game rather than in a follow-up request per tag.
+        tags: [String] = []
     ) async throws -> String {
         struct Body: Encodable {
             let size: Int
@@ -280,6 +283,7 @@ enum APIClient {
             let color: String?
             let opponentUsername: String?
             let level: Int?
+            let tags: [String]
         }
         struct CreatedGame: Decodable { let id: String }
         let created: CreatedGame = try await post(
@@ -287,7 +291,8 @@ enum APIClient {
             body: Body(
                 size: size, handicap: handicap, komi: komi, title: title,
                 mode: mode, timeControl: timeControl,
-                color: color, opponentUsername: opponentUsername, level: level
+                color: color, opponentUsername: opponentUsername, level: level,
+                tags: tags
             )
         )
         return created.id
@@ -409,7 +414,8 @@ enum APIClient {
             timeControl: preset.timeControlName,
             color: preset.mode == "local" ? nil : preset.color,
             opponentUsername: preset.mode == "remote" ? preset.opponentUsername : nil,
-            level: preset.mode == "gnugo" ? preset.gnugoLevel : nil
+            level: preset.mode == "gnugo" ? preset.gnugoLevel : nil,
+            tags: preset.tags
         )
     }
 

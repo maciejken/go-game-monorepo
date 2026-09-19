@@ -18,6 +18,10 @@ struct GameListView: View {
     // the same list behaviour either way.
     var scope: String = "mine"
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
+    // Favourites' own button starts a game from the shake-to-play preset,
+    // whether or not the gesture itself is switched on — tapping is an
+    // explicit ask, where a shake is one you might not have meant.
+    @Environment(QuickGameStore.self) private var quickGame
     @State private var games: [GameSummary] = []
     @State private var hasMore = false
     @State private var isLoadingMore = false
@@ -31,6 +35,7 @@ struct GameListView: View {
     // keystroke, and a 1-2 character query cleanly means "no filter"
     // rather than a request the server would ignore anyway.
     @State private var appliedSearch = ""
+    @State private var isStartingQuickGame = false
 
     private var isHome: Bool { scope == "mine" }
 
@@ -100,9 +105,13 @@ struct GameListView: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 Group {
-                    // Creating a game belongs to Home; Favourites is a
-                    // filtered view of games that already exist.
-                    if isHome {
+                    // Home composes a new game; Favourites starts the one
+                    // the preset already describes. Same slot either way,
+                    // so whichever tab you're on, the button that starts a
+                    // game is under the same thumb.
+                    if !isHome {
+                        quickGameButton
+                    } else {
                         // Regular (non-prominent) glass rather than
                         // .glassProminent — prominent fills the shape with a
                         // solid tint (accentColor blue by default), which is
@@ -206,6 +215,54 @@ struct GameListView: View {
             } message: {
                 Text(errorMessage ?? "")
             }
+        }
+    }
+
+    // Mirrors the new-game button's glass treatment exactly — the two are
+    // the same control in the same place, differing only in what they
+    // start.
+    @ViewBuilder
+    private var quickGameButton: some View {
+        let icon = Image(systemName: "bolt.fill")
+            .font(.title2.weight(.semibold))
+            .foregroundStyle(.primary)
+            .frame(width: 56, height: 56)
+        if #available(iOS 26.0, *) {
+            Button { Task { await startQuickGame() } } label: { icon }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .disabled(isStartingQuickGame)
+        } else {
+            Button { Task { await startQuickGame() } } label: {
+                icon
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(Circle().stroke(Color.primary.opacity(0.2), lineWidth: 1))
+                    .shadow(radius: 4, y: 2)
+            }
+            .disabled(isStartingQuickGame)
+        }
+    }
+
+    // Pushes onto this tab's own stack rather than routing through the
+    // deep-link router as a shake does: the tap happened here, so there's
+    // no reason to move the user to Home first.
+    private func startQuickGame() async {
+        guard !isStartingQuickGame else { return }
+        isStartingQuickGame = true
+        defer { isStartingQuickGame = false }
+        if quickGame.preset == nil {
+            await quickGame.load()
+        }
+        guard let preset = quickGame.preset else {
+            errorMessage = "Couldn't load your quick game preset."
+            return
+        }
+        do {
+            let gameId = try await APIClient.createGame(from: preset)
+            await loadGames()
+            selectedGameId = gameId
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
