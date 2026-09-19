@@ -815,9 +815,12 @@ struct GameBoardView: View {
                 // happen by tapping a stone directly in the move-chain strip
                 // instead, to keep this footer row from getting crowded.
                 HStack(spacing: 8) {
-                    reviewNavButton(systemName: "backward.end", disabled: history == nil || reviewMoveNumber == 0) {
-                        goToMove(0)
-                    }
+                    ReviewNavButton(
+                        systemName: "chevron.left",
+                        disabled: history == nil || reviewMoveNumber == 0,
+                        step: { goToMove((reviewMoveNumber ?? 0) - 1) },
+                        jump: { goToMove(0) }
+                    )
                     if #available(iOS 26.0, *) {
                         Button {
                             showResultSheet = true
@@ -837,40 +840,14 @@ struct GameBoardView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    reviewNavButton(
-                        systemName: "forward.end",
-                        disabled: history == nil || reviewMoveNumber == (history?.moves.count ?? 1) - 1
-                    ) {
-                        goToMove((history?.moves.count ?? 1) - 1)
-                    }
+                    ReviewNavButton(
+                        systemName: "chevron.right",
+                        disabled: history == nil || reviewMoveNumber == (history?.moves.count ?? 1) - 1,
+                        step: { goToMove((reviewMoveNumber ?? 0) + 1) },
+                        jump: { goToMove((history?.moves.count ?? 1) - 1) }
+                    )
                 }
             }
-        }
-    }
-
-    // First/Last review-nav buttons flanking the result button — 32pt,
-    // ~62% of that button's 52pt, per request. The unfilled backward.end/
-    // forward.end (a thin chevron + bar, "|<"/">|") reads as noticeably
-    // more subtle than the solid .fill variant, closer to Liquid Glass's
-    // own generally light/thin icon weight.
-    @ViewBuilder
-    private func reviewNavButton(systemName: String, disabled: Bool, action: @escaping () -> Void) -> some View {
-        let icon = Image(systemName: systemName)
-            .font(.system(size: 13, weight: .medium))
-            .frame(width: 32, height: 32)
-        if #available(iOS 26.0, *) {
-            Button(action: action) { icon }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
-                .disabled(disabled)
-        } else {
-            Button(action: action) {
-                icon
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .disabled(disabled)
         }
     }
 
@@ -1690,5 +1667,65 @@ private struct ActionButtonStyle: ButtonStyle {
                     )
             )
             .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
+    }
+}
+
+// Review navigation flanking the result button — 32pt, ~62% of that
+// button's 52pt. A tap steps one move; a press and hold runs to the end of
+// the game in that direction.
+private struct ReviewNavButton: View {
+    let systemName: String
+    let disabled: Bool
+    let step: () -> Void
+    let jump: () -> Void
+
+    // A Button fires on release however long the press was, so without
+    // this a long press would jump to the end of the game and then step
+    // one move back off it. Set when the hold fires, consumed by the
+    // release that follows it.
+    @State private var didJump = false
+
+    var body: some View {
+        let icon = Image(systemName: systemName)
+            .font(.system(size: 15, weight: .semibold))
+            .frame(width: 32, height: 32)
+        Group {
+            if #available(iOS 26.0, *) {
+                Button(action: tapped) { icon }
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
+            } else {
+                Button(action: tapped) {
+                    icon
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .disabled(disabled)
+        // simultaneousGesture rather than .onLongPressGesture: the latter
+        // replaces the button's own press handling, taking its glass
+        // response with it.
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.4)
+                // Cleared as each press begins: a hold released off the
+                // button never reaches tapped(), and the flag would
+                // otherwise sit set and swallow the next tap.
+                .onChanged { _ in didJump = false }
+                .onEnded { _ in
+                    guard !disabled else { return }
+                    didJump = true
+                    jump()
+                }
+        )
+    }
+
+    private func tapped() {
+        guard !didJump else {
+            didJump = false
+            return
+        }
+        step()
     }
 }
