@@ -93,6 +93,10 @@ db.exec(`
     gnugo_level INTEGER,
     color TEXT NOT NULL,
     opponent_username TEXT,
+    -- JSON array rather than rows in game_tags: these aren't attached to a
+    -- game yet, they're the labels every quick game gets stamped with, and
+    -- one row per preset keeps it a single read.
+    tags TEXT NOT NULL DEFAULT '[]',
     shake_to_play INTEGER NOT NULL DEFAULT 0,
     updated_at INTEGER NOT NULL
   );
@@ -118,6 +122,11 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 `);
+// The preset table shipped before it carried tags.
+const quickGamePresetColumns = new Set(db.prepare('PRAGMA table_info(quick_game_presets)').all().map((column) => column.name));
+if (!quickGamePresetColumns.has('tags')) {
+    db.exec("ALTER TABLE quick_game_presets ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'");
+}
 // Migrate older `games` tables that predate the `size`/`result` columns
 const gamesColumns = new Set(db.prepare('PRAGMA table_info(games)').all().map((column) => column.name));
 if (!gamesColumns.has('size')) {

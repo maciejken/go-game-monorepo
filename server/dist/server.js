@@ -1155,6 +1155,7 @@ const DEFAULT_QUICK_GAME_PRESET = {
     gnugo_level: 5,
     color: 'black',
     opponent_username: null,
+    tags: '[]',
     shake_to_play: 0,
 };
 function quickGamePresetResponse(row) {
@@ -1167,8 +1168,39 @@ function quickGamePresetResponse(row) {
         gnugoLevel: row.gnugo_level,
         color: row.color,
         opponentUsername: row.opponent_username,
+        tags: parsePresetTags(row.tags),
         shakeToPlay: row.shake_to_play === 1,
     };
+}
+// Stored as JSON, so a hand-edited or pre-tags row shouldn't throw —
+// anything unreadable reads as "no tags".
+function parsePresetTags(raw) {
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.filter((tag) => typeof tag === 'string') : [];
+    }
+    catch {
+        return [];
+    }
+}
+// The same rules as a tag on a game: same charset, same length, same cap,
+// same case-insensitive dedupe — a preset's tags end up in game_tags
+// verbatim, so anything they'd reject there is rejected here.
+function sanitizePresetTags(rawTags) {
+    if (!Array.isArray(rawTags)) {
+        return [];
+    }
+    const tags = [];
+    for (const rawTag of rawTags) {
+        const tag = sanitizeTag(rawTag);
+        if (tag && !tags.some((existing) => existing.toLowerCase() === tag.toLowerCase())) {
+            tags.push(tag);
+        }
+        if (tags.length === MAX_TAGS_PER_GAME) {
+            break;
+        }
+    }
+    return tags;
 }
 app.get('/api/quick-game-preset', (req, res) => {
     const user = requireAuth(req, res);
@@ -1220,11 +1252,12 @@ app.put('/api/quick-game-preset', (req, res) => {
         gnugo_level: gnugoLevel,
         color,
         opponent_username: opponentUsername,
+        tags: JSON.stringify(sanitizePresetTags(req.body?.tags)),
         shake_to_play: req.body?.shakeToPlay === true ? 1 : 0,
     };
     db.prepare(`INSERT INTO quick_game_presets
-       (user_id, mode, size, handicap, komi, time_control, gnugo_level, color, opponent_username, shake_to_play, updated_at)
-     VALUES (@user_id, @mode, @size, @handicap, @komi, @time_control, @gnugo_level, @color, @opponent_username, @shake_to_play, @updated_at)
+       (user_id, mode, size, handicap, komi, time_control, gnugo_level, color, opponent_username, tags, shake_to_play, updated_at)
+     VALUES (@user_id, @mode, @size, @handicap, @komi, @time_control, @gnugo_level, @color, @opponent_username, @tags, @shake_to_play, @updated_at)
      ON CONFLICT(user_id) DO UPDATE SET
        mode = excluded.mode,
        size = excluded.size,
@@ -1234,6 +1267,7 @@ app.put('/api/quick-game-preset', (req, res) => {
        gnugo_level = excluded.gnugo_level,
        color = excluded.color,
        opponent_username = excluded.opponent_username,
+       tags = excluded.tags,
        shake_to_play = excluded.shake_to_play,
        updated_at = excluded.updated_at`).run({ ...row, user_id: user.id, updated_at: Date.now() });
     res.json(quickGamePresetResponse(row));
@@ -1418,6 +1452,12 @@ app.post('/api/games', async (req, res) => {
       INSERT INTO events (game_id, move_number, event_type, payload, created_at)
       VALUES (?, ?, ?, ?, ?)
     `).run(id, 0, 'HANDICAP', JSON.stringify({ handicap, points: handicapPoints }), now);
+    }
+    // Optional, and validated exactly as POST /api/games/:id/tags would —
+    // it exists so a quick game can arrive already labelled rather than
+    // needing a follow-up request per tag.
+    for (const tag of sanitizePresetTags(req.body?.tags)) {
+        db.prepare('INSERT OR IGNORE INTO game_tags (game_id, tag_key, tag, created_at) VALUES (?, ?, ?, ?)').run(id, tag.toLowerCase(), tag, now);
     }
     broadcastGamesListUpdate();
     if (invitedOpponentId) {
