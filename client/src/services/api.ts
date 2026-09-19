@@ -1,4 +1,5 @@
 import type { Board, Captures, Color, Point } from 'shared';
+import { t } from '../i18n';
 
 export type { Captures };
 
@@ -194,7 +195,15 @@ export class ApiError extends Error {
 async function handle<T>(res: Response): Promise<T> {
   const data = await res.json();
   if (!res.ok) {
-    throw new ApiError(data.error ?? 'Request failed', res.status);
+    // The server sends the English sentence plus the key it was built
+    // from (see fail() in server.ts), so the translation happens here,
+    // once, and every caller that shows err.message gets it. An
+    // untranslated key falls back to the English the server already sent.
+    const message =
+      typeof data.errorKey === 'string'
+        ? t(data.errorKey as Parameters<typeof t>[0], ...((data.errorParams as string[]) ?? []))
+        : (data.error ?? 'Request failed');
+    throw new ApiError(message, res.status);
   }
   return data as T;
 }

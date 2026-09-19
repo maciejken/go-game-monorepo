@@ -8,6 +8,12 @@ import Foundation
 enum APIClient {
     private struct ErrorResponse: Decodable {
         let error: String
+        // The English sentence the message was built from, with %@ where a
+        // value goes (see fail() in server.ts) — the same key the shared
+        // catalogue holds, so it can be translated here rather than the
+        // server shipping nine copies of its own messages.
+        let errorKey: String?
+        let errorParams: [String]?
     }
 
     // .default (like .shared) uses HTTPCookieStorage.shared, so cookie
@@ -84,9 +90,20 @@ enum APIClient {
             throw APIError(message: "Invalid response", status: 0)
         }
         guard (200..<300).contains(http.statusCode) else {
-            let message = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.error ?? "Request failed"
-            throw APIError(message: message, status: http.statusCode)
+            let body = try? JSONDecoder().decode(ErrorResponse.self, from: data)
+            throw APIError(message: localizedMessage(from: body), status: http.statusCode)
         }
+    }
+
+    // An untranslated key falls back to the English sentence the server
+    // already built, so a missing translation reads as English rather than
+    // as a format string.
+    private static func localizedMessage(from body: ErrorResponse?) -> String {
+        guard let body else { return "Request failed" }
+        guard let key = body.errorKey else { return body.error }
+        let template = String(localized: String.LocalizationValue(key))
+        guard let params = body.errorParams, !params.isEmpty else { return template }
+        return String(format: template, arguments: params.map { $0 as CVarArg })
     }
 
     private static func get<Response: Decodable>(_ path: String) async throws -> Response {
