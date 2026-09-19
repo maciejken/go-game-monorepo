@@ -60,6 +60,21 @@ app.use(express.static(path.resolve(__dirname, '../../client/dist')));
 app.get('/', (req, res) => {
     res.json({ message: 'Go server is running!' });
 });
+// Every error the clients put in front of a user goes out through here.
+// `errorKey` is the English sentence with %@ where a value goes — the same
+// shape the shared locale catalogues key on — so each client can translate
+// it with its own copy rather than the server carrying nine translations
+// of its own. `error` stays the ready-made English sentence, for anything
+// reading the old shape and as the fallback when a client has no
+// translation for the key.
+//
+// Values are always substituted as %@, never %lld: the key travels as text
+// and a client formatting a string argument against %lld would crash.
+function fail(res, status, errorKey, params = []) {
+    let next = 0;
+    const error = errorKey.replace(/%(?:\d+\$)?@/g, () => String(params[next++] ?? ''));
+    res.status(status).json({ error, errorKey, errorParams: params.map((param) => String(param)) });
+}
 function getGameRow(id) {
     return db.prepare(`
     SELECT id, size, status, result, handicap, title, created_at, updated_at,
@@ -878,16 +893,16 @@ app.post('/api/auth/register', (req, res) => {
     const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
     if (username.length < MIN_USERNAME_LENGTH || username.length > MAX_USERNAME_LENGTH) {
-        res.status(400).json({ error: `Username must be ${MIN_USERNAME_LENGTH}-${MAX_USERNAME_LENGTH} characters` });
+        fail(res, 400, 'Username must be %@-%@ characters', [MIN_USERNAME_LENGTH, MAX_USERNAME_LENGTH]);
         return;
     }
     if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-        res.status(400).json({ error: `Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` });
+        fail(res, 400, 'Password must be %@-%@ characters', [MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH]);
         return;
     }
     const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
     if (existing) {
-        res.status(400).json({ error: 'Username is already taken' });
+        fail(res, 400, 'Username is already taken');
         return;
     }
     const id = randomUUID();
@@ -913,12 +928,12 @@ app.post('/api/auth/login', loginRateLimiter, (req, res) => {
     // Reject oversized input before it ever reaches a DB lookup or a scrypt
     // hash comparison — a valid credential can never be this long anyway.
     if (username.length > MAX_USERNAME_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-        res.status(401).json({ error: 'Invalid username or password' });
+        fail(res, 401, 'Invalid username or password');
         return;
     }
     const user = db.prepare('SELECT id, username, password_hash FROM users WHERE username = ?').get(username);
     if (!user || !verifyPassword(password, user.password_hash)) {
-        res.status(401).json({ error: 'Invalid username or password' });
+        fail(res, 401, 'Invalid username or password');
         return;
     }
     const token = createSession(user.id);
@@ -946,7 +961,7 @@ app.patch('/api/auth/me', (req, res) => {
     }
     const acceptsInvitations = req.body?.acceptsInvitations;
     if (typeof acceptsInvitations !== 'boolean') {
-        res.status(400).json({ error: 'acceptsInvitations must be a boolean' });
+        fail(res, 400, 'acceptsInvitations must be a boolean');
         return;
     }
     db.prepare('UPDATE users SET accepts_invitations = ? WHERE id = ?').run(acceptsInvitations ? 1 : 0, user.id);
@@ -964,12 +979,12 @@ app.post('/api/auth/password', (req, res) => {
     const currentPassword = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '';
     const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
     if (newPassword.length < MIN_PASSWORD_LENGTH || newPassword.length > MAX_PASSWORD_LENGTH) {
-        res.status(400).json({ error: `Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` });
+        fail(res, 400, 'Password must be %@-%@ characters', [MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH]);
         return;
     }
     const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id);
     if (!row || !verifyPassword(currentPassword, row.password_hash)) {
-        res.status(400).json({ error: 'Current password is incorrect' });
+        fail(res, 400, 'Current password is incorrect');
         return;
     }
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), user.id);
@@ -1051,7 +1066,7 @@ app.get('/api/users/:id', (req, res) => {
         .prepare('SELECT id, username, created_at, accepts_invitations FROM users WHERE id = ?')
         .get(req.params.id);
     if (!row) {
-        res.status(404).json({ error: 'User not found' });
+        fail(res, 404, 'User not found');
         return;
     }
     const stats = getUserStats(row.id);
@@ -1076,7 +1091,7 @@ app.post('/api/device-tokens', (req, res) => {
     }
     const token = req.body?.token;
     if (typeof token !== 'string' || token.length === 0) {
-        res.status(400).json({ error: 'Invalid device token' });
+        fail(res, 400, 'Invalid device token');
         return;
     }
     db.prepare(`
@@ -1127,12 +1142,12 @@ app.get('/api/games/recent-vs', (req, res) => {
     else {
         const opponentUsername = typeof req.query.opponentUsername === 'string' ? req.query.opponentUsername.trim() : '';
         if (!opponentUsername) {
-            res.status(400).json({ error: 'opponentUsername or ai is required' });
+            fail(res, 400, 'opponentUsername or ai is required');
             return;
         }
         const opponent = db.prepare('SELECT id FROM users WHERE username = ?').get(opponentUsername);
         if (!opponent) {
-            res.status(404).json({ error: `No user named "${opponentUsername}"` });
+            fail(res, 404, 'No user named "%@"', [opponentUsername]);
             return;
         }
         opponentId = opponent.id;
@@ -1240,7 +1255,7 @@ app.put('/api/quick-game-preset', (req, res) => {
         ? req.body.opponentUsername.trim().slice(0, MAX_USERNAME_LENGTH)
         : null;
     if (mode === 'remote' && !opponentUsername) {
-        res.status(400).json({ error: "Opponent's username is required for a remote game" });
+        fail(res, 400, "Opponent's username is required for a remote game");
         return;
     }
     const row = {
@@ -1371,11 +1386,11 @@ app.post('/api/games', async (req, res) => {
     if (req.body?.mode === 'remote') {
         const opponentUsername = typeof req.body?.opponentUsername === 'string' ? req.body.opponentUsername.trim() : '';
         if (!opponentUsername) {
-            res.status(400).json({ error: "Opponent's username is required for a remote game" });
+            fail(res, 400, "Opponent's username is required for a remote game");
             return;
         }
         if (req.body?.color !== 'black' && req.body?.color !== 'white' && req.body?.color !== 'random') {
-            res.status(400).json({ error: 'Choose which color you will play' });
+            fail(res, 400, 'Choose which color you will play');
             return;
         }
         const opponent = db.prepare('SELECT id, accepts_invitations FROM users WHERE username = ?').get(opponentUsername);
@@ -1385,15 +1400,15 @@ app.post('/api/games', async (req, res) => {
         // one deliberately share one message: distinguishing them would let
         // this endpoint be used to enumerate which usernames exist.
         if (opponent && opponent.id === user.id) {
-            res.status(400).json({ error: 'Invite a different user, not yourself' });
+            fail(res, 400, 'Invite a different user, not yourself');
             return;
         }
         if (!opponent || opponent.accepts_invitations !== 1) {
-            res.status(400).json({ error: "Selected player isn't currently accepting invitations" });
+            fail(res, 400, "Selected player isn't currently accepting invitations");
             return;
         }
         if (timeControlName === 'standard' && hasOpenStandardGame(opponent.id)) {
-            res.status(400).json({ error: `${opponentUsername} already has a short game in progress` });
+            fail(res, 400, '%@ already has a short game in progress', [opponentUsername]);
             return;
         }
         const color = resolveColor(req.body.color);
@@ -1403,11 +1418,11 @@ app.post('/api/games', async (req, res) => {
     }
     else if (req.body?.mode === 'gnugo') {
         if (!(await isGnuGoAvailable())) {
-            res.status(400).json({ error: 'GNU Go is not installed on the server — AI games are unavailable.' });
+            fail(res, 400, 'GNU Go is not installed on the server — AI games are unavailable.');
             return;
         }
         if (hasOpenAiGame()) {
-            res.status(400).json({ error: 'GNU Go already has a short game in progress — finish or delete it before starting another.' });
+            fail(res, 400, 'GNU Go already has a short game in progress — finish or delete it before starting another.');
             return;
         }
         const color = resolveColor(req.body?.color);
@@ -1482,7 +1497,7 @@ app.post('/api/games', async (req, res) => {
 app.get('/api/games/:id', (req, res) => {
     let game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     game = withTimeoutCheck(game);
@@ -1540,7 +1555,7 @@ app.get('/api/games/:id', (req, res) => {
 app.patch('/api/games/:id', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1548,7 +1563,7 @@ app.patch('/api/games/:id', (req, res) => {
         return;
     }
     if (!isParticipant(game, user.id)) {
-        res.status(403).json({ error: 'Only players in this game can edit it' });
+        fail(res, 403, 'Only players in this game can edit it');
         return;
     }
     const title = sanitizeTitle(req.body?.title);
@@ -1563,7 +1578,7 @@ app.patch('/api/games/:id', (req, res) => {
 app.post('/api/games/:id/tags', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1571,14 +1586,12 @@ app.post('/api/games/:id/tags', (req, res) => {
         return;
     }
     if (!isParticipant(game, user.id)) {
-        res.status(403).json({ error: 'Only players in this game can edit it' });
+        fail(res, 403, 'Only players in this game can edit it');
         return;
     }
     const tag = sanitizeTag(req.body?.tag);
     if (!tag) {
-        res.status(400).json({
-            error: `A tag must be 1-${MAX_TAG_LENGTH} characters of letters, numbers, spaces, - or _`,
-        });
+        fail(res, 400, 'A tag must be 1-%@ characters of letters, numbers, spaces, - or _', [MAX_TAG_LENGTH]);
         return;
     }
     const tagKey = tag.toLowerCase();
@@ -1586,7 +1599,7 @@ app.post('/api/games/:id/tags', (req, res) => {
     // The limit is checked against a tag that isn't already there, so
     // re-adding an existing one at the limit is a no-op rather than an error.
     if (existing.length >= MAX_TAGS_PER_GAME && !existing.some((row) => row.toLowerCase() === tagKey)) {
-        res.status(400).json({ error: `A game can have at most ${MAX_TAGS_PER_GAME} tags` });
+        fail(res, 400, 'A game can have at most %@ tags', [MAX_TAGS_PER_GAME]);
         return;
     }
     db.prepare('INSERT OR IGNORE INTO game_tags (game_id, tag_key, tag, created_at) VALUES (?, ?, ?, ?)').run(game.id, tagKey, tag, Date.now());
@@ -1597,7 +1610,7 @@ app.post('/api/games/:id/tags', (req, res) => {
 app.delete('/api/games/:id/tags/:tag', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1605,7 +1618,7 @@ app.delete('/api/games/:id/tags/:tag', (req, res) => {
         return;
     }
     if (!isParticipant(game, user.id)) {
-        res.status(403).json({ error: 'Only players in this game can edit it' });
+        fail(res, 403, 'Only players in this game can edit it');
         return;
     }
     // Matched on the same lowercased key the row is stored under, so removing
@@ -1621,7 +1634,7 @@ app.delete('/api/games/:id/tags/:tag', (req, res) => {
 app.post('/api/games/:id/star', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1635,7 +1648,7 @@ app.post('/api/games/:id/star', (req, res) => {
 app.delete('/api/games/:id/star', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1649,7 +1662,7 @@ app.delete('/api/games/:id/star', (req, res) => {
 app.get('/api/games/:id/history', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     res.json({ size: game.size, moves: getMoveHistory(game.id, game.size) });
@@ -1659,7 +1672,7 @@ app.get('/api/games/:id/history', (req, res) => {
 app.post('/api/games/:id/vision-token', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1667,7 +1680,7 @@ app.post('/api/games/:id/vision-token', (req, res) => {
         return;
     }
     if (!isParticipant(game, user.id)) {
-        res.status(403).json({ error: 'Only players in this game can create a vision token' });
+        fail(res, 403, 'Only players in this game can create a vision token');
         return;
     }
     const token = randomUUID();
@@ -1678,7 +1691,7 @@ app.post('/api/games/:id/vision-token', (req, res) => {
 app.get('/api/games/:id/sgf', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const safeName = game.title?.replace(/[^a-zA-Z0-9-_ ]/g, '').trim();
@@ -1704,7 +1717,7 @@ function deleteGameRecord(gameId) {
 app.delete('/api/games/:id', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1712,7 +1725,7 @@ app.delete('/api/games/:id', (req, res) => {
         return;
     }
     if (!isParticipant(game, user.id)) {
-        res.status(403).json({ error: 'Only players in this game can delete it' });
+        fail(res, 403, 'Only players in this game can delete it');
         return;
     }
     deleteGameRecord(game.id);
@@ -1729,7 +1742,7 @@ app.delete('/api/games/:id', (req, res) => {
 app.post('/api/games/:id/respond-invite', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1737,7 +1750,7 @@ app.post('/api/games/:id/respond-invite', (req, res) => {
         return;
     }
     if (!isPendingInviteFor(game, user.id)) {
-        res.status(400).json({ error: 'This game has no pending invitation for you' });
+        fail(res, 400, 'This game has no pending invitation for you');
         return;
     }
     if (req.body?.accept === true) {
@@ -1768,7 +1781,7 @@ app.post('/api/games/:id/respond-invite', (req, res) => {
 app.post('/api/games/:id/moves/validate', (req, res) => {
     let game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const visionAuthorized = isValidVisionToken(req, game.id);
@@ -1778,20 +1791,20 @@ app.post('/api/games/:id/moves/validate', (req, res) => {
     }
     game = withTimeoutCheck(game);
     if (game.status !== 'in_progress') {
-        res.status(400).json({ error: 'Game is not in progress' });
+        fail(res, 400, 'Game is not in progress');
         return;
     }
     if (game.pending_undo_by) {
-        res.status(400).json({ error: 'An undo request is pending confirmation' });
+        fail(res, 400, 'An undo request is pending confirmation');
         return;
     }
     const { x, y, color } = req.body ?? {};
     if (typeof x !== 'number' || typeof y !== 'number' || (color !== 'black' && color !== 'white')) {
-        res.status(400).json({ error: 'Invalid move payload' });
+        fail(res, 400, 'Invalid move payload');
         return;
     }
     if (!visionAuthorized && !canActAsColor(game, user.id, color)) {
-        res.status(403).json({ error: `You are not playing as ${color} in this game` });
+        fail(res, 403, 'You are not playing as %@ in this game', [color]);
         return;
     }
     const board = getCurrentBoard(game.id, game.size);
@@ -1803,7 +1816,7 @@ app.post('/api/games/:id/moves/validate', (req, res) => {
 app.post('/api/games/:id/moves', (req, res) => {
     let game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const visionAuthorized = isValidVisionToken(req, game.id);
@@ -1813,25 +1826,28 @@ app.post('/api/games/:id/moves', (req, res) => {
     }
     game = withTimeoutCheck(game);
     if (game.status !== 'in_progress') {
-        res.status(400).json({ error: 'Game is not in progress' });
+        fail(res, 400, 'Game is not in progress');
         return;
     }
     if (game.pending_undo_by) {
-        res.status(400).json({ error: 'An undo request is pending confirmation' });
+        fail(res, 400, 'An undo request is pending confirmation');
         return;
     }
     const { x, y, color } = req.body ?? {};
     if (typeof x !== 'number' || typeof y !== 'number' || (color !== 'black' && color !== 'white')) {
-        res.status(400).json({ error: 'Invalid move payload' });
+        fail(res, 400, 'Invalid move payload');
         return;
     }
     if (!visionAuthorized && !canActAsColor(game, user.id, color)) {
-        res.status(403).json({ error: `You are not playing as ${color} in this game` });
+        fail(res, 403, 'You are not playing as %@ in this game', [color]);
         return;
     }
     const applied = applyMoveToGame(game, x, y, color);
     if (!applied.ok) {
-        res.status(400).json({ error: applied.error });
+        // shared's own refusals ("Point is already occupied", ...) are plain
+        // English sentences with no values in them, so they are already the
+        // key a client looks up.
+        fail(res, 400, applied.error ?? 'Invalid move');
         return;
     }
     res.json(applied.result);
@@ -1840,7 +1856,7 @@ app.post('/api/games/:id/moves', (req, res) => {
 app.post('/api/games/:id/pass', (req, res) => {
     let game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1849,26 +1865,26 @@ app.post('/api/games/:id/pass', (req, res) => {
     }
     game = withTimeoutCheck(game);
     if (game.status !== 'in_progress') {
-        res.status(400).json({ error: 'Game is not in progress' });
+        fail(res, 400, 'Game is not in progress');
         return;
     }
     if (game.pending_undo_by) {
-        res.status(400).json({ error: 'An undo request is pending confirmation' });
+        fail(res, 400, 'An undo request is pending confirmation');
         return;
     }
     const { color } = req.body ?? {};
     if (color !== 'black' && color !== 'white') {
-        res.status(400).json({ error: 'Invalid color' });
+        fail(res, 400, 'Invalid color');
         return;
     }
     if (!canActAsColor(game, user.id, color)) {
-        res.status(403).json({ error: `You are not playing as ${color} in this game` });
+        fail(res, 403, 'You are not playing as %@ in this game', [color]);
         return;
     }
     const moveNumber = getNextMoveNumber(game.id);
     const currentColor = getCurrentColor(turnMoveNumber(moveNumber, game.handicap));
     if (color !== currentColor) {
-        res.status(400).json({ error: `It is ${currentColor}'s turn` });
+        fail(res, 400, 'It is %@\'s turn', [currentColor]);
         return;
     }
     const applied = applyPassToGame(game, color);
@@ -1896,7 +1912,7 @@ function parsePointArray(value, size) {
 app.post('/api/games/:id/finalize-scoring', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1904,15 +1920,15 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
         return;
     }
     if (!isParticipant(game, user.id)) {
-        res.status(403).json({ error: 'Only players in this game can finalize scoring' });
+        fail(res, 403, 'Only players in this game can finalize scoring');
         return;
     }
     if (game.status !== 'scoring') {
-        res.status(400).json({ error: 'Game is not in the scoring phase' });
+        fail(res, 400, 'Game is not in the scoring phase');
         return;
     }
     if (game.pending_undo_by) {
-        res.status(400).json({ error: 'An undo request is pending confirmation' });
+        fail(res, 400, 'An undo request is pending confirmation');
         return;
     }
     const deadPoints = parsePointArray(req.body?.deadPoints, game.size);
@@ -1945,7 +1961,7 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
 app.post('/api/games/:id/reopen-scoring', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -1953,15 +1969,15 @@ app.post('/api/games/:id/reopen-scoring', (req, res) => {
         return;
     }
     if (!isParticipant(game, user.id)) {
-        res.status(403).json({ error: 'Only players in this game can reopen scoring' });
+        fail(res, 403, 'Only players in this game can reopen scoring');
         return;
     }
     if (game.status !== 'finished' || game.end_reason !== 'scoring') {
-        res.status(400).json({ error: 'Only a game finished by scoring can be reopened' });
+        fail(res, 400, 'Only a game finished by scoring can be reopened');
         return;
     }
     if (game.pending_undo_by) {
-        res.status(400).json({ error: 'An undo request is pending confirmation' });
+        fail(res, 400, 'An undo request is pending confirmation');
         return;
     }
     const isImmediate = game.black_user_id === game.white_user_id || isAiOpponentGame(game);
@@ -1997,7 +2013,7 @@ app.post('/api/games/:id/reopen-scoring', (req, res) => {
 app.post('/api/games/:id/undo', (req, res) => {
     let game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -2005,7 +2021,7 @@ app.post('/api/games/:id/undo', (req, res) => {
         return;
     }
     if (!isParticipant(game, user.id)) {
-        res.status(403).json({ error: 'Only players in this game can undo moves' });
+        fail(res, 403, 'Only players in this game can undo moves');
         return;
     }
     // Undo is otherwise allowed regardless of status (e.g. undoing a
@@ -2015,11 +2031,11 @@ app.post('/api/games/:id/undo', (req, res) => {
     const statusBeforeTimeoutCheck = game.status;
     game = withTimeoutCheck(game);
     if (statusBeforeTimeoutCheck === 'in_progress' && game.status === 'finished') {
-        res.status(400).json({ error: 'Game is not in progress' });
+        fail(res, 400, 'Game is not in progress');
         return;
     }
     if (game.pending_reopen_by) {
-        res.status(400).json({ error: 'A redo-scoring request is pending confirmation' });
+        fail(res, 400, 'A redo-scoring request is pending confirmation');
         return;
     }
     const lastEvent = db.prepare(`
@@ -2028,7 +2044,7 @@ app.post('/api/games/:id/undo', (req, res) => {
   `).get(game.id);
     // move_number 0 is the handicap setup, not a player action — nothing to undo past it.
     if (!lastEvent || lastEvent.event_type === 'HANDICAP') {
-        res.status(400).json({ error: 'Nothing to undo' });
+        fail(res, 400, 'Nothing to undo');
         return;
     }
     const isImmediate = game.black_user_id === game.white_user_id || isAiOpponentGame(game);
@@ -2098,7 +2114,7 @@ app.post('/api/games/:id/undo', (req, res) => {
 app.post('/api/games/:id/resign', (req, res) => {
     let game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -2107,20 +2123,20 @@ app.post('/api/games/:id/resign', (req, res) => {
     }
     game = withTimeoutCheck(game);
     if (game.status !== 'in_progress') {
-        res.status(400).json({ error: 'Game is not in progress' });
+        fail(res, 400, 'Game is not in progress');
         return;
     }
     if (game.pending_undo_by) {
-        res.status(400).json({ error: 'An undo request is pending confirmation' });
+        fail(res, 400, 'An undo request is pending confirmation');
         return;
     }
     const { color } = req.body ?? {};
     if (color !== 'black' && color !== 'white') {
-        res.status(400).json({ error: 'Invalid color' });
+        fail(res, 400, 'Invalid color');
         return;
     }
     if (!canActAsColor(game, user.id, color)) {
-        res.status(403).json({ error: `You are not playing as ${color} in this game` });
+        fail(res, 403, 'You are not playing as %@ in this game', [color]);
         return;
     }
     const gameResult = applyResignToGame(game, color);
@@ -2139,7 +2155,7 @@ app.post('/api/games/:id/resign', (req, res) => {
 app.post('/api/games/:id/recompute-ai-move', (req, res) => {
     const game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -2147,11 +2163,11 @@ app.post('/api/games/:id/recompute-ai-move', (req, res) => {
         return;
     }
     if (!isParticipant(game, user.id)) {
-        res.status(403).json({ error: 'Only players in this game can do this' });
+        fail(res, 403, 'Only players in this game can do this');
         return;
     }
     if (game.status !== 'in_progress') {
-        res.status(400).json({ error: 'Game is not in progress' });
+        fail(res, 400, 'Game is not in progress');
         return;
     }
     const aiId = getAiUserId();
@@ -2159,7 +2175,7 @@ app.post('/api/games/:id/recompute-ai-move', (req, res) => {
     const currentColor = getCurrentColor(turnMoveNumber(moveNumber, game.handicap));
     const colorUserId = currentColor === 'black' ? game.black_user_id : game.white_user_id;
     if (colorUserId !== aiId) {
-        res.status(400).json({ error: "It isn't GNU Go's turn" });
+        fail(res, 400, "It isn't GNU Go's turn");
         return;
     }
     maybeTriggerAiMove(game.id);
@@ -2172,7 +2188,7 @@ app.post('/api/games/:id/recompute-ai-move', (req, res) => {
 app.post('/api/games/:id/end', (req, res) => {
     let game = getGameRow(req.params.id);
     if (!game) {
-        res.status(404).json({ error: 'Game not found' });
+        fail(res, 404, 'Game not found');
         return;
     }
     const user = requireAuth(req, res);
@@ -2181,11 +2197,11 @@ app.post('/api/games/:id/end', (req, res) => {
     }
     game = withTimeoutCheck(game);
     if (game.status === 'finished') {
-        res.status(400).json({ error: 'Game is already finished' });
+        fail(res, 400, 'Game is already finished');
         return;
     }
     if (game.black_user_id !== user.id || game.white_user_id !== user.id) {
-        res.status(403).json({ error: 'Only a local game can be ended this way' });
+        fail(res, 403, 'Only a local game can be ended this way');
         return;
     }
     const now = Date.now();
