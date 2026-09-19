@@ -153,6 +153,76 @@ function describeReopenAction(myColor: MyColor, pendingReopenBy: Color | null, i
   return t('Confirm Reopen Scoring');
 }
 
+// A click steps one move; holding for 0.4s jumps to that end of the game
+// instead — same as the iOS app's ReviewNavButton. A pointer hold rather
+// than a double click, since a double tap on a phone competes with the
+// browser's own double-tap zoom.
+function ReviewNavButton({
+  direction,
+  label,
+  disabled,
+  step,
+  jump,
+}: {
+  direction: 'back' | 'forward';
+  label: string;
+  disabled: boolean;
+  step: () => void;
+  jump: () => void;
+}) {
+  const holdTimer = useRef<number | null>(null);
+  // The click that follows a hold's release must not also step one move
+  // back off the end it just jumped to. Cleared as each press begins, so a
+  // hold released off the button (no click) can't swallow the next one.
+  const didJump = useRef(false);
+  const cancelHold = () => {
+    if (holdTimer.current !== null) {
+      window.clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  };
+  return (
+    <button
+      type="button"
+      className="review-nav-button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onPointerDown={() => {
+        didJump.current = false;
+        cancelHold();
+        holdTimer.current = window.setTimeout(() => {
+          holdTimer.current = null;
+          didJump.current = true;
+          jump();
+        }, 400);
+      }}
+      onPointerUp={cancelHold}
+      onPointerLeave={cancelHold}
+      onPointerCancel={cancelHold}
+      onContextMenu={(e) => e.preventDefault()}
+      onClick={() => {
+        if (didJump.current) {
+          didJump.current = false;
+          return;
+        }
+        step();
+      }}
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <polyline
+          points={direction === 'back' ? '15,5 8,12 15,19' : '9,5 16,12 9,19'}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
 // A player's name shown in the header/status text, linked to their profile.
 function PlayerLink({ username, userId }: { username: string | null; userId: string | null }) {
   if (!username || !userId) {
@@ -1141,7 +1211,7 @@ function GameView({ gameId }: GameViewProps) {
           </span>
           <div className="footer-buttons">
             {status === 'in_progress' && (
-              <div className="go-turn-menu" ref={turnMenuRef} style={{ '--cell': '24px' } as React.CSSProperties}>
+              <div className="go-turn-menu" ref={turnMenuRef} style={{ '--cell': '48px' } as React.CSSProperties}>
                 <button
                   type="button"
                   className="go-turn-toggle"
@@ -1221,60 +1291,37 @@ function GameView({ gameId }: GameViewProps) {
               </div>
             )}
             {finished && (
-              // Flanking First/Last buttons around the result (or "No
-              // result") button, rather than a separate 4-button nav row —
-              // Prev/Next happen by tapping a stone directly in the move
-              // chain below instead, to keep this footer slot compact now
-              // that review is always showing here, not just on request.
+              // Prev/Next chevrons flanking the result circle (or "No
+              // result"), mirroring the iOS footer — a hold on either one
+              // jumps to the first/last move instead of stepping.
               <div className="review-flanked">
-                <button
-                  type="button"
-                  className="review-nav-button"
-                  aria-label={t('First move')}
-                  onClick={() => goToMove(0)}
+                <ReviewNavButton
+                  direction="back"
+                  label={t('Previous move — hold for the first')}
                   disabled={navDisabled || reviewMoveNumber === 0}
-                >
-                  {/* A thin stroked chevron + bar ("|<") reads as noticeably
-                      more subtle than a filled glyph like ⏮ — closer to a
-                      light/glass icon weight than a solid shape. */}
-                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                    <line x1="7" y1="5" x2="7" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    <polyline
-                      points="17,5 8,12 17,19"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
+                  step={() => goToMove((reviewMoveNumber ?? 0) - 1)}
+                  jump={() => goToMove(0)}
+                />
                 {shortResult ? (
-                  <button type="button" className="footer-result" onClick={() => setResultOpen(true)}>
+                  <button
+                    type="button"
+                    className={`footer-result footer-result--${shortResult.startsWith('B') ? 'black' : 'white'}${
+                      shortResult.length > 5 ? ' footer-result--long' : ''
+                    }`}
+                    onClick={() => setResultOpen(true)}
+                  >
                     {shortResult}
                   </button>
                 ) : (
-                  endReason === 'ended' && <span className="footer-result footer-result--static">{t('No result')}</span>
+                  endReason === 'ended' && <span className="footer-result--static">{t('No result')}</span>
                 )}
-                <button
-                  type="button"
-                  className="review-nav-button"
-                  aria-label={t('Last move')}
-                  onClick={() => goToMove(latestMoveNumber ?? 0)}
+                <ReviewNavButton
+                  direction="forward"
+                  label={t('Next move — hold for the last')}
                   disabled={navDisabled || reviewMoveNumber === latestMoveNumber}
-                >
-                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                    <line x1="17" y1="5" x2="17" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    <polyline
-                      points="7,5 16,12 7,19"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
+                  step={() => goToMove((reviewMoveNumber ?? 0) + 1)}
+                  jump={() => goToMove(latestMoveNumber ?? 0)}
+                />
               </div>
             )}
           </div>

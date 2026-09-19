@@ -668,7 +668,7 @@
 }
 
 /* Flanks the finished-game result button (or "No result" text) with
-   First/Last review-nav buttons — a plain flex row, not reusing
+   Prev/Next review-nav buttons — a plain flex row, not reusing
    .go-actions: the result button in between needs its own .footer-result
    styling untouched, which a shared `button` descendant selector here
    would otherwise override. */
@@ -678,10 +678,15 @@
   gap: 8px;
 }
 
-/* Icon-only (⏮ ⏭) and small — Prev/Next were dropped in favor of tapping a
-   stone directly in the move chain, so these only ever need to jump to an
-   end, matching .icon-action-button's own footer-icon footprint. */
+/* Icon-only chevrons, matching .icon-action-button's footer-icon
+   footprint. A click steps one move and a hold jumps to an end, so the
+   long press must not select text or open the touch callout/context menu,
+   and manipulation drops the double-tap-zoom delay on the click. */
 .review-nav-button {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   appearance: none;
   background: #fff;
   color: #0a0a0a;
@@ -874,17 +879,42 @@
   gap: 4px;
 }
 
-/* Compact standard-notation result (e.g. "W+6.5") — the longer sentence
-   under the board stays as-is and covers the details. */
+/* Compact standard-notation result (e.g. "W+6.5") in a circle filled with
+   the winner's color, like the iOS footer's result button — a touch bigger
+   than the 44px turn marker since it also holds text. The size stays fixed
+   whatever the score's length; --long shrinks the text instead ("W+123.5"),
+   so the footer's center slot never changes width. */
 .footer-result {
   appearance: none;
-  background: none;
-  border: none;
-  color: inherit;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 50%;
   font: inherit;
   font-weight: 600;
-  font-size: 16px;
+  font-size: 14px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.45);
   cursor: pointer;
+}
+
+.footer-result--black {
+  background: #0a0a0a;
+  color: #fff;
+  border: none;
+}
+
+.footer-result--white {
+  background: #fff;
+  color: #0a0a0a;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.footer-result--long {
+  font-size: 11px;
 }
 
 .footer-result--static {
@@ -1190,6 +1220,11 @@
   font-size: 13px;
   line-height: 1;
   pointer-events: none;
+}
+
+/* The footer turn marker is a 44px stone, not a board-sized one. */
+.go-turn-toggle .go-stone-level {
+  font-size: 22px;
 }
 
 .go-stone-level--ten {
