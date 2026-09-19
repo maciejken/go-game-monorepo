@@ -55,6 +55,11 @@ struct GameBoardView: View {
     // on, a first tap on a valid point just marks it; tapping that same
     // point again is what actually submits the move.
     @AppStorage("go-confirm-moves") private var confirmMovesEnabled = false
+    // A shake here opens Title & tags — the menu's first action — rather
+    // than starting a quick game, which is what a shake does everywhere
+    // else. Device-local like the setting above: it's about how this
+    // phone is held, not about the account.
+    @AppStorage("go-shake-title-tags") private var shakeOpensTitleTags = true
     @State private var pendingMove: Point?
     // Review mode — always on for a finished game (no toggle, unlike the
     // web client's Review/Live menu item): the full move-by-move record,
@@ -117,6 +122,13 @@ struct GameBoardView: View {
         }
         .onAppear { quickGame.isBoardOpen = true }
         .onDisappear { quickGame.isBoardOpen = false }
+        // isBoardOpen gates this as well as the quick game: a board that's
+        // still pushed on another tab shouldn't answer a shake meant for
+        // whatever is actually on screen.
+        .onShake {
+            guard shakeOpensTitleTags, quickGame.isBoardOpen else { return }
+            showTagsSheet = true
+        }
         .refreshable { await load() }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -198,7 +210,7 @@ struct GameBoardView: View {
         }
         .sheet(isPresented: $showSettingsSheet) {
             settingsSheetContent
-                .presentationDetents([.height(160)])
+                .presentationDetents([.height(210)])
         }
         .sheet(isPresented: $showTagsSheet) {
             if let game {
@@ -402,6 +414,7 @@ struct GameBoardView: View {
                 .font(.headline)
             Toggle("Confirm moves before playing them", isOn: $confirmMovesEnabled)
                 .onChange(of: confirmMovesEnabled) { _, _ in pendingMove = nil }
+            Toggle("Shake to open Title & tags", isOn: $shakeOpensTitleTags)
         }
         .padding()
     }

@@ -1,31 +1,31 @@
 import SwiftUI
 import UIKit
 
+extension Notification.Name {
+    static let deviceDidShake = Notification.Name("deviceDidShake")
+}
+
 // A shake gesture reaches SwiftUI only through UIKit's motion events, and
 // only in the foreground — a suspended app runs no code, which is why
 // shaking can't launch the app, just act inside it.
 //
 // Implemented as a first-responder view controller rather than by
 // overriding UIWindow in an extension: overriding a method in an extension
-// on a UIKit class is a swizzle in all but name, and this stays scoped to
-// wherever the modifier is attached.
-struct ShakeDetector: UIViewControllerRepresentable {
-    let onShake: () -> Void
-
+// on a UIKit class is a swizzle in all but name.
+//
+// It posts a notification rather than calling a closure, so that exactly
+// one of these needs to exist. Two would fight over first-responder
+// status — whichever appeared last would take it, and the other would stay
+// silent even after the winner left the screen.
+private struct ShakeSource: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> ShakeViewController {
-        let controller = ShakeViewController()
-        controller.onShake = onShake
-        return controller
+        ShakeViewController()
     }
 
-    func updateUIViewController(_ uiViewController: ShakeViewController, context: Context) {
-        uiViewController.onShake = onShake
-    }
+    func updateUIViewController(_ uiViewController: ShakeViewController, context: Context) {}
 }
 
 final class ShakeViewController: UIViewController {
-    var onShake: (() -> Void)?
-
     override var canBecomeFirstResponder: Bool { true }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -35,14 +35,22 @@ final class ShakeViewController: UIViewController {
 
     override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
         guard motion == .motionShake else { return }
-        onShake?()
+        NotificationCenter.default.post(name: .deviceDidShake, object: nil)
     }
 }
 
 extension View {
-    // Zero-sized and non-interactive: it exists only to sit in the
-    // responder chain, so it must not take space or swallow touches.
+    // Installs the detector. Attached once, near the root — everything
+    // else listens with onShake below. Zero-sized and non-interactive: it
+    // exists only to sit in the responder chain, so it must not take space
+    // or swallow touches.
+    func shakeSource() -> some View {
+        background(ShakeSource().frame(width: 0, height: 0).allowsHitTesting(false))
+    }
+
+    // Reacts to a shake from anywhere in the app; each listener decides for
+    // itself whether this one is its to handle.
     func onShake(perform action: @escaping () -> Void) -> some View {
-        background(ShakeDetector(onShake: action).frame(width: 0, height: 0).allowsHitTesting(false))
+        onReceive(NotificationCenter.default.publisher(for: .deviceDidShake)) { _ in action() }
     }
 }

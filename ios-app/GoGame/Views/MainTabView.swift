@@ -49,9 +49,10 @@ struct MainTabView: View {
             .tag(AppTab.account)
         }
         .environment(quickGame)
-        // Shake to play: creates a game from the saved preset and opens
-        // it. Attached here rather than per-screen so it works from any
-        // tab, and gated below on no board being open.
+        // The app's one shake detector. GameBoardView listens for the same
+        // notification to open its Title & tags sheet; the two never
+        // collide, since this one stands down while a board is open.
+        .shakeSource()
         .onShake { Task { await startQuickGame() } }
         .task { await quickGame.load() }
         .alert(
