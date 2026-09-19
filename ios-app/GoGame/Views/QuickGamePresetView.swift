@@ -36,6 +36,9 @@ struct QuickGamePresetView: View {
                     Text("Remote").tag("remote")
                     Text("Vs. Computer").tag("gnugo")
                 }
+                if preset.mode == "gnugo" {
+                    Stepper("GNU Go level: \(preset.gnugoLevel ?? 5)", value: gnugoLevelBinding, in: 1...10)
+                }
                 if preset.mode == "remote" {
                     TextField("Opponent username", text: opponentBinding)
                         .autocorrectionDisabled()
@@ -95,8 +98,14 @@ struct QuickGamePresetView: View {
                 }
             }
 
-            if preset.mode == "gnugo" {
-                Stepper("GNU Go level: \(preset.gnugoLevel ?? 5)", value: gnugoLevelBinding, in: 1...10)
+            // No section header: the picker's own label already says
+            // "Time control", and the two read as a stutter.
+            Section {
+                Picker("Time control", selection: timeControlBinding) {
+                    Text("10 minutes").tag("standard")
+                    Text("24h per move").tag("correspondence")
+                    Text("Unlimited").tag("unlimited")
+                }
             }
 
             Section {
@@ -120,14 +129,6 @@ struct QuickGamePresetView: View {
                 Text("Tags")
             } footer: {
                 Text("Every quick game starts with these tags, so they're easy to find later.")
-            }
-
-            Section("Time control") {
-                Picker("Time control", selection: timeControlBinding) {
-                    Text("10 minutes").tag("standard")
-                    Text("24h per move").tag("correspondence")
-                    Text("Unlimited").tag("unlimited")
-                }
             }
         }
         .navigationTitle("Quick game preset")

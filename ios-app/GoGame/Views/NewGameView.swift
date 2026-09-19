@@ -72,6 +72,9 @@ struct NewGameView: View {
                             }
                         }
                     }
+                    if mode == "gnugo" {
+                        Stepper("GNU Go level: \(gnugoLevel)", value: $gnugoLevel, in: 1...10)
+                    }
                     // Effectively only ever populated by a local/gnugo
                     // creation failure (see create()'s catch below) — GNU
                     // Go's one-open-game limit is the practical case — so
@@ -172,11 +175,9 @@ struct NewGameView: View {
                     }
                 }
 
-                if mode == "gnugo" {
-                    Stepper("GNU Go level: \(gnugoLevel)", value: $gnugoLevel, in: 1...10)
-                }
-
-                Section("Time control") {
+                // No section header: the picker's own label already says
+                // "Time control", and the two read as a stutter.
+                Section {
                     Picker("Time control", selection: $timeControl) {
                         Text("10 minutes").tag("standard")
                         Text("24h per move").tag("correspondence")
