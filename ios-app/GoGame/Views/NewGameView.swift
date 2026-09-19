@@ -32,6 +32,8 @@ struct NewGameView: View {
     // Saves this form as the shake-to-play preset when the game is
     // created — "these settings, again, by shaking".
     @State private var shakeToPlay = false
+    @State private var tags: [String] = []
+    @State private var tagDraft = ""
 
     private static let boardSizes = [9, 13, 19]
 
@@ -44,6 +46,22 @@ struct NewGameView: View {
             Form {
                 Section {
                     TextField("Title (optional)", text: $title)
+                    if !tags.isEmpty {
+                        FlowLayout(spacing: 6) {
+                            ForEach(tags, id: \.self) { tag in
+                                TagChip(tag: tag) { tags.removeAll { $0 == tag } }
+                            }
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        TextField("Add a tag", text: $tagDraft)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .submitLabel(.done)
+                            .onSubmit { addTag() }
+                        Button("Add", action: addTag)
+                            .disabled(trimmedTagDraft.isEmpty)
+                    }
                     Picker("Mode", selection: $mode) {
                         Text("Local").tag("local")
                         Text("Remote").tag("remote")
@@ -218,12 +236,28 @@ struct NewGameView: View {
             gnugoLevel: mode == "gnugo" ? gnugoLevel : nil,
             color: color,
             opponentUsername: mode == "remote" ? opponent : nil,
-            // A game being created has no tags yet; they're added from its
-            // own Title & tags sheet, or here via the preset editor.
-            tags: quickGame.preset?.tags ?? [],
+            tags: tags,
             shakeToPlay: true
         )
         quickGame.preset = try? await APIClient.setQuickGamePreset(preset)
+    }
+
+    private var trimmedTagDraft: String {
+        tagDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // Trim, dedupe and cap here so the list on screen matches what will be
+    // sent; the server still has the last word on a tag's charset and
+    // length, and quietly drops anything it won't store.
+    private func addTag() {
+        let tag = trimmedTagDraft
+        guard !tag.isEmpty, tags.count < 12 else { return }
+        guard !tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else {
+            tagDraft = ""
+            return
+        }
+        tags.append(tag)
+        tagDraft = ""
     }
 
     // An unknown/not-yet-valid username, or any other request error, just
@@ -281,7 +315,8 @@ struct NewGameView: View {
                 timeControl: timeControl,
                 color: (mode == "remote" || mode == "gnugo") ? color : nil,
                 opponentUsername: mode == "remote" ? trimmedOpponent : nil,
-                level: mode == "gnugo" ? gnugoLevel : nil
+                level: mode == "gnugo" ? gnugoLevel : nil,
+                tags: tags
             )
             if shakeToPlay {
                 await saveAsQuickPreset(opponent: trimmedOpponent)

@@ -31,6 +31,22 @@ struct QuickGamePresetView: View {
             }
 
             Section {
+                if !preset.tags.isEmpty {
+                    FlowLayout(spacing: 6) {
+                        ForEach(preset.tags, id: \.self) { tag in
+                            TagChip(tag: tag) { remove(tag: tag) }
+                        }
+                    }
+                }
+                HStack(spacing: 8) {
+                    TextField("Add a tag", text: $tagDraft)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .submitLabel(.done)
+                        .onSubmit { addTag() }
+                    Button("Add", action: addTag)
+                        .disabled(trimmedTagDraft.isEmpty)
+                }
                 Picker("Mode", selection: binding(\.mode)) {
                     Text("Local").tag("local")
                     Text("Remote").tag("remote")
@@ -108,28 +124,6 @@ struct QuickGamePresetView: View {
                 }
             }
 
-            Section {
-                if !preset.tags.isEmpty {
-                    FlowLayout(spacing: 6) {
-                        ForEach(preset.tags, id: \.self) { tag in
-                            TagChip(tag: tag) { remove(tag: tag) }
-                        }
-                    }
-                }
-                HStack(spacing: 8) {
-                    TextField("Add a tag", text: $tagDraft)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .submitLabel(.done)
-                        .onSubmit { addTag() }
-                    Button("Add", action: addTag)
-                        .disabled(trimmedTagDraft.isEmpty)
-                }
-            } header: {
-                Text("Tags")
-            } footer: {
-                Text("Every quick game starts with these tags, so they're easy to find later.")
-            }
         }
         .navigationTitle("Quick game preset")
         .navigationBarTitleDisplayMode(.inline)
