@@ -253,10 +253,20 @@ enum APIClient {
 
     // Both tag calls answer with the game's whole tag list, so the caller
     // replaces its copy rather than patching it.
-    static func addTag(gameId: String, tag: String) async throws -> [String] {
-        struct Body: Encodable { let tag: String }
+    // isPublic is the difference between Share and Add in the tags sheet:
+    // a public tag is visible to anyone who can see the game, a personal
+    // one only to whoever added it.
+    static func addTag(gameId: String, tag: String, isPublic: Bool) async throws -> [String] {
+        struct Body: Encodable { let tag: String; let isPublic: Bool }
         struct Response: Decodable { let tags: [String] }
-        let response: Response = try await post("api/games/\(gameId)/tags", body: Body(tag: tag))
+        let response: Response = try await post("api/games/\(gameId)/tags", body: Body(tag: tag, isPublic: isPublic))
+        return response.tags
+    }
+
+    // Every tag this user has used before, most-used first.
+    static func tagSuggestions() async throws -> [TagSuggestion] {
+        struct Response: Decodable { let tags: [TagSuggestion] }
+        let response: Response = try await get("api/tags")
         return response.tags
     }
 

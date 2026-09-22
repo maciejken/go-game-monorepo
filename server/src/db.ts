@@ -119,6 +119,22 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 
+  -- Every tag a user has ever added, with how often they've used it, so
+  -- the clients can offer them back sorted by popularity. Separate from
+  -- game_tags because it outlives the games themselves: deleting the one
+  -- game a tag was used on shouldn't erase the tag from the user's own
+  -- vocabulary. is_public records how they last added it, which is what a
+  -- suggestion re-adds it as.
+  CREATE TABLE IF NOT EXISTS user_tags (
+    user_id TEXT NOT NULL,
+    tag_key TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    is_public INTEGER NOT NULL DEFAULT 0,
+    use_count INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, tag_key)
+  );
+
   -- An iOS device's APNs token, so the server knows where to push "it's
   -- your turn" notifications. One user can have several rows (multiple
   -- devices); a token moves to a new owner if it's re-registered under a
@@ -209,6 +225,78 @@ if (!gamesColumns.has('end_reason')) {
 if (!gamesColumns.has('pending_reopen_by')) {
   db.exec('ALTER TABLE games ADD COLUMN pending_reopen_by TEXT');
 }
+
+// game_tags shipped shared between both players, one row per (game, tag).
+// Tags are now per-user and either public (everyone who can see the game
+// sees the tag) or personal (only the owner does), which needs both a new
+// owner column and a wider primary key — SQLite can't add either in place,
+// so the table is rebuilt.
+//
+// Every existing tag becomes personal to each human player of its game, so
+// nobody loses sight of a tag they can see today. GNU Go is skipped: the
+// computer has no use for a vocabulary of its own. A tag on a game with no
+// human owner at all (from before accounts existed) becomes public, which
+// keeps it visible rather than orphaning it.
+const gameTagColumns = new Set(
+  (db.prepare('PRAGMA table_info(game_tags)').all() as { name: string }[]).map((column) => column.name),
+);
+if (!gameTagColumns.has('user_id')) {
+  const aiUserId = (
+    db.prepare('SELECT id FROM users WHERE username = ?').get('gnugo') as { id: string } | undefined
+  )?.id;
+  db.exec(`
+    CREATE TABLE game_tags_new (
+      game_id TEXT NOT NULL,
+      tag_key TEXT NOT NULL,
+      tag TEXT NOT NULL,
+      -- '' for a public tag: one row everyone sees, owned by nobody.
+      user_id TEXT NOT NULL DEFAULT '',
+      is_public INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (game_id, tag_key, user_id)
+    );
+  `);
+  const legacy = db.prepare('SELECT game_id, tag_key, tag, created_at FROM game_tags').all() as {
+    game_id: string;
+    tag_key: string;
+    tag: string;
+    created_at: number;
+  }[];
+  const gameOwners = db.prepare('SELECT black_user_id, white_user_id FROM games WHERE id = ?');
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO game_tags_new (game_id, tag_key, tag, user_id, is_public, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+  );
+  const migrate = db.transaction(() => {
+    for (const row of legacy) {
+      const owners = gameOwners.get(row.game_id) as
+        | { black_user_id: string | null; white_user_id: string | null }
+        | undefined;
+      const humans = [owners?.black_user_id, owners?.white_user_id].filter(
+        (id): id is string => id != null && id !== aiUserId,
+      );
+      if (humans.length === 0) {
+        insert.run(row.game_id, row.tag_key, row.tag, '', 1, row.created_at);
+        continue;
+      }
+      for (const userId of new Set(humans)) {
+        insert.run(row.game_id, row.tag_key, row.tag, userId, 0, row.created_at);
+      }
+    }
+  });
+  migrate();
+  db.exec('DROP TABLE game_tags; ALTER TABLE game_tags_new RENAME TO game_tags;');
+
+  // Seed each user's vocabulary from the tags they just inherited, so the
+  // suggestion list isn't empty on the first run after this migration.
+  db.exec(`
+    INSERT OR IGNORE INTO user_tags (user_id, tag_key, tag, is_public, use_count, updated_at)
+    SELECT user_id, tag_key, MIN(tag), 0, COUNT(*), MAX(created_at)
+    FROM game_tags
+    WHERE user_id != ''
+    GROUP BY user_id, tag_key;
+  `);
+}
+
 // Per-game GNU Go difficulty (1-10, GTP --level) — NULL means "use the
 // server's GNUGO_LEVEL default" (irrelevant for non-gnugo games).
 if (!gamesColumns.has('gnugo_level')) {

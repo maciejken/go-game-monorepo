@@ -61,6 +61,24 @@ struct GameBoardView: View {
     // phone is held, not about the account.
     @AppStorage("go-shake-title-tags") private var shakeOpensTitleTags = true
     @State private var pendingMove: Point?
+    // The board is hidden from VoiceOver, so typing a coordinate is the
+    // way in for anyone it doesn't work for. On by default, since someone
+    // who needs it can't discover a setting they can't reach the board to
+    // miss; anyone who would rather have the space back turns it off.
+    @AppStorage("go-coordinate-entry") private var coordinateEntryEnabled = true
+    // Watching a board isn't touching it, so the screen would otherwise dim
+    // mid-game — but that is a battery trade, so it stays a choice.
+    @AppStorage("go-keep-screen-awake") private var keepScreenAwake = true
+    // A stone placed on a real board is felt as well as seen; a tap on
+    // glass isn't, unless the phone says so.
+    @AppStorage("go-haptics") private var hapticsEnabled = true
+    @State private var coordinateText = ""
+    @State private var coordinateEditing = false
+    @FocusState private var coordinateFocused: Bool
+    // Why the typed point can't be played (occupied, ko, suicide), as the
+    // server sees it — asked for as it is typed, so an illegal point says
+    // so before it is submitted rather than erroring after.
+    @State private var coordinateError: String?
     // Review mode — always on for a finished game (no toggle, unlike the
     // web client's Review/Live menu item): the full move-by-move record,
     // fetched once when the game is first found to be finished, and the
@@ -120,8 +138,20 @@ struct GameBoardView: View {
                 break
             }
         }
-        .onAppear { quickGame.isBoardOpen = true }
-        .onDisappear { quickGame.isBoardOpen = false }
+        .onAppear {
+            quickGame.isBoardOpen = true
+            // Cleared on the way out, so this only ever applies while a
+            // board is on screen.
+            UIApplication.shared.isIdleTimerDisabled = keepScreenAwake
+        }
+        .onDisappear {
+            quickGame.isBoardOpen = false
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
+        // Takes effect on the board already open, not just the next one.
+        .onChange(of: keepScreenAwake) { _, keepAwake in
+            UIApplication.shared.isIdleTimerDisabled = keepAwake
+        }
         // isBoardOpen gates this as well as the quick game: a board that's
         // still pushed on another tab shouldn't answer a shake meant for
         // whatever is actually on screen.
@@ -210,7 +240,7 @@ struct GameBoardView: View {
         }
         .sheet(isPresented: $showSettingsSheet) {
             settingsSheetContent
-                .presentationDetents([.height(210)])
+                .presentationDetents([.height(354)])
         }
         .sheet(isPresented: $showTagsSheet) {
             if let game {
@@ -263,26 +293,39 @@ struct GameBoardView: View {
     private func boardContent(_ game: GameState) -> some View {
         ScrollView {
             VStack(spacing: 12) {
-                if !statusLine(game).isEmpty {
-                    Text(statusLine(game))
-                        .font(.headline)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-
                 BoardGridView(
                     board: displayedBoard(game),
                     size: game.size,
                     lastMove: highlightedPoint(game),
                     isInteractive: isInteractive(game),
                     allowTapOnOccupied: game.status == "scoring",
-                    deadPoints: markMode == .dead ? pendingDeadKeys : [],
+                    // Dimmed in both mark modes, not just while marking
+                    // dead: a stone counted as a prisoner is already off
+                    // the board for scoring, and leaving it solid in seki
+                    // mode hides the territory markers underneath it.
+                    deadPoints: pendingDeadKeys,
                     blackTerritoryPoints: territoryKeys(livePreview(game)?.blackTerritoryPoints ?? []),
                     whiteTerritoryPoints: territoryKeys(livePreview(game)?.whiteTerritoryPoints ?? []),
                     sekiHighlightPoints: sekiActive(game) ? pendingSekiKeys : [],
                     pendingMove: game.status == "in_progress" ? pendingMove : nil,
                     pendingMoveColor: game.currentColor,
+                    highlightColumn: coordinateEntryEnabled && isInteractive(game)
+                        ? partialColumn(coordinateText, size: game.size)
+                        : nil,
+                    // Only once the row is there too, and only until the
+                    // move is played — playCoordinate clears the field,
+                    // which takes both lines with it.
+                    highlightRow: coordinateEntryEnabled && isInteractive(game)
+                        ? parseCoordinate(coordinateText, size: game.size)?.y
+                        : nil,
                     onTap: { x, y in
+                        // On the tap itself, not on the move landing: the
+                        // feedback is for the touch, and a move played over
+                        // the network would answer far too late to feel
+                        // like the same event.
+                        if hapticsEnabled {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        }
                         if game.status == "scoring" {
                             toggleMarkedGroup(x: x, y: y, in: game)
                         } else {
@@ -290,6 +333,19 @@ struct GameBoardView: View {
                         }
                     }
                 )
+                // Tapping the board puts the keyboard away, the way
+                // tapping outside a field does elsewhere. On the board
+                // alone, not the whole column: the field is in that column
+                // too, and a tap on the field would have dismissed the
+                // keyboard it had just asked for. simultaneous so the
+                // board's own stone buttons still take the same tap.
+                .simultaneousGesture(TapGesture().onEnded { coordinateFocused = false })
+                // A grid of up to 361 buttons, none of which VoiceOver can
+                // describe usefully one swipe at a time — it reads the
+                // board as hundreds of anonymous stops between the status
+                // line and everything below it. coordinateEntry below is
+                // the way in for VoiceOver instead.
+                .accessibilityHidden(true)
 
                 if isReviewing(game) {
                     if let entry = reviewEntry {
@@ -310,6 +366,10 @@ struct GameBoardView: View {
                         .padding(.horizontal)
                 }
 
+                if coordinateEntryEnabled, isInteractive(game) {
+                    coordinateEntry(game)
+                }
+
                 if isReviewing(game), let history {
                     // Extra breathing room beyond the VStack's own 12pt
                     // spacing, so the move list doesn't crowd right up
@@ -318,7 +378,7 @@ struct GameBoardView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
                                 ForEach(history.moves, id: \.moveNumber) { entry in
-                                    moveChainMarker(entry)
+                                    moveChainMarker(entry, size: game.size)
                                         .id(entry.moveNumber)
                                 }
                             }
@@ -363,7 +423,17 @@ struct GameBoardView: View {
             .padding(.top)
             .padding(.bottom)
         }
+        // ...and so does dragging the board, the other way a keyboard goes
+        // away by itself on iOS.
+        .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) {
+            // Nothing at all while a coordinate is being typed: the
+            // keyboard would cover this row anyway, and giving its height
+            // back to the board is the point — captures and clocks are
+            // still a dismissal away.
+            if coordinateEditing {
+                EmptyView()
+            } else {
             // The glass layer lives in .background, not wrapped directly
             // around footerRow, specifically so .ignoresSafeArea can let it
             // bleed down past the row's own layout and cover the home
@@ -405,6 +475,7 @@ struct GameBoardView: View {
                             .ignoresSafeArea(edges: .bottom)
                     }
                 }
+            }
         }
     }
 
@@ -415,6 +486,11 @@ struct GameBoardView: View {
             Toggle("Confirm moves before playing them", isOn: $confirmMovesEnabled)
                 .onChange(of: confirmMovesEnabled) { _, _ in pendingMove = nil }
             Toggle("Shake to open Title & tags", isOn: $shakeOpensTitleTags)
+            // For anyone the board doesn't work for — VoiceOver skips it
+            // entirely — or who would rather type the coordinate than tap.
+            Toggle("Enter moves as coordinates", isOn: $coordinateEntryEnabled)
+            Toggle("Keep the screen awake", isOn: $keepScreenAwake)
+            Toggle("Haptic feedback", isOn: $hapticsEnabled)
         }
         .padding()
     }
@@ -909,6 +985,9 @@ struct GameBoardView: View {
             Text(plainResult(game))
                 .font(.headline)
                 .multilineTextAlignment(.center)
+                // Clear of the sheet's grabber, which sits close enough to
+                // the headline to read as crowding it.
+                .padding(.top, 16)
             // The stone markers' own centre line is this row's centre line:
             // each player's name-and-details column is centred against it
             // (an HStack's default .center alignment), so extra detail lines
@@ -1030,8 +1109,9 @@ struct GameBoardView: View {
             playerDetails(game, color: .black).count,
             playerDetails(game, color: .white).count
         )
-        // padding + result headline + the stone row + the setup/started lines
-        var height: CGFloat = 32 + 22 + 16 + max(52, 22 + CGFloat(detailLines) * 17)
+        // padding + the headline's own top inset + result headline + the
+        // stone row + the setup/started lines
+        var height: CGFloat = 32 + 16 + 22 + 16 + max(52, 22 + CGFloat(detailLines) * 17)
         height += 16 + (game.createdAt == nil ? 16 : 36)
         if game.resultBreakdown != nil, game.myColor != nil {
             height += 16 + 34
@@ -1106,18 +1186,6 @@ struct GameBoardView: View {
             }
         }
         .frame(width: 52, height: 52)
-    }
-
-    private func statusLine(_ game: GameState) -> String {
-        switch game.status {
-        case "finished", "scoring":
-            return ""
-        default:
-            let toMove = reviewColorLabel(game.currentColor)
-            return canAct(game)
-                ? String(localized: "%@ to move — your turn", defaultValue: "\(toMove) to move — your turn")
-                : String(localized: "%@ to move", defaultValue: "\(toMove) to move")
-        }
     }
 
     // Just the "Estimated: ..." line, with no explainer sentence — the
@@ -1205,6 +1273,7 @@ struct GameBoardView: View {
     }
 
     private static let reviewColumnLabels = Array("ABCDEFGHJKLMNOPQRST")
+    private static let coordinateSeparators = CharacterSet(charactersIn: "-–—,. ")
 
     private func reviewColorLabel(_ color: StoneColor?) -> String {
         switch color {
@@ -1212,6 +1281,282 @@ struct GameBoardView: View {
         case .white: return String(localized: "White")
         case nil: return ""
         }
+    }
+
+    // Typing a point instead of tapping it: the coordinate as it is
+    // written anyway ("D4"), validated as it is typed, played with the
+    // keyboard's Go key or the button. Naming a point is one field however
+    // big the board is, where swiping the board itself would be hundreds
+    // of stops.
+    @ViewBuilder
+    private func coordinateEntry(_ game: GameState) -> some View {
+        let point = parseCoordinate(coordinateText, size: game.size)
+        // Nothing typed yet is neither right nor wrong — and neither is a
+        // column with its row still to come ("D", "4-"), which is a
+        // coordinate half-written rather than a wrong one. Both leave the
+        // hint standing on its own, with no verdict either way.
+        let typedAnything = !coordinateText.trimmingCharacters(in: .whitespaces).isEmpty
+        let isIncomplete = point == nil && coordinateRest(coordinateText, size: game.size) == ""
+        let showsVerdict = typedAnything && !isIncomplete
+        let isValid = point != nil && coordinateError == nil
+        VStack(alignment: .leading, spacing: 8) {
+            // Above the field, not below it: with the keyboard up, the
+            // field is the last thing on screen, so anything under it is
+            // behind the keyboard and never seen while typing.
+            Text(coordinateError ?? coordinateEntryStatus(game, point: point, isIncomplete: isIncomplete))
+                .font(.subheadline)
+                .foregroundStyle(!showsVerdict ? Color.secondary : (isValid ? Color.primary : Color.red))
+            // Whatever keyboard the device's language gives: both
+            // notations are short, and either keyboard reaches both.
+            TextField("Point", text: $coordinateText)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+                .submitLabel(.go)
+                .focused($coordinateFocused)
+                .onSubmit { playCoordinate(game, point: point) }
+                // The verdict sits in the field, at the end of what is
+                // being typed, rather than only in the line above it. The
+                // colour carries it, and the symbol carries it again for
+                // anyone who can't separate the two colours.
+                .overlay(alignment: .trailing) {
+                    if showsVerdict {
+                        Image(systemName: isValid ? "checkmark.circle" : "exclamationmark.circle")
+                            .foregroundStyle(isValid ? Color.green : Color.red)
+                            .padding(.trailing, 8)
+                            // The line above already says the same thing.
+                            .accessibilityHidden(true)
+                    }
+                }
+                // A red rim around the field too, so a wrong point is
+                // obvious without reading either.
+                .overlay {
+                    if showsVerdict, !isValid {
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(Color.red, lineWidth: 1.5)
+                    }
+                }
+        }
+        .padding(.horizontal)
+        .onChange(of: coordinateFocused) { _, focused in coordinateEditing = focused }
+        // The entry only exists while it is your move, so appearing is
+        // itself the signal that the opponent has played.
+        // The entry only exists while it is your move, so appearing is
+        // itself the signal that the opponent has played: focusing here is
+        // what lets a game be played from a keyboard without touching the
+        // phone. Anyone who would rather not have a keyboard come up can
+        // turn coordinate entry off and play on the board.
+        .onAppear { focusCoordinateEntry() }
+        .onChange(of: game.currentColor) { _, _ in focusCoordinateEntry() }
+        // Switching coordinate entry on from the settings sheet builds the
+        // field behind the sheet: focusing it there would throw a keyboard
+        // over the sheet being read. It waits for the sheet to close.
+        .onChange(of: isSheetOpen) { _, open in
+            if !open {
+                focusCoordinateEntry()
+            }
+        }
+        // Previewing the typed point as the board's pending stone is the
+        // same marker a tap-to-confirm move uses, so "where is D4" is
+        // answered on the board itself rather than only in words.
+        .onChange(of: coordinateText) { _, _ in
+            let typed = parseCoordinate(coordinateText, size: game.size)
+            coordinateError = nil
+            guard game.status == "in_progress" else {
+                pendingMove = nil
+                return
+            }
+            pendingMove = typed
+            guard let typed else { return }
+            Task {
+                do {
+                    let result = try await APIClient.validateMove(
+                        gameId: gameId,
+                        x: typed.x,
+                        y: typed.y,
+                        color: game.currentColor
+                    )
+                    // The field may have moved on while this was in
+                    // flight; only the point still typed gets an answer.
+                    guard parseCoordinate(coordinateText, size: game.size) == typed else { return }
+                    // The server sends these as the English sentence,
+                    // which is the catalogue key itself (see shared's
+                    // validateMove) — an unknown one falls back to the
+                    // sentence as sent.
+                    coordinateError = result.valid
+                        ? nil
+                        : result.error.map { String(localized: String.LocalizationValue($0)) }
+                            ?? String(localized: "Invalid move")
+                } catch {
+                    // A failed check is not a failed move — say nothing and
+                    // let the play attempt itself report any problem.
+                }
+            }
+        }
+    }
+
+    // "D4" or "4-4" -> the point it names, or nil if this board has no
+    // such point. Both notations are accepted because both keyboards are:
+    // the digits-and-dash plane this field opens on writes the numbered
+    // form, a hardware keyboard or dictation may well write the lettered
+    // one. Columns skip I, as everywhere else the notation is written,
+    // column 1 is A, and row 1 is the bottom of the board.
+    private func parseCoordinate(_ text: String, size: Int) -> Point? {
+        let columns = Self.reviewColumnLabels.prefix(size)
+        let parts = coordinateParts(text)
+        let column: Int
+        let row: Int
+        if let first = parts.first, first.count == 1, let index = columns.firstIndex(of: Character(first)) {
+            guard parts.count == 2, let typedRow = coordinateRow(parts[1], size: size) else { return nil }
+            column = index
+            row = typedRow
+        } else {
+            guard parts.count == 2,
+                  let typedColumn = coordinateNumber(parts[0]), let typedRow = coordinateNumber(parts[1]),
+                  typedColumn >= 1, typedColumn <= size
+            else { return nil }
+            column = typedColumn - 1
+            row = typedRow
+        }
+        guard row >= 1, row <= size else { return nil }
+        return Point(x: column, y: size - row)
+    }
+
+    // Splits "D4", "D 7", "4-4", "cztery siedem" into their two halves.
+    // Dash, comma, full stop and space all separate them: which one arrives
+    // depends on the keyboard and on what dictation heard, and none of them
+    // means anything else here. "D4" has no separator at all, so a leading
+    // column letter is split off by itself.
+    private func coordinateParts(_ text: String) -> [String] {
+        let trimmed = text.trimmingCharacters(in: .whitespaces).uppercased()
+        guard let first = trimmed.first else { return [] }
+        if first.isLetter, trimmed.dropFirst().first?.isNumber == true {
+            return [String(first), String(trimmed.dropFirst())]
+        }
+        // Two letters, no separator: the row named by letter as well as
+        // the column ("DG" is D7), so a coordinate can be written without
+        // ever leaving the letter keyboard.
+        if trimmed.count == 2, trimmed.allSatisfy(\.isLetter) {
+            return trimmed.map(String.init)
+        }
+        return trimmed
+            .components(separatedBy: Self.coordinateSeparators)
+            .filter { !$0.isEmpty }
+    }
+
+    // A row written as a letter counts from the same A-T that names the
+    // columns, I skipped in both — so the letters read off one edge of the
+    // board or the other, not SGF's own a-s lettering. Otherwise it is a
+    // number like any other.
+    private func coordinateRow(_ text: String, size: Int) -> Int? {
+        if text.count == 1,
+           let index = Self.reviewColumnLabels.prefix(size).firstIndex(of: Character(text)) {
+            return index + 1
+        }
+        return coordinateNumber(text)
+    }
+
+    // Digits, or the number as a word — dictation writes "7" as "siedem"
+    // in Polish, "seven" in English, and there is no way to ask it not to.
+    // NumberFormatter reads those back in whatever language the device is
+    // set to, so this needs no word list of its own.
+    private func coordinateNumber(_ text: String) -> Int? {
+        if let value = Int(text) {
+            return value
+        }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .spellOut
+        formatter.locale = .current
+        return formatter.number(from: text.lowercased())?.intValue
+    }
+
+    // Plays immediately even with "Confirm moves before playing them" on:
+    // that setting guards against a mis-tap on a board, and a coordinate
+    // typed out and shown back as "D4 is empty" has already been confirmed
+    // by reading it. Asking twice would mean entering the same move twice.
+    // The column half of what has been typed so far, whether or not the
+    // row is there yet: "D", "D4", "4" and "4-" all name column D. Only
+    // for lighting the line on the board — a move still needs both halves.
+    private func partialColumn(_ text: String, size: Int) -> Int? {
+        guard let first = coordinateParts(text).first else { return nil }
+        if first.count == 1, let index = Self.reviewColumnLabels.prefix(size).firstIndex(of: Character(first)) {
+            return index
+        }
+        guard let typed = coordinateNumber(first), typed >= 1, typed <= size else { return nil }
+        return typed - 1
+    }
+
+    // What is left after the column and any separator — "" while only the
+    // column has been typed ("D", "4", "4-"), nil when the text doesn't
+    // start with a column of this board at all.
+    private func coordinateRest(_ text: String, size: Int) -> String? {
+        let parts = coordinateParts(text)
+        guard let first = parts.first else { return nil }
+        let namesColumn = (first.count == 1 && Self.reviewColumnLabels.prefix(size).contains(Character(first)))
+            || coordinateNumber(first).map { $0 >= 1 && $0 <= size } == true
+        guard namesColumn else { return nil }
+        return parts.dropFirst().joined(separator: " ")
+    }
+
+    // Any sheet over the board: while one is up it owns the screen, and
+    // the field underneath waits its turn.
+    private var isSheetOpen: Bool {
+        showActionsSheet || showSettingsSheet || showResultSheet || showTagsSheet
+            || showDeleteConfirmation || gameShare != nil || game?.pendingInviteResponse == true
+    }
+
+    // One runloop hop after the field appears: setting focus in the same
+    // pass as the view that takes it is too early, and SwiftUI drops it.
+    private func focusCoordinateEntry() {
+        guard !isSheetOpen else { return }
+        DispatchQueue.main.async { coordinateFocused = true }
+    }
+
+    private func playCoordinate(_ game: GameState, point: Point?) {
+        guard let point, !isBusy else { return }
+        if game.status == "scoring" {
+            toggleMarkedGroup(x: point.x, y: point.y, in: game)
+        } else {
+            pendingMove = nil
+            Task { await makeMove(x: point.x, y: point.y) }
+        }
+        coordinateText = ""
+        coordinateError = nil
+    }
+
+    // What is at the point just typed, so a VoiceOver user can tell an
+    // empty point from an occupied one without the board to read — and
+    // what is wrong with what they typed, while it names no point yet.
+    private func coordinateEntryStatus(_ game: GameState, point: Point?, isIncomplete: Bool) -> String {
+        // D4 is on every board size this app offers, so the example is
+        // part of the sentence rather than built from the board — the
+        // whole hint, wording and example both, is the translator's.
+        guard !coordinateText.trimmingCharacters(in: .whitespaces).isEmpty, !isIncomplete else {
+            return String(localized: "Enter a point, for example D4 or 4-4")
+        }
+        guard let point else {
+            let typed = coordinateText.trimmingCharacters(in: .whitespaces).uppercased()
+            return String(
+                localized: "%@ is not a point on this board",
+                defaultValue: "\(typed) is not a point on this board"
+            )
+        }
+        let label = "\(Self.reviewColumnLabels[point.x])\(game.size - point.y)"
+        switch displayedBoard(game)[point.y][point.x] {
+        case .black:
+            return String(localized: "%@ has a black stone", defaultValue: "\(label) has a black stone")
+        case .white:
+            return String(localized: "%@ has a white stone", defaultValue: "\(label) has a white stone")
+        case nil:
+            return String(localized: "%@ is empty", defaultValue: "\(label) is empty")
+        }
+    }
+
+    private func coordinateActionLabel(_ game: GameState, point: Point?) -> String {
+        guard let point else { return String(localized: "Play") }
+        let label = "\(Self.reviewColumnLabels[point.x])\(game.size - point.y)"
+        return game.status == "scoring"
+            ? String(localized: "Mark the group at %@", defaultValue: "Mark the group at \(label)")
+            : String(localized: "Play %@", defaultValue: "Play \(label)")
     }
 
     // Mirrors client/src/pages/Game.tsx's describeEntry.
@@ -1253,7 +1598,7 @@ struct GameBoardView: View {
     // style. A colorless event (START/HANDICAP) gets a dashed neutral ring
     // instead of a stone fill. Tapping one jumps review straight to it.
     @ViewBuilder
-    private func moveChainMarker(_ entry: HistoryEntry) -> some View {
+    private func moveChainMarker(_ entry: HistoryEntry, size: Int) -> some View {
         let isCurrent = entry.moveNumber == reviewMoveNumber
         Button {
             goToMove(entry.moveNumber)
@@ -1296,6 +1641,14 @@ struct GameBoardView: View {
             )
         }
         .buttonStyle(.plain)
+        // Without this VoiceOver reads only the number drawn in the marker.
+        // The label is the same sentence the line above the list shows once
+        // this move is selected, so hearing it and selecting it agree.
+        // Text(verbatim:) because describeEntry already returns a localized
+        // sentence — interpolating it into a label literal would have
+        // SwiftUI look it up as a catalogue key of its own.
+        .accessibilityLabel(Text(verbatim: "\(entry.moveNumber). \(describeEntry(entry, size: size))"))
+        .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
     }
 
     // Live "what you'll get" preview — mirrors client/src/pages/Game.tsx's

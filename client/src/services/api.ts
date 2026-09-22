@@ -321,12 +321,26 @@ export function updateGameTitle(id: string, title: string): Promise<{ title: str
 
 // Both tag routes answer with the game's whole tag list, so the caller
 // replaces its copy rather than patching it.
-export function addGameTag(id: string, tag: string): Promise<{ tags: string[] }> {
+// isPublic is the difference between Share and Add: a public tag is
+// visible to anyone who can see the game, a personal one only to whoever
+// added it.
+export function addGameTag(id: string, tag: string, isPublic: boolean): Promise<{ tags: string[] }> {
   return fetch(`${API_BASE}/games/${id}/tags`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tag }),
+    body: JSON.stringify({ tag, isPublic }),
   }).then((res) => handle<{ tags: string[] }>(res));
+}
+
+export interface TagSuggestion {
+  tag: string;
+  isPublic: boolean;
+  count: number;
+}
+
+// Every tag this user has used before, most-used first.
+export function listTagSuggestions(): Promise<{ tags: TagSuggestion[] }> {
+  return fetch(`${API_BASE}/tags`).then((res) => handle<{ tags: TagSuggestion[] }>(res));
 }
 
 export function removeGameTag(id: string, tag: string): Promise<{ tags: string[] }> {

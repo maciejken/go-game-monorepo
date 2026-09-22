@@ -101,6 +101,16 @@ struct TitleTagsSheetView: View {
     @State private var draft = ""
     @State private var errorMessage: String?
     @State private var isBusy = false
+    // The title reads as a heading until the pencil is pressed; only then
+    // does it become something to type in.
+    @State private var isEditingTitle = false
+    // This user's own vocabulary, most-used first, minus whatever is
+    // already on the game.
+    @State private var suggestions: [TagSuggestion] = []
+    // The field and its two buttons stay out of the way until asked for,
+    // by the + at the end of the suggestions or by dragging the sheet up.
+    @State private var isAddingTag = false
+    @FocusState private var tagFieldFocused: Bool
 
     private var trimmedDraft: String {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -120,19 +130,7 @@ struct TitleTagsSheetView: View {
                     starButton
                 }
             }
-            if canEdit {
-                HStack(spacing: 8) {
-                    TextField("Game title", text: $titleDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .submitLabel(.done)
-                        .onSubmit { Task { await saveTitle() } }
-                    Button("Save") { Task { await saveTitle() } }
-                        .disabled(isBusy || trimmedTitle == (title ?? ""))
-                }
-            } else if let title, !title.isEmpty {
-                Text(title)
-                    .font(.subheadline)
-            }
+            titleRow
             if tags.isEmpty {
                 Text("No tags yet.")
                     .font(.subheadline)
@@ -145,15 +143,9 @@ struct TitleTagsSheetView: View {
                 }
             }
             if canEdit {
-                HStack(spacing: 8) {
-                    TextField("Add a tag", text: $draft)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .submitLabel(.done)
-                        .onSubmit { Task { await add() } }
-                    Button("Add") { Task { await add() } }
-                        .disabled(isBusy || trimmedDraft.isEmpty)
+                suggestionsRow
+                if isAddingTag {
+                    newTagField
                 }
             }
             if let errorMessage {
@@ -164,6 +156,7 @@ struct TitleTagsSheetView: View {
         }
         .padding()
         .onAppear { titleDraft = title ?? "" }
+        .task { await loadSuggestions() }
         .background {
             GeometryReader { proxy in
                 Color.clear.preference(key: TagsSheetHeightKey.self, value: proxy.size.height)
@@ -172,6 +165,138 @@ struct TitleTagsSheetView: View {
         .onPreferenceChange(TagsSheetHeightKey.self) { height in
             contentHeight = height
         }
+    }
+
+    @ViewBuilder
+    private var titleRow: some View {
+        if isEditingTitle {
+            HStack(spacing: 8) {
+                TextField("Game title", text: $titleDraft)
+                    .textFieldStyle(.roundedBorder)
+                    .submitLabel(.done)
+                    .onSubmit { Task { await saveTitle() } }
+                Button("Save") { Task { await saveTitle() } }
+                    .disabled(isBusy)
+            }
+        } else {
+            HStack(spacing: 8) {
+                Text(title?.isEmpty == false ? title! : String(localized: "Untitled game"))
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(title?.isEmpty == false ? Color.primary : Color.secondary)
+                    .lineLimit(2)
+                if canEdit {
+                    Button {
+                        titleDraft = title ?? ""
+                        isEditingTitle = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.subheadline)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Edit title")
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    // The tags this user has used before, as the same capsules the game's
+    // own tags use — a + instead of an × , since here they are added
+    // rather than removed. The trailing + opens the field for a tag that
+    // isn't in the list yet.
+    private var suggestionsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(offeredSuggestions, id: \.tag) { suggestion in
+                    Button {
+                        Task { await add(suggestion.tag, isPublic: suggestion.isPublic) }
+                    } label: {
+                        suggestionChip(suggestion)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isBusy)
+                }
+                Button {
+                    isAddingTag = true
+                    tagFieldFocused = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("New tag")
+                    }
+                    .font(.subheadline)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(isBusy)
+            }
+            .padding(.horizontal, 1)
+        }
+    }
+
+    private func suggestionChip(_ suggestion: TagSuggestion) -> some View {
+        HStack(spacing: 4) {
+            Text(suggestion.tag)
+                .font(.subheadline)
+                .lineLimit(1)
+            // Shared tags carry the same icon the Share button uses, so
+            // the list says which kind each one is without a second label.
+            if suggestion.isPublic {
+                Image(systemName: "person.2")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Image(systemName: "plus")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.08), in: Capsule())
+        .accessibilityLabel(
+            suggestion.isPublic
+                ? Text("Add shared tag \(suggestion.tag)")
+                : Text("Add personal tag \(suggestion.tag)")
+        )
+    }
+
+    // Share puts the tag on the game for both players; Add keeps it to
+    // this user. Two buttons rather than a switch, so which one was
+    // pressed is the whole answer.
+    private var newTagField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Add a tag", text: $draft)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .submitLabel(.done)
+                .focused($tagFieldFocused)
+                .onSubmit { Task { await add(trimmedDraft, isPublic: false) } }
+            HStack(spacing: 8) {
+                Button {
+                    Task { await add(trimmedDraft, isPublic: true) }
+                } label: {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(.bordered)
+                .disabled(isBusy || trimmedDraft.isEmpty)
+                Button {
+                    Task { await add(trimmedDraft, isPublic: false) }
+                } label: {
+                    Label("Add", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isBusy || trimmedDraft.isEmpty)
+            }
+        }
+    }
+
+    private var offeredSuggestions: [TagSuggestion] {
+        let taken = Set(tags.map { $0.lowercased() })
+        return suggestions.filter { !taken.contains($0.tag.lowercased()) }
     }
 
     private var starButton: some View {
@@ -239,18 +364,26 @@ struct TitleTagsSheetView: View {
         }
     }
 
-    private func add() async {
-        let tag = trimmedDraft
+    private func add(_ tag: String, isPublic: Bool) async {
         guard !tag.isEmpty, !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
         do {
-            onTagsChange(try await APIClient.addTag(gameId: gameId, tag: tag))
+            onTagsChange(try await APIClient.addTag(gameId: gameId, tag: tag, isPublic: isPublic))
             draft = ""
+            isAddingTag = false
             errorMessage = nil
+            await loadSuggestions()
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func loadSuggestions() async {
+        guard canEdit else { return }
+        // A vocabulary that fails to load is a sheet without suggestions,
+        // not an error worth a red line under the field.
+        suggestions = (try? await APIClient.tagSuggestions()) ?? suggestions
     }
 
     private func remove(_ tag: String) async {

@@ -31,6 +31,12 @@ struct BoardGridView: View {
     // .go-stone--pending.
     var pendingMove: Point?
     var pendingMoveColor: StoneColor = .black
+    // The column a half-typed coordinate names ("D", "4-"), lit up so the
+    // first half of the entry can be checked against the board before the
+    // second half is typed, and the row once that arrives — the two cross
+    // at the point being named.
+    var highlightColumn: Int?
+    var highlightRow: Int?
     let onTap: (Int, Int) -> Void
 
     private let woodColor = Color(red: 0.863, green: 0.718, blue: 0.447)
@@ -55,6 +61,25 @@ struct BoardGridView: View {
                             context.stroke(
                                 linePath(from: CGPoint(x: cell / 2, y: pos), to: CGPoint(x: dimension - cell / 2, y: pos)),
                                 with: .color(.black.opacity(0.55))
+                            )
+                        }
+                        // The same system green as the entry field's valid
+                        // tick, so the lines and the icon read as one signal.
+                        let highlightColor = Color.green
+                        if let highlightColumn, highlightColumn >= 0, highlightColumn < size {
+                            let pos = cell / 2 + CGFloat(highlightColumn) * cell
+                            context.stroke(
+                                linePath(from: CGPoint(x: pos, y: cell / 2), to: CGPoint(x: pos, y: dimension - cell / 2)),
+                                with: .color(highlightColor),
+                                lineWidth: 4
+                            )
+                        }
+                        if let highlightRow, highlightRow >= 0, highlightRow < size {
+                            let pos = cell / 2 + CGFloat(highlightRow) * cell
+                            context.stroke(
+                                linePath(from: CGPoint(x: cell / 2, y: pos), to: CGPoint(x: dimension - cell / 2, y: pos)),
+                                with: .color(highlightColor),
+                                lineWidth: 4
                             )
                         }
                         for (hx, hy) in Self.hoshiPoints(for: size) {

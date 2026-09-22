@@ -329,19 +329,46 @@ function searchQuery(rawQuery) {
     const trimmed = rawQuery.trim().slice(0, MAX_SEARCH_LENGTH).toLowerCase();
     return trimmed.length >= MIN_SEARCH_LENGTH ? trimmed : null;
 }
-function matchesSearch(game, query) {
+// Searching only ever matches what the searcher can see: the other
+// player's personal tags are no more searchable than they are visible.
+function matchesSearch(game, query, viewerId) {
     const haystack = [
         game.title,
         getUsername(game.black_user_id),
         getUsername(game.white_user_id),
-        ...getGameTags(game.id),
+        ...getGameTags(game.id, viewerId),
     ];
     return haystack.some((value) => value != null && value.toLowerCase().includes(query));
 }
-function getGameTags(gameId) {
-    return db
-        .prepare('SELECT tag FROM game_tags WHERE game_id = ? ORDER BY created_at ASC')
-        .all(gameId).map((row) => row.tag);
+// A tag is either public (one row, owned by nobody, seen by anyone who can
+// see the game) or personal (one row per owner, seen only by them). Both
+// players can hold the same tag personally, so the same word can come back
+// twice — deduped on the key it is stored under, keeping the first.
+function getGameTags(gameId, viewerId) {
+    const rows = db
+        .prepare(`SELECT tag, tag_key FROM game_tags
+       WHERE game_id = ? AND (is_public = 1 OR user_id = ?)
+       ORDER BY created_at ASC`)
+        .all(gameId, viewerId ?? '');
+    const seen = new Set();
+    return rows.filter((row) => seen.size !== seen.add(row.tag_key).size).map((row) => row.tag);
+}
+// ownerId null means public: one row, no owner, visible to anyone who can
+// see the game.
+function addGameTag(gameId, tag, ownerId, now) {
+    db.prepare('INSERT OR IGNORE INTO game_tags (game_id, tag_key, tag, user_id, is_public, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(gameId, tag.toLowerCase(), tag, ownerId ?? '', ownerId === null ? 1 : 0, now);
+}
+// Adds to the user's own vocabulary, or counts another use of a tag already
+// in it. The casing and public/personal of the latest use win, so a tag
+// re-shared after being personal is offered back as a shared one.
+function rememberUserTag(userId, tag, isPublic, now) {
+    db.prepare(`INSERT INTO user_tags (user_id, tag_key, tag, is_public, use_count, updated_at)
+     VALUES (?, ?, ?, ?, 1, ?)
+     ON CONFLICT(user_id, tag_key) DO UPDATE SET
+       tag = excluded.tag,
+       is_public = excluded.is_public,
+       use_count = use_count + 1,
+       updated_at = excluded.updated_at`).run(userId, tag.toLowerCase(), tag, isPublic ? 1 : 0, now);
 }
 function sanitizeTitle(rawTitle) {
     if (typeof rawTitle !== 'string') {
@@ -1313,7 +1340,7 @@ app.get('/api/games', (req, res) => {
     // always read them all), so the query text never reaches SQL at all.
     const query = searchQuery(req.query.q);
     if (query) {
-        rows = rows.filter((row) => matchesSearch(row, query));
+        rows = rows.filter((row) => matchesSearch(row, query, currentUser?.id ?? null));
     }
     // Pagination is opt-in via `limit` — omitting it (as the iOS app still
     // does) returns every matching game, exactly as before. When present, one
@@ -1336,7 +1363,7 @@ app.get('/api/games', (req, res) => {
         handicap: row.handicap,
         komi: resolveKomi(row),
         title: row.title,
-        tags: getGameTags(row.id),
+        tags: getGameTags(row.id, currentUser?.id ?? null),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         blackUsername: getUsername(row.black_user_id),
@@ -1472,7 +1499,8 @@ app.post('/api/games', async (req, res) => {
     // it exists so a quick game can arrive already labelled rather than
     // needing a follow-up request per tag.
     for (const tag of sanitizePresetTags(req.body?.tags)) {
-        db.prepare('INSERT OR IGNORE INTO game_tags (game_id, tag_key, tag, created_at) VALUES (?, ?, ?, ?)').run(id, tag.toLowerCase(), tag, now);
+        addGameTag(id, tag, user.id, now);
+        rememberUserTag(user.id, tag, false, now);
     }
     broadcastGamesListUpdate();
     if (invitedOpponentId) {
@@ -1513,7 +1541,7 @@ app.get('/api/games/:id', (req, res) => {
         komi: resolveKomi(game),
         createdAt: game.created_at,
         title: game.title,
-        tags: getGameTags(game.id),
+        tags: getGameTags(game.id, currentUser?.id ?? null),
         starred: isStarred(game.id, currentUser?.id ?? null),
         board,
         currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
@@ -1595,17 +1623,39 @@ app.post('/api/games/:id/tags', (req, res) => {
         return;
     }
     const tagKey = tag.toLowerCase();
-    const existing = getGameTags(game.id);
+    // Shared with the other player, or kept to yourself — the clients send
+    // this from which button was pressed (Share vs Add).
+    const isPublic = req.body?.isPublic === true;
+    const existing = getGameTags(game.id, user.id);
     // The limit is checked against a tag that isn't already there, so
     // re-adding an existing one at the limit is a no-op rather than an error.
     if (existing.length >= MAX_TAGS_PER_GAME && !existing.some((row) => row.toLowerCase() === tagKey)) {
         fail(res, 400, 'A game can have at most %@ tags', [MAX_TAGS_PER_GAME]);
         return;
     }
-    db.prepare('INSERT OR IGNORE INTO game_tags (game_id, tag_key, tag, created_at) VALUES (?, ?, ?, ?)').run(game.id, tagKey, tag, Date.now());
+    const now = Date.now();
+    addGameTag(game.id, tag, isPublic ? null : user.id, now);
+    rememberUserTag(user.id, tag, isPublic, now);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();
-    res.json({ tags: getGameTags(game.id) });
+    res.json({ tags: getGameTags(game.id, user.id) });
+});
+// The tags this user has used before, most-used first, for the clients to
+// offer back. Their own vocabulary only: a tag being public makes it
+// visible on a game, not a suggestion in someone else's list.
+app.get('/api/tags', (req, res) => {
+    const user = requireAuth(req, res);
+    if (!user) {
+        return;
+    }
+    const rows = db
+        .prepare(`SELECT tag, is_public, use_count FROM user_tags
+       WHERE user_id = ?
+       ORDER BY use_count DESC, updated_at DESC`)
+        .all(user.id);
+    res.json({
+        tags: rows.map((row) => ({ tag: row.tag, isPublic: row.is_public === 1, count: row.use_count })),
+    });
 });
 app.delete('/api/games/:id/tags/:tag', (req, res) => {
     const game = getGameRow(req.params.id);
@@ -1622,11 +1672,13 @@ app.delete('/api/games/:id/tags/:tag', (req, res) => {
         return;
     }
     // Matched on the same lowercased key the row is stored under, so removing
-    // works regardless of how the caller cased it.
-    db.prepare('DELETE FROM game_tags WHERE game_id = ? AND tag_key = ?').run(game.id, req.params.tag.trim().toLowerCase());
+    // works regardless of how the caller cased it. A public tag is shared, so
+    // either player can take it off the game; a personal one is only ever the
+    // owner's to remove, and the other player's copy is untouched either way.
+    db.prepare('DELETE FROM game_tags WHERE game_id = ? AND tag_key = ? AND (is_public = 1 OR user_id = ?)').run(game.id, req.params.tag.trim().toLowerCase(), user.id);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();
-    res.json({ tags: getGameTags(game.id) });
+    res.json({ tags: getGameTags(game.id, user.id) });
 });
 // Anyone can star a game they're not playing in — it's how a game they're
 // just watching ends up in their "my games" list alongside ones they're

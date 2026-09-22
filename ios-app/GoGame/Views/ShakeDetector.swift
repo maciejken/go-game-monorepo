@@ -31,6 +31,23 @@ final class ShakeViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         becomeFirstResponder()
+        // Motion events only reach the first responder, and any text field
+        // the user taps becomes it — the coordinate entry, a title, a
+        // search box. Taking it back once each keyboard goes away is what
+        // keeps a shake working for the rest of the session; without it,
+        // editing anything once kills the gesture until this view is
+        // rebuilt. Also on returning to the foreground, since the system
+        // can hand first-responder status elsewhere while away.
+        let reclaim: (Notification) -> Void = { [weak self] _ in
+            guard let self, isViewLoaded, view.window != nil else { return }
+            becomeFirstResponder()
+        }
+        NotificationCenter.default.addObserver(
+            forName: UIResponder.keyboardDidHideNotification, object: nil, queue: .main, using: reclaim
+        )
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main, using: reclaim
+        )
     }
 
     override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {

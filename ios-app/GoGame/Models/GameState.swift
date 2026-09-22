@@ -141,3 +141,11 @@ struct ReopenScoringResponse: Decodable {
     let pendingReopenBy: StoneColor?
     let status: String?
 }
+
+// One entry in a user's own tag vocabulary: how they last added it, and how
+// often, which is the order the suggestions come back in.
+struct TagSuggestion: Decodable, Hashable {
+    let tag: String
+    let isPublic: Bool
+    let count: Int
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { applyDeadStones, findSekiPartnerStones, getGroup, scoreBoard, type Color, type Point } from 'shared';
 import { useAuth } from '../hooks/useAuth';
@@ -7,6 +7,7 @@ import { useGame } from '../hooks/useGame';
 import { useGameHistory } from '../hooks/useGameHistory';
 import {
   addGameTag,
+  listTagSuggestions,
   deleteGame,
   recomputeAiMove,
   removeGameTag,
@@ -17,6 +18,7 @@ import {
   validateMoveRequest,
   type Captures,
   type HistoryEntry,
+  type TagSuggestion,
   type MyColor,
 } from '../services/api';
 import { computeLiveClock, formatClock, timeControlLabel } from '../utils/clock';
@@ -1402,6 +1404,30 @@ function TitleTagsEditor({
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The title reads as a heading until the pencil is pressed; only then
+  // does it become something to type in.
+  const [editingTitle, setEditingTitle] = useState(false);
+  // This user's own tag vocabulary, most-used first, and the field for one
+  // that isn't in it yet — hidden until asked for, like the iOS sheet's.
+  const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
+  const [addingTag, setAddingTag] = useState(false);
+
+  const loadSuggestions = useCallback(() => {
+    if (!canEdit) {
+      return;
+    }
+    // A vocabulary that fails to load is an editor without suggestions,
+    // not an error worth showing under the field.
+    listTagSuggestions()
+      .then(({ tags: loaded }) => setSuggestions(loaded))
+      .catch(() => {});
+  }, [canEdit]);
+
+  useEffect(loadSuggestions, [loadSuggestions]);
+
+  const offered = suggestions.filter(
+    (suggestion) => !tags.some((tag) => tag.toLowerCase() === suggestion.tag.toLowerCase()),
+  );
 
   const saveTitle = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1430,18 +1456,18 @@ function TitleTagsEditor({
       .finally(() => setBusy(false));
   };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const tag = draft.trim();
+  const add = (tag: string, isPublic: boolean) => {
     if (!tag || busy) {
       return;
     }
     setBusy(true);
-    addGameTag(gameId, tag)
+    addGameTag(gameId, tag, isPublic)
       .then(({ tags: updated }) => {
         onTagsChange(updated);
         setDraft('');
+        setAddingTag(false);
         setError(null);
+        loadSuggestions();
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setBusy(false));
@@ -1475,7 +1501,7 @@ function TitleTagsEditor({
           />
         </svg>
       </button>
-      {canEdit ? (
+      {canEdit && editingTitle ? (
         <form className="tag-form" onSubmit={saveTitle}>
           <input
             type="text"
@@ -1484,13 +1510,34 @@ function TitleTagsEditor({
             placeholder={t('Game title')}
             aria-label={t('Game title')}
             maxLength={100}
+            autoFocus
           />
-          <button type="submit" className="modal-action" disabled={busy || titleDraft.trim() === (title ?? '')}>
+          <button type="submit" className="modal-action" disabled={busy}>
             {t('Save')}
           </button>
         </form>
       ) : (
-        title && <p className="tag-empty">{title}</p>
+        <p className="tag-title">
+          <strong className={title ? '' : 'tag-empty'}>{title || t('Untitled game')}</strong>
+          {canEdit && (
+            <button
+              type="button"
+              className="tag-title-edit"
+              aria-label={t('Edit title')}
+              onClick={() => {
+                setTitleDraft(title ?? '');
+                setEditingTitle(true);
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                />
+              </svg>
+            </button>
+          )}
+        </p>
       )}
       {tags.length > 0 ? (
         <ul className="tag-chips">
@@ -1509,7 +1556,49 @@ function TitleTagsEditor({
         <p className="tag-empty">{t('No tags yet.')}</p>
       )}
       {canEdit && (
-        <form className="tag-form" onSubmit={submit}>
+        <ul className="tag-suggestions">
+          {offered.map((suggestion) => (
+            <li key={suggestion.tag}>
+              <button
+                type="button"
+                className="tag-chip tag-chip--suggestion"
+                disabled={busy}
+                aria-label={
+                  suggestion.isPublic
+                    ? t('Add shared tag %@', suggestion.tag)
+                    : t('Add personal tag %@', suggestion.tag)
+                }
+                onClick={() => add(suggestion.tag, suggestion.isPublic)}
+              >
+                {suggestion.tag}
+                {suggestion.isPublic && <span className="tag-chip-shared" aria-hidden="true">👥</span>}
+                <span aria-hidden="true">+</span>
+              </button>
+            </li>
+          ))}
+          <li>
+            <button
+              type="button"
+              className="tag-chip tag-chip--new"
+              disabled={busy}
+              onClick={() => setAddingTag(true)}
+            >
+              + {t('New tag')}
+            </button>
+          </li>
+        </ul>
+      )}
+      {canEdit && addingTag && (
+        // Share puts the tag on the game for both players; Add keeps it to
+        // this user. Two buttons rather than a switch, so which one was
+        // pressed is the whole answer.
+        <form
+          className="tag-form tag-form--new"
+          onSubmit={(e) => {
+            e.preventDefault();
+            add(draft.trim(), false);
+          }}
+        >
           <input
             type="text"
             value={draft}
@@ -1517,10 +1606,21 @@ function TitleTagsEditor({
             placeholder={t('Add a tag')}
             aria-label={t('Add a tag')}
             maxLength={24}
+            autoFocus
           />
-          <button type="submit" className="modal-action" disabled={busy || !draft.trim()}>
-            {t('Add')}
-          </button>
+          <div className="tag-form-actions">
+            <button
+              type="button"
+              className="modal-action"
+              disabled={busy || !draft.trim()}
+              onClick={() => add(draft.trim(), true)}
+            >
+              ⤴ {t('Share')}
+            </button>
+            <button type="submit" className="modal-action" disabled={busy || !draft.trim()}>
+              + {t('Add')}
+            </button>
+          </div>
         </form>
       )}
       {error && <p className="error">{error}</p>}
