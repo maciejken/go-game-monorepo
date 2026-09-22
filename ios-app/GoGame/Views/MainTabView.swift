@@ -26,7 +26,9 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             GameListView(isActiveTab: selectedTab == .home)
-                .tabItem { Image(systemName: "house") }
+                // The app's own numeral rather than a house: the games
+                // list is the app, and the icon says which app you are in.
+                .tabItem { Image("TabHome") }
                 .tag(AppTab.home)
 
             NavigationStack {

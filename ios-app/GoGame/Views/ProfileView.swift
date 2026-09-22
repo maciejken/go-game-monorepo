@@ -183,6 +183,9 @@ private struct FavouriteTagPicker: View {
     @State private var draft = ""
     @State private var isBusy = false
     @State private var errorMessage: String?
+    // The field stays out of the way until asked for, by the + at the end
+    // of the list — same as the game's Title & tags sheet.
+    @State private var isAddingTag = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -200,23 +203,39 @@ private struct FavouriteTagPicker: View {
                         .buttonStyle(.plain)
                         .disabled(isBusy)
                     }
+                    Button {
+                        isAddingTag = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus")
+                            Text("New tag")
+                        }
+                        .font(.subheadline)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.accentColor.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isBusy)
                 }
                 .padding(.horizontal, 1)
             }
-            HStack(spacing: 8) {
-                TextField("Add a tag", text: $draft)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .submitLabel(.done)
-                    .onSubmit { Task { await choose(draft) } }
-                Button {
-                    Task { await choose(draft) }
-                } label: {
-                    Label("Add", systemImage: "plus")
+            if isAddingTag {
+                HStack(spacing: 8) {
+                    TextField("Add a tag", text: $draft)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .submitLabel(.done)
+                        .onSubmit { Task { await choose(draft) } }
+                    Button {
+                        Task { await choose(draft) }
+                    } label: {
+                        Label("Add", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isBusy || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isBusy || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             if let errorMessage {
                 Text(errorMessage)
@@ -251,6 +270,7 @@ private struct FavouriteTagPicker: View {
             try await APIClient.setFavouriteTag(chosen)
             current = chosen.lowercased()
             draft = ""
+            isAddingTag = false
             errorMessage = nil
             suggestions = (try? await APIClient.tagSuggestions()) ?? suggestions
             await onChange(chosen.lowercased())

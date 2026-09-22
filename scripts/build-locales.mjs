@@ -79,6 +79,72 @@ for (const lang of LANGUAGES) {
   }
 }
 
+// The checks above compare the nine files against each other, which says
+// nothing about the strings the apps actually ask for: a key the code uses
+// but no file has ships as English, silently (that is exactly how "Black to
+// move" reached a Polish phone). So the sources get read too.
+//
+// Deliberately a plain scan for literals in the places these two codebases
+// put user-visible text, not a parser: it can miss an unusual call, but it
+// never has to be kept in step with a build system, and a missed key is no
+// worse than the nothing this checked before.
+const SOURCE_PATTERNS = [
+  // Swift: Text("…"), Button("…"), String(localized: "…") and friends.
+  {
+    dir: 'ios-app/GoGame',
+    extensions: ['.swift'],
+    pattern:
+      /(?:Text|Button|Toggle|Label|Section|TextField|SecureField|navigationTitle|confirmationDialog|ContentUnavailableView|accessibilityLabel|String\(localized:)\(\s*"((?:[^"\\]|\\.)+)"/g,
+  },
+  // Web: t('…') — the one way the client reaches the catalogue.
+  {
+    dir: 'client/src',
+    extensions: ['.ts', '.tsx'],
+    pattern: /\bt\(\s*'((?:[^'\\]|\\.)+)'/g,
+  },
+  // Server: fail(res, status, '…') sends the key the clients translate.
+  {
+    dir: 'server/src',
+    extensions: ['.ts'],
+    pattern: /\bfail\(\s*res\s*,\s*\d+\s*,\s*'((?:[^'\\]|\\.)+)'/g,
+  },
+];
+
+// Literals that are formatting or data rather than anything to translate.
+const NOT_TRANSLATABLE = /^[\s\p{P}\p{S}\d]*$/u;
+const ALLOWED_UNTRANSLATED = new Set(['Igo5', '00:00']);
+
+function sourceFiles(dir, extensions) {
+  const found = [];
+  for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+    const relative = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...sourceFiles(relative, extensions));
+    } else if (extensions.some((extension) => entry.name.endsWith(extension))) {
+      found.push(relative);
+    }
+  }
+  return found;
+}
+
+for (const { dir, extensions, pattern } of SOURCE_PATTERNS) {
+  for (const file of sourceFiles(dir, extensions)) {
+    const contents = fs.readFileSync(path.join(root, file), 'utf8');
+    for (const match of contents.matchAll(pattern)) {
+      // The literal as written escapes whatever quote wraps it; the
+      // catalogue key is the string it stands for.
+      const key = match[1].replace(/\\(['"\\])/g, '$1');
+      // A literal carrying an interpolation isn't the key itself — the
+      // call passes the key separately.
+      if (key.includes('\\(') || key.includes('${')) continue;
+      if (NOT_TRANSLATABLE.test(key) || ALLOWED_UNTRANSLATED.has(key)) continue;
+      if (!(key in source)) {
+        problems.push(`${file}: "${key}" is used in code but missing from ${SOURCE}.json`);
+      }
+    }
+  }
+}
+
 if (problems.length > 0) {
   console.error(`${problems.length} problem(s):`);
   for (const problem of problems) console.error(`  ${problem}`);

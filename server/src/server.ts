@@ -28,6 +28,7 @@ import {
   clearSessionCookie,
   createSession,
   destroySession,
+  destroyOtherSessions,
   getSessionToken,
   getSessionUser,
   hashPassword,
@@ -49,6 +50,68 @@ const __dirname = path.dirname(__filename)
 
 const app = express();
 app.use(express.json());
+
+// Whether there is an HTTPS server to send people to — the same condition
+// the listener below starts on, hoisted so the redirect can't point at a
+// port nothing is serving. Local dev without certs keeps working over
+// plain HTTP.
+const httpsAvailable = Boolean(
+  httpsPort && keyPath && certPath && fs.existsSync(keyPath) && fs.existsSync(certPath),
+);
+
+// The session cookie is Secure, so a login over plain HTTP silently fails
+// to stick — and the password got there in clear anyway. Anything that
+// arrives on the HTTP listener goes to HTTPS instead, except the two
+// well-known paths: certbot's challenge has to answer over HTTP to issue
+// the certificate in the first place, and iOS wants the app-site
+// association served without a redirect.
+app.use((req, res, next) => {
+  if (!httpsAvailable || req.secure || req.path.startsWith('/.well-known/')) {
+    next();
+    return;
+  }
+  // 308 rather than 302: it keeps the method and body, so a POSTed login
+  // is retried as a POST rather than silently becoming a GET.
+  const host = (req.headers.host ?? '').replace(/:\d+$/, '');
+  const port = httpsPort === '443' ? '' : `:${httpsPort}`;
+  res.redirect(308, `https://${host}${port}${req.originalUrl}`);
+});
+
+// Set on everything, including the API and the static client. No CSP
+// frame-src/script-src loopholes to keep track of: the page loads one
+// bundled script from this origin and nothing else. 'unsafe-inline' is
+// there for styles only, which React writes inline for things like the
+// board's --cell size.
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join('; '),
+  );
+  next();
+});
+
+// Only over TLS, and only once TLS is actually available: telling a
+// browser to refuse plain HTTP for six months is not something to do from
+// a dev machine with no certificate.
+app.use((req, res, next) => {
+  if (httpsAvailable && req.secure) {
+    res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+  }
+  next();
+});
 
 // Lets certbot verify domain ownership in webroot mode.
 app.use('/.well-known/acme-challenge', express.static('/etc/certbot-webroot/.well-known/acme-challenge'));
@@ -211,6 +274,11 @@ function isParticipant(game: Participants, userId: string): boolean {
   return game.black_user_id === userId || game.white_user_id === userId;
 }
 
+// A camera session is one sitting at a board, not an open-ended grant: a
+// token that leaks (it travels in a header to a service on the local
+// network) stops working the next day rather than never.
+const VISION_TOKEN_LIFETIME_MS = 12 * 60 * 60 * 1000;
+
 // A vision-service token authorizes moves for one specific game only, as
 // either color — the camera identifies a move by stone color, not by which
 // player physically placed it, so there's no single color to scope it to.
@@ -219,9 +287,9 @@ function isValidVisionToken(req: express.Request, gameId: string): boolean {
   if (!token) {
     return false;
   }
-  const row = db.prepare('SELECT game_id FROM vision_tokens WHERE token = ?').get(token) as
-    | { game_id: string }
-    | undefined;
+  const row = db
+    .prepare('SELECT game_id FROM vision_tokens WHERE token = ? AND created_at >= ?')
+    .get(token, Date.now() - VISION_TOKEN_LIFETIME_MS) as { game_id: string } | undefined;
   return row?.game_id === gameId;
 }
 
@@ -343,9 +411,12 @@ function favouriteTagKey(userId: string | null): string | null {
 // Starred means "carries my favourite tag" — the star and the tag are the
 // same thing now, so what the game sheet sets is exactly what the list
 // filters on.
-function isStarred(gameId: string, userId: string | null): boolean {
-  const tagKey = favouriteTagKey(userId);
-  if (!userId || !tagKey) {
+//
+// The tag key is a parameter rather than a lookup inside, because the
+// games list asks this about every row and the answer is the same every
+// time; callers with one game to check can use isStarredNow instead.
+function isStarredWithTag(gameId: string, userId: string, tagKey: string | null): boolean {
+  if (!tagKey) {
     return false;
   }
   return (
@@ -353,6 +424,13 @@ function isStarred(gameId: string, userId: string | null): boolean {
       .prepare('SELECT 1 FROM game_tags WHERE game_id = ? AND tag_key = ? AND user_id = ?')
       .get(gameId, tagKey, userId) !== undefined
   );
+}
+
+function isStarredNow(gameId: string, userId: string | null): boolean {
+  if (!userId) {
+    return false;
+  }
+  return isStarredWithTag(gameId, userId, favouriteTagKey(userId));
 }
 
 function getClockState(game: GameRow, color: Color): ClockState {
@@ -481,8 +559,14 @@ function getGameTags(gameId: string, viewerId: string | null): string[] {
        ORDER BY created_at ASC`,
     )
     .all(gameId, viewerId ?? '') as { tag: string; tag_key: string }[];
-  const seen = new Set<string>();
-  return rows.filter((row) => seen.size !== seen.add(row.tag_key).size).map((row) => row.tag);
+  // Keeps the first spelling of each key and drops later duplicates.
+  const byKey = new Map<string, string>();
+  for (const row of rows) {
+    if (!byKey.has(row.tag_key)) {
+      byKey.set(row.tag_key, row.tag);
+    }
+  }
+  return [...byKey.values()];
 }
 
 // ownerId null means public: one row, no owner, visible to anyone who can
@@ -1188,6 +1272,12 @@ async function maybeTriggerAiMove(gameId: string): Promise<void> {
   }
 }
 
+// An allowlist, not an escape. A username is shown to other players and
+// typed by them when inviting, so it stays in the one alphabet everybody
+// can reach on every keyboard: lowercase ASCII, digits and underscore.
+// That also makes two names impossible to confuse — no case variants, no
+// letters that merely look alike.
+const USERNAME_PATTERN = /^[a-z0-9_]+$/;
 const MIN_USERNAME_LENGTH = 3;
 const MAX_USERNAME_LENGTH = 12;
 const MIN_PASSWORD_LENGTH = 6;
@@ -1196,12 +1286,31 @@ const MIN_PASSWORD_LENGTH = 6;
 // register/login attempt.
 const MAX_PASSWORD_LENGTH = 128;
 
-app.post('/api/auth/register', (req, res) => {
+// Registration is unauthenticated and hashes a password with scrypt, which
+// is deliberately expensive — without a limit, anyone can spend this
+// server's CPU (and fill the user table) as fast as they can send
+// requests. Looser than the login limit: a household behind one address
+// might legitimately sign up a few accounts in a sitting.
+const registerRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many accounts created — try again later.' },
+});
+
+app.post('/api/auth/register', registerRateLimiter, (req, res) => {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
 
   if (username.length < MIN_USERNAME_LENGTH || username.length > MAX_USERNAME_LENGTH) {
     fail(res, 400, 'Username must be %@-%@ characters', [MIN_USERNAME_LENGTH, MAX_USERNAME_LENGTH]);
+    return;
+  }
+  // Existing accounts are untouched: this is checked when a name is chosen,
+  // never when one logs in.
+  if (!USERNAME_PATTERN.test(username)) {
+    fail(res, 400, 'A username can use a-z, 0-9 and _');
     return;
   }
   if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
@@ -1224,6 +1333,15 @@ app.post('/api/auth/register', (req, res) => {
   res.status(201).json({ id, username });
 });
 
+// Both limiters key on req.ip, which is the socket's own address because
+// Express's "trust proxy" is off. That is correct while this process is
+// the edge server (it terminates TLS itself, and answers certbot's
+// challenge directly). Putting nginx or a tunnel in front without also
+// setting "trust proxy" would make every request look like it came from
+// the proxy, so one attacker's attempts would throttle everybody — and
+// turning it on without a proxy would let anyone spoof X-Forwarded-For
+// and evade the limit entirely. Change both together or neither.
+//
 // Standard login-throttling values (express-rate-limit's own canonical
 // example, matching common OWASP-style guidance): 5 attempts per 15
 // minutes per IP, to slow down password brute-forcing.
@@ -1340,6 +1458,10 @@ app.post('/api/auth/password', (req, res) => {
   }
 
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), user.id);
+  // Changing a password is how someone reacts to thinking a session has
+  // leaked, so every other session goes — this one stays, or they would
+  // be logged out of the device they just did it on.
+  destroyOtherSessions(user.id, getSessionToken(req));
   res.json({ success: true });
 });
 
@@ -1720,16 +1842,23 @@ app.get('/api/games', (req, res) => {
   const scope =
     currentUser && (requestedScope === 'mine' || requestedScope === 'starred') ? requestedScope : 'all';
 
+  // Looked up once, not once per row: every row asks the same question of
+  // the same user.
+  const viewerFavouriteTag = favouriteTagKey(currentUser?.id ?? null);
+
   const ids = db.prepare('SELECT id FROM games ORDER BY updated_at DESC').all() as { id: string }[];
   let rows = ids.map((row) => withTimeoutCheck(getGameRow(row.id)!));
 
   if (scope === 'mine' && currentUser) {
-    rows = rows.filter((row) => isParticipant(row, currentUser.id) || isStarred(row.id, currentUser.id));
+    rows = rows.filter(
+      (row) =>
+        isParticipant(row, currentUser.id) || isStarredWithTag(row.id, currentUser.id, viewerFavouriteTag),
+    );
   } else if (scope === 'starred' && currentUser) {
     // Only the games this user actually starred — a subset of "mine",
     // which also includes every game they play in. Backs the iOS app's
     // Favourites tab.
-    rows = rows.filter((row) => isStarred(row.id, currentUser.id));
+    rows = rows.filter((row) => isStarredWithTag(row.id, currentUser.id, viewerFavouriteTag));
   }
 
   // Free-text search over the title, both player names and the game's tags.
@@ -1776,7 +1905,7 @@ app.get('/api/games', (req, res) => {
     isAiOpponent: isAiOpponentGame(row),
     gnugoLevel: row.gnugo_level,
     timeControl: row.time_control,
-    starred: isStarred(row.id, currentUser?.id ?? null),
+    starred: currentUser ? isStarredWithTag(row.id, currentUser.id, viewerFavouriteTag) : false,
   })));
 });
 
@@ -1978,7 +2107,7 @@ app.get('/api/games/:id', (req, res) => {
     createdAt: game.created_at,
     title: game.title,
     tags: getGameTags(game.id, currentUser?.id ?? null),
-    starred: isStarred(game.id, currentUser?.id ?? null),
+    starred: isStarredNow(game.id, currentUser?.id ?? null),
     board,
     currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
     captures: getCumulativeCaptures(game.id),
@@ -2231,6 +2360,10 @@ app.post('/api/games/:id/vision-token', (req, res) => {
     return;
   }
 
+  // Issuing is the natural moment to drop the expired ones — it is rare,
+  // and it keeps the table from holding tokens nobody can use.
+  db.prepare('DELETE FROM vision_tokens WHERE created_at < ?').run(Date.now() - VISION_TOKEN_LIFETIME_MS);
+
   const token = randomUUID();
   db.prepare('INSERT INTO vision_tokens (token, game_id, created_by, created_at) VALUES (?, ?, ?, ?)').run(
     token,
@@ -2270,6 +2403,13 @@ function deleteGameRecord(gameId: string): void {
   db.prepare('DELETE FROM snapshots WHERE game_id = ?').run(gameId);
 
   db.prepare('DELETE FROM game_tags WHERE game_id = ?').run(gameId);
+  // stars is no longer read — favourites are a tag now — but it is kept
+  // until that migration has proven itself, and a kept table shouldn't
+  // accumulate rows pointing at games that no longer exist.
+  db.prepare('DELETE FROM stars WHERE game_id = ?').run(gameId);
+  // A token for a game that no longer exists can't authorize anything, but
+  // there is no reason to keep the row around either.
+  db.prepare('DELETE FROM vision_tokens WHERE game_id = ?').run(gameId);
   db.prepare('DELETE FROM games WHERE id = ?').run(gameId);
 }
 
@@ -2875,17 +3015,15 @@ httpServer.listen(port, () => {
 
 // Optional — only starts when HTTPS_PORT/KEY_PATH/CERT_PATH are all set and
 // the cert files actually exist, so local dev without certs isn't affected.
-if (httpsPort && keyPath && certPath) {
-  if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
-    const httpsServer = createHttpsServer(
-      { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) },
-      app,
-    );
-    attachWebSocketServer(httpsServer);
-    httpsServer.listen(Number(httpsPort), () => {
-      console.log(`HTTPS server running on port ${httpsPort}`);
-    });
-  } else {
-    console.warn(`KEY_PATH/CERT_PATH set but not found at ${keyPath} / ${certPath} — skipping HTTPS server.`);
-  }
+if (httpsAvailable) {
+  const httpsServer = createHttpsServer(
+    { key: fs.readFileSync(keyPath!), cert: fs.readFileSync(certPath!) },
+    app,
+  );
+  attachWebSocketServer(httpsServer);
+  httpsServer.listen(Number(httpsPort), () => {
+    console.log(`HTTPS server running on port ${httpsPort}`);
+  });
+} else if (httpsPort && keyPath && certPath) {
+  console.warn(`KEY_PATH/CERT_PATH set but not found at ${keyPath} / ${certPath} — skipping HTTPS server.`);
 }

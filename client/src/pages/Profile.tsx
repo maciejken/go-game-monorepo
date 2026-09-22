@@ -189,6 +189,9 @@ function FavouriteTagPicker({
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The field stays out of the way until asked for, by the + at the end of
+  // the list — same as a game's Title & tags editor.
+  const [addingTag, setAddingTag] = useState(false);
 
   useEffect(() => {
     listTagSuggestions()
@@ -206,6 +209,7 @@ function FavouriteTagPicker({
       .then(() => {
         setCurrent(next.toLowerCase());
         setDraft('');
+        setAddingTag(false);
         onChange(next.toLowerCase());
         setError(null);
       })
@@ -237,7 +241,18 @@ function FavouriteTagPicker({
             </li>
           );
         })}
+        <li>
+          <button
+            type="button"
+            className="tag-chip tag-chip--new"
+            disabled={busy}
+            onClick={() => setAddingTag(true)}
+          >
+            + {t('New tag')}
+          </button>
+        </li>
       </ul>
+      {addingTag && (
       <form
         className="tag-form"
         onSubmit={(e) => {
@@ -257,6 +272,7 @@ function FavouriteTagPicker({
           + {t('Add')}
         </button>
       </form>
+      )}
       {error && <p className="error">{error}</p>}
     </section>
   );

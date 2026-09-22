@@ -1417,6 +1417,65 @@
         }
       }
     },
+    "A username can use a-z, 0-9 and _": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A username can use a-z, 0-9 and _"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nazwa użytkownika może zawierać a-z, 0-9 i _"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ім'я користувача може містити a-z, 0-9 та _"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Имя пользователя может содержать a-z, 0-9 и _"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Benutzername darf a-z, 0-9 und _ enthalten"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un nom d'utilisateur peut contenir a-z, 0-9 et _"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un nome utente può contenere a-z, 0-9 e _"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用户名可包含 a-z、0-9 和 _"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ユーザー名には a-z、0-9、_ を使えます"
+          }
+        }
+      }
+    },
     "Accept": {
       "extractionState": "manual",
       "localizations": {
@@ -5901,6 +5960,124 @@
         }
       }
     },
+    "Invalid color": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid color"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nieprawidłowy kolor"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неправильний колір"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неверный цвет"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültige Farbe"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couleur invalide"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colore non valido"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "颜色无效"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無効な色です"
+          }
+        }
+      }
+    },
+    "Invalid device token": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid device token"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nieprawidłowy token urządzenia"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неправильний токен пристрою"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неверный токен устройства"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültiges Gerätetoken"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeton d'appareil invalide"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Token del dispositivo non valido"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备令牌无效"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無効なデバイストークンです"
+          }
+        }
+      }
+    },
     "Invalid move": {
       "extractionState": "manual",
       "localizations": {
@@ -5956,6 +6133,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "反則の着手です"
+          }
+        }
+      }
+    },
+    "Invalid move payload": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid move payload"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nieprawidłowe dane ruchu"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неправильні дані ходу"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неверные данные хода"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültige Zugdaten"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Données de coup invalides"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dati della mossa non validi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "着手数据无效"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無効な着手データです"
           }
         }
       }
@@ -6114,7 +6350,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "C’est au tour de %@"
+            "value": "C'est au tour de %@"
           }
         },
         "it": {
@@ -6126,7 +6362,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "轮到%@行棋"
+            "value": "轮到 %@"
           }
         },
         "ja": {
@@ -8552,6 +8788,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "この方法で終局できるのはローカル対局だけです"
+          }
+        }
+      }
+    },
+    "Only players in this game can create a vision token": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only players in this game can create a vision token"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tylko gracze tej partii mogą utworzyć token kamery"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лише гравці цієї партії можуть створити токен камери"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только игроки этой партии могут создать токен камеры"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur Spieler dieser Partie können ein Kamera-Token erstellen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seuls les joueurs de cette partie peuvent créer un jeton caméra"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo i giocatori di questa partita possono creare un token per la fotocamera"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有本局的对局者可以创建相机令牌"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この対局の対局者のみがカメラトークンを作成できます"
           }
         }
       }
@@ -13453,6 +13748,65 @@
         }
       }
     },
+    "acceptsInvitations must be a boolean": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "acceptsInvitations must be a boolean"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "acceptsInvitations musi być wartością logiczną"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "acceptsInvitations має бути логічним значенням"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "acceptsInvitations должен быть логическим значением"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "acceptsInvitations muss ein Boolescher Wert sein"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "acceptsInvitations doit être un booléen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "acceptsInvitations deve essere un booleano"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "acceptsInvitations 必须是布尔值"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "acceptsInvitations は真偽値である必要があります"
+          }
+        }
+      }
+    },
     "handicap %lld": {
       "extractionState": "manual",
       "localizations": {
@@ -13803,6 +14157,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "無勝負"
+          }
+        }
+      }
+    },
+    "opponentUsername or ai is required": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "opponentUsername or ai is required"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wymagane jest opponentUsername albo ai"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Потрібно вказати opponentUsername або ai"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требуется opponentUsername или ai"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "opponentUsername oder ai ist erforderlich"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "opponentUsername ou ai est requis"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "opponentUsername o ai è obbligatorio"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要 opponentUsername 或 ai"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "opponentUsername または ai が必要です"
           }
         }
       }

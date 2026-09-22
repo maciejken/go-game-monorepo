@@ -165,7 +165,9 @@ struct GameListView: View {
                 .padding(20)
             }
             .refreshable { await loadGames() }
-            .task { await loadGames() }
+            // task(id:) already runs once on appear and again whenever the
+            // scope changes, so a plain .task beside it would just fetch
+            // the same list twice every time this view appeared.
             .task(id: scope) { await loadGames() }
             .searchable(text: $searchText, prompt: "Search titles, players, tags")
             // A magnifying glass in the header rather than a field of its

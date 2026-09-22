@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="8 4 84 92">
+  <!-- The app icon's numeral, from Quantico Bold by Matthew Desmond,
+       SIL OFL 1.1 — the same path client/public/favicon.svg draws. No
+       background: the tab bar tints the glyph itself. -->
+  <path d="M77.70 22.30L40.17 22.30L40.17 38.26L65.07 38.26L78.89 46.25L78.89 84.02L65.07 92L34.93 92L21.11 84.02L21.11 66.98L37.79 66.98L37.79 77.70L62.21 77.70L62.21 52.56L23.49 52.56L23.49 8L77.70 8 Z" fill="#000000"/>
+</svg>
