@@ -28,6 +28,9 @@ export interface ClockFields {
 export interface AuthUser {
   id: string;
   username: string;
+  // Which of this user's own tags marks a favourite, or null while they
+  // haven't chosen one.
+  favouriteTag: string | null;
 }
 
 export interface UserProfile {
@@ -35,6 +38,9 @@ export interface UserProfile {
   username: string;
   createdAt: number;
   acceptsInvitations: boolean;
+  // Only ever set on your own profile — which tag marks your favourites
+  // is nobody else's business.
+  favouriteTag: string | null;
   gamesPlayed: number;
   gamesWon: number;
   gamesLost: number;
@@ -479,10 +485,19 @@ export function changePassword(currentPassword: string, newPassword: string): Pr
 // A 204 with no body on success, so this can't go through handle<T> (which
 // always calls res.json()) — mirrors deleteGame's own manual res.ok check.
 export async function setAcceptsInvitations(acceptsInvitations: boolean): Promise<void> {
+  await patchSetting({ acceptsInvitations });
+}
+
+// null clears it, leaving the user with no favourites marker again.
+export async function setFavouriteTag(favouriteTag: string | null): Promise<void> {
+  await patchSetting({ favouriteTag });
+}
+
+async function patchSetting(body: Record<string, unknown>): Promise<void> {
   const res = await fetch(`${API_BASE}/auth/me`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ acceptsInvitations }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => null);

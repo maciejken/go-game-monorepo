@@ -1383,6 +1383,37 @@
   gap: 8px;
 }
 
+/* The favourites marker in the profile: the same chips as a game's tags,
+   with the chosen one starred rather than +. */
+.favourite-tag {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.favourite-tag h3 {
+  margin: 0;
+}
+
+.tag-chip--current {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The heading row on the games list: the title with the favourites filter
+   beside it, so the star reads as belonging to the list it filters. */
+.home-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 28px;
+}
+
 /* On a game card the chips are labels, not controls — no × button, so the
    right-hand padding matches the left. */
 .tag-chips--readonly {

@@ -45,6 +45,10 @@ function parseCookies(header: string | undefined): Record<string, string> {
 export interface SessionUser {
   id: string;
   username: string;
+  // Which of their own tags marks a game as a favourite, or null while
+  // they haven't chosen one — the clients ask them to when they first
+  // reach for the star.
+  favouriteTag: string | null;
 }
 
 // `Secure` — the app now supports HTTPS, so the session cookie should
@@ -82,7 +86,7 @@ export function getSessionUser(req: Request): SessionUser | null {
     return null;
   }
   const row = db.prepare(`
-    SELECT users.id as id, users.username as username
+    SELECT users.id as id, users.username as username, users.favourite_tag as favouriteTag
     FROM sessions
     JOIN users ON users.id = sessions.user_id
     WHERE sessions.token = ?

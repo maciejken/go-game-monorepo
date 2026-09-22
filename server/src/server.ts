@@ -327,13 +327,32 @@ function notifyOfInvite(inviterId: string, invitedId: string, gameId: string, ti
   pushToUser(invitedId, `${inviterName} invited you to a game${title ? ` — ${title}` : ''}.`, gameId);
 }
 
-function isStarred(gameId: string, userId: string | null): boolean {
+// The tag this user nominated as their favourites marker, or null while
+// they haven't nominated one — in which case nothing is starred and the
+// clients offer to set one.
+function favouriteTagKey(userId: string | null): string | null {
   if (!userId) {
+    return null;
+  }
+  const row = db.prepare('SELECT favourite_tag FROM users WHERE id = ?').get(userId) as
+    | { favourite_tag: string | null }
+    | undefined;
+  return row?.favourite_tag ?? null;
+}
+
+// Starred means "carries my favourite tag" — the star and the tag are the
+// same thing now, so what the game sheet sets is exactly what the list
+// filters on.
+function isStarred(gameId: string, userId: string | null): boolean {
+  const tagKey = favouriteTagKey(userId);
+  if (!userId || !tagKey) {
     return false;
   }
-  return db
-    .prepare('SELECT 1 FROM stars WHERE user_id = ? AND game_id = ?')
-    .get(userId, gameId) !== undefined;
+  return (
+    db
+      .prepare('SELECT 1 FROM game_tags WHERE game_id = ? AND tag_key = ? AND user_id = ?')
+      .get(gameId, tagKey, userId) !== undefined
+  );
 }
 
 function getClockState(game: GameRow, color: Color): ClockState {
@@ -1262,6 +1281,29 @@ app.patch('/api/auth/me', (req, res) => {
   if (!user) {
     return;
   }
+  // Either setting can be sent on its own.
+  if ('favouriteTag' in (req.body ?? {})) {
+    const raw = req.body.favouriteTag;
+    if (raw === null) {
+      db.prepare('UPDATE users SET favourite_tag = NULL WHERE id = ?').run(user.id);
+    } else {
+      const tag = sanitizeTag(raw);
+      if (!tag) {
+        fail(res, 400, 'A tag must be 1-%@ characters of letters, numbers, spaces, - or _', [MAX_TAG_LENGTH]);
+        return;
+      }
+      // Stored as the key everything else matches on, so nominating a tag
+      // already in use picks up the games it is already on.
+      db.prepare('UPDATE users SET favourite_tag = ? WHERE id = ?').run(tag.toLowerCase(), user.id);
+      rememberUserTag(user.id, tag, false, Date.now());
+    }
+    if (!('acceptsInvitations' in req.body)) {
+      broadcastGamesListUpdate();
+      res.status(204).end();
+      return;
+    }
+  }
+
   const acceptsInvitations = req.body?.acceptsInvitations;
   if (typeof acceptsInvitations !== 'boolean') {
     fail(res, 400, 'acceptsInvitations must be a boolean');
@@ -1386,9 +1428,15 @@ app.get('/api/users/:id', (req, res) => {
     return;
   }
   const row = db
-    .prepare('SELECT id, username, created_at, accepts_invitations FROM users WHERE id = ?')
+    .prepare('SELECT id, username, created_at, accepts_invitations, favourite_tag FROM users WHERE id = ?')
     .get(req.params.id) as
-    | { id: string; username: string; created_at: number; accepts_invitations: number }
+    | {
+        id: string;
+        username: string;
+        created_at: number;
+        accepts_invitations: number;
+        favourite_tag: string | null;
+      }
     | undefined;
   if (!row) {
     fail(res, 404, 'User not found');
@@ -1400,6 +1448,9 @@ app.get('/api/users/:id', (req, res) => {
     username: row.username,
     createdAt: row.created_at,
     acceptsInvitations: row.accepts_invitations === 1,
+    // Which tag marks favourites is the viewer's own business, so it only
+    // goes out on their own profile.
+    favouriteTag: row.id === user.id ? row.favourite_tag : null,
     gamesPlayed: stats.played,
     gamesWon: stats.won,
     gamesLost: stats.lost,
@@ -2105,11 +2156,22 @@ app.post('/api/games/:id/star', (req, res) => {
     return;
   }
 
-  db.prepare('INSERT OR IGNORE INTO stars (user_id, game_id, created_at) VALUES (?, ?, ?)').run(
-    user.id,
-    game.id,
-    Date.now(),
-  );
+  const tagKey = favouriteTagKey(user.id);
+  if (!tagKey) {
+    fail(res, 400, 'Choose which tag marks your favourites first');
+    return;
+  }
+  // The vocabulary keeps the casing the tag was named with ("Ulubione"),
+  // while favourite_tag holds the key everything matches on.
+  const display = (
+    db.prepare('SELECT tag FROM user_tags WHERE user_id = ? AND tag_key = ?').get(user.id, tagKey) as
+      | { tag: string }
+      | undefined
+  )?.tag ?? tagKey;
+  const now = Date.now();
+  addGameTag(game.id, display, user.id, now);
+  rememberUserTag(user.id, display, false, now);
+  broadcastGameUpdate(game.id);
   broadcastGamesListUpdate();
 
   res.json({ starred: true });
@@ -2127,7 +2189,15 @@ app.delete('/api/games/:id/star', (req, res) => {
     return;
   }
 
-  db.prepare('DELETE FROM stars WHERE user_id = ? AND game_id = ?').run(user.id, game.id);
+  const tagKey = favouriteTagKey(user.id);
+  if (tagKey) {
+    db.prepare('DELETE FROM game_tags WHERE game_id = ? AND tag_key = ? AND user_id = ?').run(
+      game.id,
+      tagKey,
+      user.id,
+    );
+    broadcastGameUpdate(game.id);
+  }
   broadcastGamesListUpdate();
 
   res.json({ starred: false });
@@ -2198,7 +2268,7 @@ app.get('/api/games/:id/sgf', (req, res) => {
 function deleteGameRecord(gameId: string): void {
   db.prepare('DELETE FROM events WHERE game_id = ?').run(gameId);
   db.prepare('DELETE FROM snapshots WHERE game_id = ?').run(gameId);
-  db.prepare('DELETE FROM stars WHERE game_id = ?').run(gameId);
+
   db.prepare('DELETE FROM game_tags WHERE game_id = ?').run(gameId);
   db.prepare('DELETE FROM games WHERE id = ?').run(gameId);
 }

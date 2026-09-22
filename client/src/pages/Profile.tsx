@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { changePassword, getUser, setAcceptsInvitations, type UserProfile } from '../services/api';
+import {
+  changePassword,
+  getUser,
+  listTagSuggestions,
+  setAcceptsInvitations,
+  setFavouriteTag,
+  type TagSuggestion,
+  type UserProfile,
+} from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { t } from '../i18n';
 
@@ -153,12 +161,104 @@ function ProfileView({ id }: { id: string | undefined }) {
       )}
       {profile && user?.id === profile.id && (
         <>
+          <FavouriteTagPicker
+            initialValue={profile.favouriteTag}
+            onChange={(favouriteTag) => setProfile((current) => (current ? { ...current, favouriteTag } : current))}
+          />
           <AcceptInvitationsToggle initialValue={profile.acceptsInvitations} />
           <ChangePasswordForm />
         </>
       )}
       <Link to="/">{t('Back to games')}</Link>
     </div>
+  );
+}
+
+// The same chips-and-field shape as a game's Title & tags editor, minus
+// Share: a favourites marker is personal by definition, so there is only
+// one thing the button could do.
+function FavouriteTagPicker({
+  initialValue,
+  onChange,
+}: {
+  initialValue: string | null;
+  onChange: (favouriteTag: string | null) => void;
+}) {
+  const [current, setCurrent] = useState(initialValue);
+  const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listTagSuggestions()
+      .then(({ tags }) => setSuggestions(tags))
+      .catch(() => {});
+  }, []);
+
+  const choose = (tag: string) => {
+    const next = tag.trim();
+    if (!next || busy) {
+      return;
+    }
+    setBusy(true);
+    setFavouriteTag(next)
+      .then(() => {
+        setCurrent(next.toLowerCase());
+        setDraft('');
+        onChange(next.toLowerCase());
+        setError(null);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <section className="favourite-tag">
+      <h3>{t('Favourite tag')}</h3>
+      <p className="tag-empty">
+        {t('Favourites are one of your own tags. Choose which tag marks them, then tag any game with it.')}
+      </p>
+      <ul className="tag-suggestions">
+        {suggestions.map((suggestion) => {
+          const isCurrent = suggestion.tag.toLowerCase() === current;
+          return (
+            <li key={suggestion.tag}>
+              <button
+                type="button"
+                className={`tag-chip tag-chip--suggestion${isCurrent ? ' tag-chip--current' : ''}`}
+                disabled={busy}
+                aria-pressed={isCurrent}
+                onClick={() => choose(suggestion.tag)}
+              >
+                {suggestion.tag}
+                <span aria-hidden="true">{isCurrent ? '★' : '+'}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <form
+        className="tag-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          choose(draft);
+        }}
+      >
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={t('Add a tag')}
+          aria-label={t('Add a tag')}
+          maxLength={24}
+        />
+        <button type="submit" className="modal-action" disabled={busy || !draft.trim()}>
+          + {t('Add')}
+        </button>
+      </form>
+      {error && <p className="error">{error}</p>}
+    </section>
   );
 }
 

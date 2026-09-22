@@ -341,6 +341,15 @@ if (!usersColumns.has('accepts_invitations')) {
   db.exec('ALTER TABLE users ADD COLUMN accepts_invitations INTEGER NOT NULL DEFAULT 1');
 }
 
+// Favourites used to be their own table of (user, game) rows. They are now
+// one of the user's own personal tags — whichever one they nominate — so a
+// favourite is just a tag they can also see, rename and filter by. The
+// column holds that tag's key; NULL means they haven't nominated one, and
+// the clients offer to set it.
+if (!usersColumns.has('favourite_tag')) {
+  db.exec('ALTER TABLE users ADD COLUMN favourite_tag TEXT');
+}
+
 // Migrate older `snapshots` tables that predate the `hash` column (used for
 // situational superko checks), backfilling it for any existing rows.
 const snapshotsColumns = new Set(
@@ -361,3 +370,41 @@ if (!snapshotsColumns.has('hash')) {
 }
 
 export default db;
+
+// Everything anyone had starred becomes a personal tag on that game, under
+// a default name each user can rename in their profile. Runs once: the
+// marker is the user having a favourite_tag at all. The stars table is left
+// in place, unread from here on — dropping it would make this the one
+// migration in the file that can't be undone by reverting the code.
+const DEFAULT_FAVOURITE_TAG = 'favourite';
+const starredOwners = db
+  .prepare(
+    `SELECT DISTINCT s.user_id FROM stars s
+     JOIN users u ON u.id = s.user_id
+     WHERE u.favourite_tag IS NULL`,
+  )
+  .all() as { user_id: string }[];
+if (starredOwners.length > 0) {
+  const starsOf = db.prepare('SELECT game_id, created_at FROM stars WHERE user_id = ?');
+  const tagGame = db.prepare(
+    `INSERT OR IGNORE INTO game_tags (game_id, tag_key, tag, user_id, is_public, created_at)
+     VALUES (?, ?, ?, ?, 0, ?)`,
+  );
+  const rememberTag = db.prepare(
+    `INSERT INTO user_tags (user_id, tag_key, tag, is_public, use_count, updated_at)
+     VALUES (?, ?, ?, 0, ?, ?)
+     ON CONFLICT(user_id, tag_key) DO UPDATE SET use_count = use_count + excluded.use_count`,
+  );
+  const nameFavourite = db.prepare('UPDATE users SET favourite_tag = ? WHERE id = ?');
+  const convert = db.transaction(() => {
+    for (const owner of starredOwners) {
+      const stars = starsOf.all(owner.user_id) as { game_id: string; created_at: number }[];
+      for (const star of stars) {
+        tagGame.run(star.game_id, DEFAULT_FAVOURITE_TAG, DEFAULT_FAVOURITE_TAG, owner.user_id, star.created_at);
+      }
+      rememberTag.run(owner.user_id, DEFAULT_FAVOURITE_TAG, DEFAULT_FAVOURITE_TAG, stars.length, Date.now());
+      nameFavourite.run(DEFAULT_FAVOURITE_TAG, owner.user_id);
+    }
+  });
+  convert();
+}

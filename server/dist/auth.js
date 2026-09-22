@@ -63,7 +63,7 @@ export function getSessionUser(req) {
         return null;
     }
     const row = db.prepare(`
-    SELECT users.id as id, users.username as username
+    SELECT users.id as id, users.username as username, users.favourite_tag as favouriteTag
     FROM sessions
     JOIN users ON users.id = sessions.user_id
     WHERE sessions.token = ?

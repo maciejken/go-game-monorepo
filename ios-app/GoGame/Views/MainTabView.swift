@@ -2,16 +2,14 @@ import SwiftUI
 
 private enum AppTab: Hashable {
     case home
-    case favourites
     case account
 }
 
 // Replaces the old direct GameListView root once logged in: a bottom tab
-// bar with Home (the game list), Favourites (the games you starred) and
-// Account (the logged-in user's own profile) — icon-only per request, no
-// text labels. GameListView keeps its own NavigationStack/navigation logic
-// untouched; this just hosts two differently-scoped copies of it plus the
-// profile.
+// bar with Home (the game list) and Account (the logged-in user's own
+// profile) — icon-only per request, no text labels. Favourites had a tab
+// of its own until they became a tag: the star beside the list's title
+// filters by it, which is a filter on the list rather than a second list.
 struct MainTabView: View {
     @Environment(SessionStore.self) private var session
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
@@ -30,10 +28,6 @@ struct MainTabView: View {
             GameListView(isActiveTab: selectedTab == .home)
                 .tabItem { Image(systemName: "house") }
                 .tag(AppTab.home)
-
-            GameListView(isActiveTab: selectedTab == .favourites, scope: "starred")
-                .tabItem { Image(systemName: "star") }
-                .tag(AppTab.favourites)
 
             NavigationStack {
                 Group {

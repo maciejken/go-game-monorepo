@@ -16,8 +16,14 @@ struct GameListView: View {
     // starred) for Home, "starred" for Favourites. Only the Home tab
     // creates games and consumes game deep links; everything else here is
     // the same list behaviour either way.
-    var scope: String = "mine"
+    // "mine" or "starred" — set by the star beside the title rather than
+    // by which tab you are on, since Favourites no longer has one.
+    @State private var scope: String = "mine"
+    // Shown when the star is pressed before a favourites tag exists.
+    @State private var showFavouritesHelp = false
+    @State private var showProfile = false
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
+    @Environment(SessionStore.self) private var session
     // Holding Home's new-game button starts a game from the shake-to-play
     // preset, whether or not the gesture itself is switched on — a press is
     // an explicit ask, where a shake is one you might not have meant.
@@ -38,6 +44,7 @@ struct GameListView: View {
     @State private var isStartingQuickGame = false
 
     private var isHome: Bool { scope == "mine" }
+    private var favouriteTag: String? { session.currentUser?.favouriteTag }
 
     private static let pageSize = 20
     // Matches the server's own floor for ?q=.
@@ -159,6 +166,7 @@ struct GameListView: View {
             }
             .refreshable { await loadGames() }
             .task { await loadGames() }
+            .task(id: scope) { await loadGames() }
             .searchable(text: $searchText, prompt: "Search titles, players, tags")
             // A magnifying glass in the header rather than a field of its
             // own: the field scrolls away with the list, while the button
@@ -198,7 +206,19 @@ struct GameListView: View {
             // only refreshed a list nobody was looking away from anyway —
             // .task on appear plus pull-to-refresh cover that case without
             // the socket's reconnect churn or its navigation hazard.
-            .navigationTitle(isHome ? "Your Games" : "Favourites")
+            .navigationTitle("Your Games")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { favouritesFilterButton }
+            }
+            .sheet(isPresented: $showFavouritesHelp) {
+                favouritesHelpSheet
+                    .presentationDetents([.height(260)])
+            }
+            .navigationDestination(isPresented: $showProfile) {
+                if let myId = session.currentUser?.id {
+                    ProfileView(userId: myId)
+                }
+            }
             .navigationDestination(item: $selectedGameId) { gameId in
                 GameBoardView(gameId: gameId)
             }
@@ -226,6 +246,38 @@ struct GameListView: View {
                 Text(errorMessage ?? "")
             }
         }
+    }
+
+    // Filled only while the filter is on: the star says what the list is
+    // showing, not what it could show.
+    private var favouritesFilterButton: some View {
+        Button {
+            guard favouriteTag != nil else {
+                showFavouritesHelp = true
+                return
+            }
+            scope = isHome ? "starred" : "mine"
+        } label: {
+            Image(systemName: isHome ? "star" : "star.fill")
+                .foregroundStyle(isHome ? Color.secondary : Color.yellow)
+        }
+        .accessibilityLabel("Show favourites only")
+    }
+
+    private var favouritesHelpSheet: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "star")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+            Text("Favourites are one of your own tags. Choose which tag marks them, then tag any game with it.")
+                .multilineTextAlignment(.center)
+            Button("Choose in your profile") {
+                showFavouritesHelp = false
+                showProfile = true
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding()
     }
 
     // Pushes onto this tab's own stack rather than routing through the

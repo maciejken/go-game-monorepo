@@ -62,6 +62,21 @@ struct ProfileView: View {
                                     .foregroundStyle(.red)
                             }
                         }
+                        Section("Favourite tag") {
+                            FavouriteTagPicker(initial: profile.favouriteTag) { chosen in
+                                self.profile = UserProfile(
+                                    id: profile.id,
+                                    username: profile.username,
+                                    createdAt: profile.createdAt,
+                                    acceptsInvitations: profile.acceptsInvitations,
+                                    favouriteTag: chosen,
+                                    gamesPlayed: profile.gamesPlayed,
+                                    gamesWon: profile.gamesWon,
+                                    gamesLost: profile.gamesLost
+                                )
+                                await session.checkSession()
+                            }
+                        }
                         Section {
                             NavigationLink {
                                 QuickGamePresetView()
@@ -153,5 +168,94 @@ struct ProfileView: View {
     private func joinedDateText(_ epochMs: Int) -> String {
         Date(timeIntervalSince1970: Double(epochMs) / 1000)
             .formatted(date: .long, time: .omitted)
+    }
+}
+
+// The same chips-and-field shape as a game's Title & tags sheet, minus
+// Share: a favourites marker is personal by definition, so there is only
+// one thing the button could do.
+private struct FavouriteTagPicker: View {
+    let initial: String?
+    let onChange: (String) async -> Void
+
+    @State private var current: String?
+    @State private var suggestions: [TagSuggestion] = []
+    @State private var draft = ""
+    @State private var isBusy = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Favourites are one of your own tags. Choose which tag marks them, then tag any game with it.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(suggestions, id: \.tag) { suggestion in
+                        Button {
+                            Task { await choose(suggestion.tag) }
+                        } label: {
+                            chip(suggestion.tag, isCurrent: suggestion.tag.lowercased() == current)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isBusy)
+                    }
+                }
+                .padding(.horizontal, 1)
+            }
+            HStack(spacing: 8) {
+                TextField("Add a tag", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .submitLabel(.done)
+                    .onSubmit { Task { await choose(draft) } }
+                Button {
+                    Task { await choose(draft) }
+                } label: {
+                    Label("Add", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isBusy || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+        }
+        .onAppear { current = initial }
+        .task { suggestions = (try? await APIClient.tagSuggestions()) ?? [] }
+    }
+
+    private func chip(_ tag: String, isCurrent: Bool) -> some View {
+        HStack(spacing: 4) {
+            Text(tag)
+                .font(.subheadline)
+                .lineLimit(1)
+            Image(systemName: isCurrent ? "star.fill" : "plus")
+                .font(.caption)
+                .foregroundStyle(isCurrent ? Color.yellow : Color.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.08), in: Capsule())
+    }
+
+    private func choose(_ tag: String) async {
+        let chosen = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !chosen.isEmpty, !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await APIClient.setFavouriteTag(chosen)
+            current = chosen.lowercased()
+            draft = ""
+            errorMessage = nil
+            suggestions = (try? await APIClient.tagSuggestions()) ?? suggestions
+            await onChange(chosen.lowercased())
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
