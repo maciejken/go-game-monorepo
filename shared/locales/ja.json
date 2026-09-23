@@ -240,5 +240,7 @@
   "no komi": "コミなし",
   "no result": "無勝負",
   "opponentUsername or ai is required": "opponentUsername または ai が必要です",
-  "you play %@": "あなたは%@"
+  "you play %@": "あなたは%@",
+  "Offline": "オフライン",
+  "Offline — showing games saved on this device": "オフライン — この端末に保存された対局のみ表示しています"
 }

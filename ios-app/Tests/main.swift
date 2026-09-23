@@ -362,6 +362,111 @@ if let flowData = FileManager.default.contents(atPath: flowPath) {
     print("game-flow cases checked: \(flowFixtures.cases.count)")
 }
 
+// The same cases again, but through LocalTransport: store on disk, replay
+// from the log, answer in the server's shapes. This is what an offline game
+// actually does, so it is checked the way the server is — by playing it.
+func runBlocking<T>(_ work: @escaping () async throws -> T) throws -> T {
+    let semaphore = DispatchSemaphore(value: 0)
+    var outcome: Result<T, Error>!
+    Task {
+        do { outcome = .success(try await work()) } catch { outcome = .failure(error) }
+        semaphore.signal()
+    }
+    semaphore.wait()
+    return try outcome.get()
+}
+
+if let flowData = FileManager.default.contents(atPath: flowPath) {
+    let flowFixtures = try JSONDecoder().decode(FlowFixtures.self, from: flowData)
+    let scratch = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("offline-games-\(UUID().uuidString)")
+    let transport = LocalTransport(store: OfflineGameStore(directory: scratch))
+    defer { try? FileManager.default.removeItem(at: scratch) }
+
+    for testCase in flowFixtures.cases {
+        // Reported, not thrown: a store that cannot create or read a game is
+        // a failing case like any other, and crashing here would hide every
+        // case after it.
+        guard
+            let record = try? transport.store.create(
+                size: testCase.size,
+                handicap: testCase.handicap,
+                komi: nil as Double?,
+                title: testCase.name
+            ),
+            let opening = try? runBlocking({ try await transport.state(gameId: record.id) })
+        else {
+            expect(false, "LocalTransport/\(testCase.name): could not create or read the game back")
+            continue
+        }
+        let gameId = record.id
+        let label = "LocalTransport/\(testCase.name)"
+
+        expect(
+            opening.currentColor.rawValue == testCase.opening.currentColor,
+            "\(label) [opening]: currentColor \(opening.currentColor.rawValue), expected \(testCase.opening.currentColor)"
+        )
+        expect(
+            opening.status == testCase.opening.status,
+            "\(label) [opening]: status \(opening.status), expected \(testCase.opening.status)"
+        )
+
+        for (index, action) in testCase.actions.enumerated() {
+            let where_ = "\(label) [action \(index + 1): \(action.type) \(action.color)]"
+            let colour: StoneColor = action.color == "black" ? .black : .white
+            var thrown: String?
+            do {
+                switch action.type {
+                case "move":
+                    _ = try runBlocking {
+                        try await transport.makeMove(gameId: gameId, x: action.x ?? -1, y: action.y ?? -1, color: colour)
+                    }
+                case "pass":
+                    _ = try runBlocking { try await transport.pass(gameId: gameId, color: colour) }
+                default:
+                    _ = try runBlocking { try await transport.resign(gameId: gameId, color: colour) }
+                }
+            } catch {
+                thrown = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+
+            if let rejected = action.expect.rejected {
+                expect(thrown == rejected, "\(where_): refused with \(thrown ?? "nothing"), expected \(rejected)")
+            } else {
+                expect(thrown == nil, "\(where_): unexpectedly refused with \(thrown ?? "")")
+            }
+
+            // Re-read from the store every time, so this checks what was
+            // persisted rather than anything held in memory.
+            guard let state = try? runBlocking({ try await transport.state(gameId: gameId) }) else {
+                expect(false, "\(where_): the game could not be read back from the store")
+                continue
+            }
+            if let status = action.expect.status {
+                expect(state.status == status, "\(where_): status \(state.status), expected \(status)")
+            }
+            if let colourExpected = action.expect.currentColor {
+                expect(
+                    state.currentColor.rawValue == colourExpected,
+                    "\(where_): currentColor \(state.currentColor.rawValue), expected \(colourExpected)"
+                )
+            }
+            if let shortResult = action.expect.shortResult {
+                expect(
+                    state.shortResult == shortResult,
+                    "\(where_): shortResult \(state.shortResult ?? "nil"), expected \(shortResult)"
+                )
+            }
+            if let captures = action.expect.captures {
+                expect(
+                    state.captures.black == captures.black && state.captures.white == captures.white,
+                    "\(where_): captures b\(state.captures.black)/w\(state.captures.white), expected b\(captures.black)/w\(captures.white)"
+                )
+            }
+        }
+    }
+    print("LocalTransport checked against the same \(flowFixtures.cases.count) cases")
+}
+
 if failures.isEmpty {
     print("""
     Swift engine agrees with the TypeScript one: \(fixtures.moveSequences.count) sequences, \

@@ -240,5 +240,7 @@
   "no komi": "不贴目",
   "no result": "无结果",
   "opponentUsername or ai is required": "需要 opponentUsername 或 ai",
-  "you play %@": "你执%@"
+  "you play %@": "你执%@",
+  "Offline": "离线",
+  "Offline — showing games saved on this device": "离线 — 仅显示保存在本机的对局"
 }

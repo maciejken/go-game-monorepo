@@ -9,15 +9,51 @@ final class SessionStore {
     var currentUser: AuthUser?
     var isCheckingSession = true
     var errorMessage: String?
+    // True when the app is running on a remembered session because the
+    // server could not be reached: offline games work, server ones are
+    // missing until it comes back.
+    var isOffline = false
+
+    // Who was signed in last, kept on the device so an unreachable server
+    // doesn't strand someone on the login screen with offline games they
+    // can't get to. It is not a credential — the session cookie still is,
+    // and anything the server answers overrides this.
+    private static let rememberedUserKey = "go-remembered-user"
+
+    private var rememberedUser: AuthUser? {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: Self.rememberedUserKey) else { return nil }
+            return try? JSONDecoder().decode(AuthUser.self, from: data)
+        }
+        set {
+            if let newValue, let data = try? JSONEncoder().encode(newValue) {
+                UserDefaults.standard.set(data, forKey: Self.rememberedUserKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.rememberedUserKey)
+            }
+        }
+    }
 
     func checkSession() async {
         isCheckingSession = true
-        // withRetry only retries a thrown error (a failed request) — a
-        // clean response of "no user" is never retried, since that's a
-        // genuine "not logged in", not a hiccup.
-        currentUser = try? await APIClient.withRetry { try await APIClient.me() }
+        do {
+            // withRetry only retries a thrown error (a failed request) — a
+            // clean response of "no user" is never retried, since that's a
+            // genuine "not logged in", not a hiccup.
+            let user = try await APIClient.withRetry { try await APIClient.me() }
+            currentUser = user
+            // The server has spoken either way: remember a real session,
+            // and forget a stale one rather than letting it linger.
+            rememberedUser = user
+            isOffline = false
+        } catch {
+            // Unreachable, which is not the same as signed out: carry on as
+            // whoever was here last so offline games stay reachable.
+            currentUser = rememberedUser
+            isOffline = currentUser != nil
+        }
         isCheckingSession = false
-        if currentUser != nil {
+        if currentUser != nil, !isOffline {
             PushNotifications.requestAuthorizationAndRegister()
         }
     }
@@ -26,6 +62,8 @@ final class SessionStore {
         errorMessage = nil
         do {
             currentUser = try await APIClient.register(username: username, password: password)
+            rememberedUser = currentUser
+            isOffline = false
             PushNotifications.requestAuthorizationAndRegister()
         } catch {
             errorMessage = error.localizedDescription
@@ -36,6 +74,8 @@ final class SessionStore {
         errorMessage = nil
         do {
             currentUser = try await APIClient.login(username: username, password: password)
+            rememberedUser = currentUser
+            isOffline = false
             PushNotifications.requestAuthorizationAndRegister()
         } catch {
             errorMessage = error.localizedDescription
@@ -45,5 +85,7 @@ final class SessionStore {
     func logout() async {
         try? await APIClient.logout()
         currentUser = nil
+        rememberedUser = nil
+        isOffline = false
     }
 }

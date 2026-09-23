@@ -69,29 +69,38 @@ struct GameListView: View {
             // corrupts the stack, and RowButtonStyle's press feedback below
             // makes a first tap's success visible so there's less reason to
             // tap again while it's still animating.
-            List(games) { game in
-                Button {
-                    guard selectedGameId == nil else { return }
-                    selectedGameId = game.id
-                } label: {
-                    HStack {
-                        GameRowView(game: game)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .contentShape(Rectangle())
+            List {
+                // Says why the list is short before anyone wonders where
+                // their server games went.
+                if session.isOffline {
+                    Text("Offline — showing games saved on this device")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(RowButtonStyle())
-                // Mirrors the web client's IntersectionObserver-on-a-
-                // sentinel approach with the plain SwiftUI equivalent:
-                // .onAppear on the last row fires exactly when it scrolls
-                // into view, whether that's from scrolling or because the
-                // page is short enough that it's already visible.
-                .onAppear {
-                    if game.id == games.last?.id {
-                        Task { await loadMore() }
+                ForEach(games) { game in
+                    Button {
+                        guard selectedGameId == nil else { return }
+                        selectedGameId = game.id
+                    } label: {
+                        HStack {
+                            GameRowView(game: game)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(RowButtonStyle())
+                    // Mirrors the web client's IntersectionObserver-on-a-
+                    // sentinel approach with the plain SwiftUI equivalent:
+                    // .onAppear on the last row fires exactly when it scrolls
+                    // into view, whether that's from scrolling or because the
+                    // page is short enough that it's already visible.
+                    .onAppear {
+                        if game.id == games.last?.id {
+                            Task { await loadMore() }
+                        }
                     }
                 }
             }
@@ -319,15 +328,41 @@ struct GameListView: View {
             let page = try await APIClient.withRetry {
                 try await APIClient.games(scope: scope, limit: Self.pageSize, offset: 0, query: appliedSearch)
             }
-            games = page.games
+            games = merged(serverGames: page.games)
             hasMore = page.hasMore
             errorMessage = nil
+            session.isOffline = false
         } catch {
             // Leaving this screen mid-load cancels the task; the cancelled
             // request isn't something to alert anyone about.
             guard !APIClient.isCancellation(error) else { return }
-            errorMessage = error.localizedDescription
+            // The server being unreachable is exactly when offline games
+            // matter, so they are still listed — the error says the rest of
+            // the list is missing, it doesn't hide what the device has.
+            games = merged(serverGames: [])
+            hasMore = false
+            // Being offline isn't a failure to report: the banner says the
+            // rest of the list is missing, without an alert on every
+            // refresh. Anything else the server says still gets one.
+            if APIClient.isUnreachable(error) {
+                session.isOffline = true
+                errorMessage = nil
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
+    }
+
+    // Offline games live on the device, so they are not a page the server
+    // can send: they are merged in here, newest first, and left out of the
+    // favourites filter (a favourite is a tag, and tags are a server idea).
+    private func merged(serverGames: [GameSummary]) -> [GameSummary] {
+        guard isHome else { return serverGames }
+        let offline = OfflineGameStore.shared.all().map(\.summary).filter { summary in
+            guard !appliedSearch.isEmpty else { return true }
+            return (summary.title ?? "").localizedCaseInsensitiveContains(appliedSearch)
+        }
+        return (offline + serverGames).sorted { $0.updatedAt > $1.updatedAt }
     }
 
     private func loadMore() async {
@@ -338,7 +373,7 @@ struct GameListView: View {
             let page = try await APIClient.games(
                 scope: scope, limit: Self.pageSize, offset: games.count, query: appliedSearch
             )
-            games.append(contentsOf: page.games)
+            games.append(contentsOf: page.games.filter { summary in !games.contains { $0.id == summary.id } })
             hasMore = page.hasMore
         } catch {
             guard !APIClient.isCancellation(error) else { return }

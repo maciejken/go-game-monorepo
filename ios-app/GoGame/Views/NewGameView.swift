@@ -11,7 +11,7 @@ struct NewGameView: View {
     @Environment(QuickGameStore.self) private var quickGame
 
     @State private var title = ""
-    @State private var mode = "remote" // "local" | "remote" | "gnugo"
+    @State private var mode = "remote" // "offline" | "local" | "remote" | "gnugo"
     @State private var boardSize = 19
     @State private var handicap = 0
     @State private var komi: Double = 6.5
@@ -71,6 +71,7 @@ struct NewGameView: View {
                         Text("Local").tag("local")
                         Text("Remote").tag("remote")
                         Text("Vs. Computer").tag("gnugo")
+                        Text("Offline").tag("offline")
                     }
                     .onChange(of: mode) { _, newMode in
                         if newMode != "remote" {
@@ -311,6 +312,25 @@ struct NewGameView: View {
         defer { isCreating = false }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
+            // An offline game is created on the device and never reaches
+            // the server, so none of the remote-only options apply.
+            if mode == "offline" {
+                // One device, both colours — the same as a local game on
+                // the server, which puts the signed-in player on both
+                // sides. With nobody signed in the names stay empty and
+                // the sides show as Black and White.
+                let myName = session.currentUser?.username
+                let record = try OfflineGameStore.shared.create(
+                    size: boardSize,
+                    handicap: handicap,
+                    komi: komi,
+                    title: trimmedTitle.isEmpty ? nil : trimmedTitle,
+                    blackName: myName,
+                    whiteName: myName
+                )
+                onCreated(record.id)
+                return
+            }
             let gameId = try await APIClient.createGame(
                 size: boardSize,
                 handicap: handicap,

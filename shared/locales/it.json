@@ -240,5 +240,7 @@
   "no komi": "senza komi",
   "no result": "senza risultato",
   "opponentUsername or ai is required": "opponentUsername o ai è obbligatorio",
-  "you play %@": "giochi %@"
+  "you play %@": "giochi %@",
+  "Offline": "Offline",
+  "Offline — showing games saved on this device": "Offline — mostriamo le partite salvate su questo dispositivo"
 }

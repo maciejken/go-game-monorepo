@@ -65,9 +65,10 @@ struct GameBoardView: View {
     // way in for anyone it doesn't work for. On by default, since someone
     // who needs it can't discover a setting they can't reach the board to
     // miss; anyone who would rather have the space back turns it off.
-    // Where this game actually lives. The only implementation today is the
-    // server; offline and peer-to-peer games will pass their own.
-    var transport: GameTransport = ServerTransport()
+    // Where this game actually lives — the server, or this device for an
+    // offline game. Chosen from the id unless a caller passes one.
+    var transportOverride: GameTransport?
+    private var transport: GameTransport { transportOverride ?? makeTransport(forGameId: gameId) }
     @AppStorage("go-coordinate-entry") private var coordinateEntryEnabled = true
     // Watching a board isn't touching it, so the screen would otherwise dim
     // mid-game — but that is a battery trade, so it stays a choice.

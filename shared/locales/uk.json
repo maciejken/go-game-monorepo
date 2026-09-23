@@ -240,5 +240,7 @@
   "no komi": "без комі",
   "no result": "без результату",
   "opponentUsername or ai is required": "Потрібно вказати opponentUsername або ai",
-  "you play %@": "ви граєте %@"
+  "you play %@": "ви граєте %@",
+  "Offline": "Офлайн",
+  "Offline — showing games saved on this device": "Офлайн — показуємо партії, збережені на цьому пристрої"
 }

@@ -12,6 +12,12 @@ swiftc -O \
   ios-app/GoGame/Models/Rules.swift \
   ios-app/GoGame/Models/ClockRules.swift \
   ios-app/GoGame/Models/GameFlow.swift \
+  ios-app/GoGame/Models/OfflineGameStore.swift \
+  ios-app/GoGame/Models/GameState.swift \
+  ios-app/GoGame/Models/GameHistory.swift \
+  ios-app/GoGame/Models/GameSummary.swift \
+  ios-app/GoGame/Networking/GameTransport.swift \
+  ios-app/GoGame/Networking/LocalTransport.swift \
   ios-app/Tests/main.swift \
   -o "$OUT/rule-fixtures"
 "$OUT/rule-fixtures" shared/fixtures/rules.json

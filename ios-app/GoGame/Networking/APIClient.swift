@@ -74,6 +74,20 @@ enum APIClient {
         error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 
+    // The server couldn't be reached at all. That's the offline case, which
+    // the app carries on through on what the device already holds, rather
+    // than an error worth interrupting anyone with.
+    static func isUnreachable(_ error: Error) -> Bool {
+        switch (error as? URLError)?.code {
+        case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost,
+             .cannotFindHost, .dnsLookupFailed, .timedOut, .internationalRoamingOff,
+             .dataNotAllowed:
+            return true
+        default:
+            return false
+        }
+    }
+
     private static func send(_ request: URLRequest) async throws {
         let (data, response) = try await session.data(for: request)
         try checkStatus(data: data, response: response)
