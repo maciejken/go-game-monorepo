@@ -72,8 +72,17 @@ app.use((req, res, next) => {
   }
   // 308 rather than 302: it keeps the method and body, so a POSTed login
   // is retried as a POST rather than silently becoming a GET.
-  const host = (req.headers.host ?? '').replace(/:\d+$/, '');
-  const port = httpsPort === '443' ? '' : `:${httpsPort}`;
+  //
+  // HTTPS_PORT is the port this process listens on, which is not
+  // necessarily the one the world connects to: in production the router
+  // forwards 443 here, so redirecting to HTTPS_PORT would send browsers to
+  // a port nothing answers on from outside. The request itself says which
+  // case we are in — a browser omits the port when it used the default, so
+  // a Host with no port means "public, standard ports" and a Host with one
+  // means a direct connection like a dev machine's :3000.
+  const requestHost = req.headers.host ?? '';
+  const [host, requestPort] = [requestHost.replace(/:\d+$/, ''), /:(\d+)$/.exec(requestHost)?.[1]];
+  const port = requestPort ? `:${httpsPort}` : '';
   res.redirect(308, `https://${host}${port}${req.originalUrl}`);
 });
 
