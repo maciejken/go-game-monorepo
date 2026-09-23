@@ -11,6 +11,11 @@
     "lint": "npm run lint --workspace=server && npm run lint --workspace=client && npm run lint --workspace=shared",
     "start": "npm start --workspace=server",
     "locales": "node scripts/build-locales.mjs",
-    "locales:check": "node scripts/build-locales.mjs --check"
+    "locales:check": "node scripts/build-locales.mjs --check",
+    "fixtures": "node scripts/generate-rule-fixtures.mjs",
+    "fixtures:check": "node scripts/generate-rule-fixtures.mjs --check",
+    "rules:swift": "bash scripts/check-swift-rules.sh",
+    "rules": "npm run fixtures:check && npm run rules:swift && npm run rules:server",
+    "rules:server": "bash scripts/check-server-rules.sh"
   }
 }

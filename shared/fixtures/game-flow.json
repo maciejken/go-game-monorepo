@@ -1,0 +1,300 @@
+{
+  "version": 1,
+  "note": "Hand-written game-flow semantics. The server is checked against these by scripts/check-server-flow.mjs (over the real API) and the Swift engine by scripts/check-swift-rules.sh, so the two cannot drift apart.",
+  "cases": [
+    {
+      "name": "black plays first, and the turn alternates",
+      "size": 9,
+      "handicap": 0,
+      "opening": {
+        "currentColor": "black",
+        "status": "in_progress"
+      },
+      "actions": [
+        {
+          "type": "move",
+          "color": "black",
+          "x": 2,
+          "y": 2,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "white"
+          }
+        },
+        {
+          "type": "move",
+          "color": "white",
+          "x": 6,
+          "y": 6,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "black"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a handicap game starts with white to move",
+      "size": 9,
+      "handicap": 2,
+      "opening": {
+        "currentColor": "white",
+        "status": "in_progress"
+      },
+      "actions": [
+        {
+          "type": "move",
+          "color": "white",
+          "x": 4,
+          "y": 4,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "black"
+          }
+        }
+      ]
+    },
+    {
+      "name": "two passes in a row open scoring",
+      "size": 9,
+      "handicap": 0,
+      "opening": {
+        "currentColor": "black",
+        "status": "in_progress"
+      },
+      "actions": [
+        {
+          "type": "move",
+          "color": "black",
+          "x": 2,
+          "y": 2,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "white"
+          }
+        },
+        {
+          "type": "pass",
+          "color": "white",
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "black"
+          }
+        },
+        {
+          "type": "pass",
+          "color": "black",
+          "expect": {
+            "status": "scoring"
+          }
+        }
+      ]
+    },
+    {
+      "name": "passes separated by a move do not open scoring",
+      "size": 9,
+      "handicap": 0,
+      "opening": {
+        "currentColor": "black",
+        "status": "in_progress"
+      },
+      "actions": [
+        {
+          "type": "pass",
+          "color": "black",
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "white"
+          }
+        },
+        {
+          "type": "move",
+          "color": "white",
+          "x": 6,
+          "y": 6,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "black"
+          }
+        },
+        {
+          "type": "pass",
+          "color": "black",
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "white"
+          }
+        },
+        {
+          "type": "move",
+          "color": "white",
+          "x": 6,
+          "y": 5,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "black"
+          }
+        }
+      ]
+    },
+    {
+      "name": "resigning ends the game for the other side",
+      "size": 9,
+      "handicap": 0,
+      "opening": {
+        "currentColor": "black",
+        "status": "in_progress"
+      },
+      "actions": [
+        {
+          "type": "move",
+          "color": "black",
+          "x": 2,
+          "y": 2,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "white"
+          }
+        },
+        {
+          "type": "resign",
+          "color": "white",
+          "expect": {
+            "status": "finished",
+            "shortResult": "B+R",
+            "endReason": "resign"
+          }
+        }
+      ]
+    },
+    {
+      "name": "black resigning hands the game to white",
+      "size": 9,
+      "handicap": 0,
+      "opening": {
+        "currentColor": "black",
+        "status": "in_progress"
+      },
+      "actions": [
+        {
+          "type": "resign",
+          "color": "black",
+          "expect": {
+            "status": "finished",
+            "shortResult": "W+R",
+            "endReason": "resign"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a capture counts towards the capturing player",
+      "size": 9,
+      "handicap": 0,
+      "opening": {
+        "currentColor": "black",
+        "status": "in_progress"
+      },
+      "actions": [
+        {
+          "type": "move",
+          "color": "black",
+          "x": 1,
+          "y": 0,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "white"
+          }
+        },
+        {
+          "type": "move",
+          "color": "white",
+          "x": 0,
+          "y": 0,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "black"
+          }
+        },
+        {
+          "type": "move",
+          "color": "black",
+          "x": 0,
+          "y": 1,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "white",
+            "captures": {
+              "black": 1,
+              "white": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "an illegal move is refused and the turn does not move on",
+      "size": 9,
+      "handicap": 0,
+      "opening": {
+        "currentColor": "black",
+        "status": "in_progress"
+      },
+      "actions": [
+        {
+          "type": "move",
+          "color": "black",
+          "x": 2,
+          "y": 2,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "white"
+          }
+        },
+        {
+          "type": "move",
+          "color": "white",
+          "x": 2,
+          "y": 2,
+          "expect": {
+            "rejected": "Point is already occupied",
+            "status": "in_progress",
+            "currentColor": "white"
+          }
+        },
+        {
+          "type": "move",
+          "color": "white",
+          "x": 3,
+          "y": 3,
+          "expect": {
+            "status": "in_progress",
+            "currentColor": "black"
+          }
+        }
+      ]
+    },
+    {
+      "name": "playing out of turn is refused",
+      "size": 9,
+      "handicap": 0,
+      "opening": {
+        "currentColor": "black",
+        "status": "in_progress"
+      },
+      "actions": [
+        {
+          "type": "move",
+          "color": "white",
+          "x": 2,
+          "y": 2,
+          "expect": {
+            "rejected": "It is black's turn",
+            "status": "in_progress",
+            "currentColor": "black"
+          }
+        }
+      ]
+    }
+  ]
+}

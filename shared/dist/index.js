@@ -1,3 +1,4 @@
+export * from './clock.js';
 export function createEmptyBoard(size) {
     return Array.from({ length: size }, () => Array(size).fill(null));
 }
@@ -421,3 +422,48 @@ export function scoreBoard(board, captures, komi, declaredSekiPoints = []) {
         whiteTerritoryPoints,
     };
 }
+const STAR_POINTS = {
+    9: {
+        upperRight: [6, 2], lowerLeft: [2, 6], lowerRight: [6, 6], upperLeft: [2, 2],
+        center: [4, 4],
+    },
+    13: {
+        upperRight: [9, 3], lowerLeft: [3, 9], lowerRight: [9, 9], upperLeft: [3, 3],
+        center: [6, 6],
+    },
+    19: {
+        upperRight: [15, 3], lowerLeft: [3, 15], lowerRight: [15, 15], upperLeft: [3, 3],
+        center: [9, 9],
+        leftMid: [3, 9], rightMid: [15, 9], topMid: [9, 3], bottomMid: [9, 15],
+    },
+};
+// Handicap stone placement order, per the standard table: corners fill
+// upper-right, lower-left, lower-right, upper-left; center is included only
+// for odd handicaps 5/7/9; side points are added as left+right at 6, then
+// top+bottom at 8.
+export function getHandicapPoints(size, handicap) {
+    const sp = STAR_POINTS[size];
+    if (!sp || handicap < 2) {
+        return [];
+    }
+    const corners = [sp.upperRight, sp.lowerLeft, sp.lowerRight, sp.upperLeft];
+    const points = corners.slice(0, Math.min(handicap, 4));
+    if (handicap >= 6 && sp.leftMid && sp.rightMid) {
+        points.push(sp.leftMid, sp.rightMid);
+    }
+    if (handicap >= 8 && sp.topMid && sp.bottomMid) {
+        points.push(sp.topMid, sp.bottomMid);
+    }
+    if (handicap === 5 || handicap === 7 || handicap === 9) {
+        points.push(sp.center);
+    }
+    return points;
+}
+// In a handicap game Black's extra stones are already an advantage, so
+// White moves first. Shifting the move number by one flips the parity that
+// `getCurrentColor`/`validateMove` use, without changing how move numbers
+// are actually stored.
+// The only board sizes the app supports — derived from STAR_POINTS so
+// there is one source of truth, and used to validate a client-supplied
+// size on game creation.
+export const BOARD_SIZES = Object.keys(STAR_POINTS).map(Number);

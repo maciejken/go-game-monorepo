@@ -1,27 +1,5 @@
 import Foundation
 
-// Named StoneColor, not Color — Color is SwiftUI's own type, used constantly
-// for actual UI colors, so reusing the name here would shadow it everywhere
-// in the module. Mirrors shared's Color ('black' | 'white').
-enum StoneColor: String, Codable {
-    case black
-    case white
-}
-
-// Mirrors shared's Point.
-struct Point: Codable, Equatable {
-    let x: Int
-    let y: Int
-}
-
-// Mirrors client/src/services/api.ts's Captures.
-struct Captures: Codable {
-    let black: Int
-    let white: Int
-}
-
-typealias Board = [[StoneColor?]]
-
 // Mirrors client/src/services/api.ts's resultBreakdown shape.
 struct ResultBreakdown: Codable {
     let black: Double

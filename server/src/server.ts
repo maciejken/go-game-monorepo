@@ -10,7 +10,12 @@ import { createServer as createHttpsServer } from 'https';
 import fs from 'fs';
 import {
   applyDeadStones,
+  BOARD_SIZES,
+  deductClock,
+  hasTimedOut,
+  resolveTimeControl,
   createEmptyBoard,
+  getHandicapPoints,
   getCurrentColor,
   getKomi,
   hashBoard,
@@ -20,7 +25,9 @@ import {
   type Captures,
   type Color,
   type Point,
+  type ClockState,
   type PositionRecord,
+  type TimeControlName,
 } from 'shared';
 
 import { dbPath, port, httpsPort, keyPath, certPath } from './config.js';
@@ -40,7 +47,7 @@ import { seedDefaultUser, seedAiUser, getAiUserId } from './seed.js';
 import { attachWebSocketServer, broadcastGameUpdate, broadcastGamesListUpdate } from './ws.js';
 import { generateAiMove, isGnuGoAvailable, type AiMoveResult, type ReplayMove } from './gnugo.js';
 import { isApnsConfigured, sendPushNotification } from './apns.js';
-import { deductClock, hasTimedOut, resolveTimeControl, type ClockState, type TimeControlName } from './clock.js';
+
 
 seedDefaultUser();
 seedAiUser();
@@ -609,41 +616,10 @@ function sanitizeTitle(rawTitle: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-// Standard handicap star points, verified against the canonical 19x19 table
-// (Wikipedia: "Handicapping in Go") and the equivalent 3-3/4-4 convention
-// used for 9x9/13x13. Coordinates are 0-indexed [x, y].
-interface StarPoints {
-  upperRight: [number, number];
-  lowerLeft: [number, number];
-  lowerRight: [number, number];
-  upperLeft: [number, number];
-  center: [number, number];
-  leftMid?: [number, number];
-  rightMid?: [number, number];
-  topMid?: [number, number];
-  bottomMid?: [number, number];
-}
-
-const STAR_POINTS: Record<number, StarPoints> = {
-  9: {
-    upperRight: [6, 2], lowerLeft: [2, 6], lowerRight: [6, 6], upperLeft: [2, 2],
-    center: [4, 4],
-  },
-  13: {
-    upperRight: [9, 3], lowerLeft: [3, 9], lowerRight: [9, 9], upperLeft: [3, 3],
-    center: [6, 6],
-  },
-  19: {
-    upperRight: [15, 3], lowerLeft: [3, 15], lowerRight: [15, 15], upperLeft: [3, 3],
-    center: [9, 9],
-    leftMid: [3, 9], rightMid: [15, 9], topMid: [9, 3], bottomMid: [9, 15],
-  },
-};
-
-// The only board sizes the app actually supports — derived from
-// STAR_POINTS so there's one source of truth, and used to validate
-// client-supplied `size` on game creation (see POST /api/games).
-const ALLOWED_BOARD_SIZES = Object.keys(STAR_POINTS).map(Number);
+// Re-exported under the name the routes below already use; the table
+// itself lives in shared, since the device-side engine needs the same
+// handicap placement the server applies.
+const ALLOWED_BOARD_SIZES = BOARD_SIZES;
 
 // Komi values that support correct classic scoring for an even (no
 // handicap) game: 6.5/5.5 for area/territory rulesets that use a
@@ -655,36 +631,6 @@ const ALLOWED_KOMI_EVEN = [0, 0.5, 5.5, 6.5];
 // only ever a tie-breaker: the standard 0.5, or 0 for no tie-breaker at all.
 const ALLOWED_KOMI_HANDICAP = [0, 0.5];
 
-// Handicap stone placement order, per the standard table: corners fill
-// upper-right, lower-left, lower-right, upper-left; center is included only
-// for odd handicaps 5/7/9; side points are added as left+right at 6, then
-// top+bottom at 8.
-function getHandicapPoints(size: number, handicap: number): [number, number][] {
-  const sp = STAR_POINTS[size];
-  if (!sp || handicap < 2) {
-    return [];
-  }
-
-  const corners: [number, number][] = [sp.upperRight, sp.lowerLeft, sp.lowerRight, sp.upperLeft];
-  const points = corners.slice(0, Math.min(handicap, 4));
-
-  if (handicap >= 6 && sp.leftMid && sp.rightMid) {
-    points.push(sp.leftMid, sp.rightMid);
-  }
-  if (handicap >= 8 && sp.topMid && sp.bottomMid) {
-    points.push(sp.topMid, sp.bottomMid);
-  }
-  if (handicap === 5 || handicap === 7 || handicap === 9) {
-    points.push(sp.center);
-  }
-
-  return points;
-}
-
-// In a handicap game Black's extra stones are already an advantage, so
-// White moves first. Shifting the move number by one flips the parity that
-// `getCurrentColor`/`validateMove` use, without changing how move numbers
-// are actually stored.
 function turnMoveNumber(moveNumber: number, handicap: number): number {
   return handicap >= 2 ? moveNumber + 1 : moveNumber;
 }
@@ -1932,7 +1878,7 @@ app.post('/api/games', async (req, res) => {
   const size = ALLOWED_BOARD_SIZES.includes(requestedSize) ? requestedSize : 19;
   // Handicap placement is only defined for boards with a known star-point layout
   const maxHandicap = size === 19 ? 9 : 5;
-  const handicap = STAR_POINTS[size] ? Math.min(Math.max(0, Number(req.body?.handicap) || 0), maxHandicap) : 0;
+  const handicap = BOARD_SIZES.includes(size) ? Math.min(Math.max(0, Number(req.body?.handicap) || 0), maxHandicap) : 0;
   // A handicap game's komi is just a tie-breaker (0.5 or 0 — the handicap
   // stones are the real compensation); an even game picks from the values
   // that support correct classic scoring under each rule set. Anything

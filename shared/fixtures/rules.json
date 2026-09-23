@@ -1,0 +1,1562 @@
+{
+  "version": 1,
+  "generatedBy": "scripts/generate-rule-fixtures.mjs",
+  "reference": "shared/src/index.ts",
+  "moveSequences": [
+    {
+      "name": "capture a single stone in the centre",
+      "size": 9,
+      "steps": [
+        {
+          "color": "black",
+          "x": 4,
+          "y": 3,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 4,
+          "y": 4,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 3,
+          "y": 4,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 8,
+          "y": 8,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 5,
+          "y": 4,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 8,
+          "y": 7,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 4,
+          "y": 5,
+          "valid": true,
+          "captured": [
+            {
+              "x": 4,
+              "y": 4
+            }
+          ]
+        }
+      ],
+      "finalBoard": [
+        ".........",
+        ".........",
+        ".........",
+        "....B....",
+        "...B.B...",
+        "....B....",
+        ".........",
+        "........W",
+        "........W"
+      ]
+    },
+    {
+      "name": "capture a single stone on the edge",
+      "size": 9,
+      "steps": [
+        {
+          "color": "black",
+          "x": 0,
+          "y": 3,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 0,
+          "y": 4,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 0,
+          "y": 5,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 8,
+          "y": 8,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 1,
+          "y": 4,
+          "valid": true,
+          "captured": [
+            {
+              "x": 0,
+              "y": 4
+            }
+          ]
+        }
+      ],
+      "finalBoard": [
+        ".........",
+        ".........",
+        ".........",
+        "B........",
+        ".B.......",
+        "B........",
+        ".........",
+        ".........",
+        "........W"
+      ]
+    },
+    {
+      "name": "capture a single stone in the corner",
+      "size": 9,
+      "steps": [
+        {
+          "color": "black",
+          "x": 1,
+          "y": 0,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 0,
+          "y": 0,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 0,
+          "y": 1,
+          "valid": true,
+          "captured": [
+            {
+              "x": 0,
+              "y": 0
+            }
+          ]
+        }
+      ],
+      "finalBoard": [
+        ".B.......",
+        "B........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        "........."
+      ]
+    },
+    {
+      "name": "capture a two-stone group",
+      "size": 9,
+      "steps": [
+        {
+          "color": "black",
+          "x": 4,
+          "y": 2,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 4,
+          "y": 3,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 3,
+          "y": 3,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 4,
+          "y": 4,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 3,
+          "y": 4,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 8,
+          "y": 8,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 5,
+          "y": 3,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 8,
+          "y": 7,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 5,
+          "y": 4,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 8,
+          "y": 6,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 4,
+          "y": 5,
+          "valid": true,
+          "captured": [
+            {
+              "x": 4,
+              "y": 4
+            },
+            {
+              "x": 4,
+              "y": 3
+            }
+          ]
+        }
+      ],
+      "finalBoard": [
+        ".........",
+        ".........",
+        "....B....",
+        "...B.B...",
+        "...B.B...",
+        "....B....",
+        "........W",
+        "........W",
+        "........W"
+      ]
+    },
+    {
+      "name": "suicide is rejected",
+      "size": 9,
+      "steps": [
+        {
+          "color": "black",
+          "x": 8,
+          "y": 8,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 1,
+          "y": 0,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 8,
+          "y": 7,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 0,
+          "y": 1,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 0,
+          "y": 0,
+          "valid": false,
+          "error": "Move is suicide"
+        }
+      ],
+      "finalBoard": [
+        ".W.......",
+        "W........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        "........B",
+        "........B"
+      ]
+    },
+    {
+      "name": "filling your own last liberty is legal when it captures",
+      "size": 9,
+      "steps": [
+        {
+          "color": "black",
+          "x": 0,
+          "y": 2,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 0,
+          "y": 1,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 1,
+          "y": 2,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 1,
+          "y": 1,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 2,
+          "y": 1,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 1,
+          "y": 0,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 2,
+          "y": 0,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 8,
+          "y": 8,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 0,
+          "y": 0,
+          "valid": true,
+          "captured": [
+            {
+              "x": 1,
+              "y": 0
+            },
+            {
+              "x": 1,
+              "y": 1
+            },
+            {
+              "x": 0,
+              "y": 1
+            }
+          ]
+        }
+      ],
+      "finalBoard": [
+        "B.B......",
+        "..B......",
+        "BB.......",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        "........W"
+      ]
+    },
+    {
+      "name": "ko: taking back immediately is rejected, and allowed after a play elsewhere",
+      "size": 9,
+      "steps": [
+        {
+          "color": "black",
+          "x": 3,
+          "y": 2,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 4,
+          "y": 2,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 2,
+          "y": 3,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 5,
+          "y": 3,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 3,
+          "y": 4,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 4,
+          "y": 4,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 8,
+          "y": 8,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 3,
+          "y": 3,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 4,
+          "y": 3,
+          "valid": true,
+          "captured": [
+            {
+              "x": 3,
+              "y": 3
+            }
+          ]
+        },
+        {
+          "color": "white",
+          "x": 3,
+          "y": 3,
+          "valid": false,
+          "error": "Move violates the superko rule (position already occurred)"
+        },
+        {
+          "color": "white",
+          "x": 0,
+          "y": 8,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 1,
+          "y": 8,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 3,
+          "y": 3,
+          "valid": true,
+          "captured": [
+            {
+              "x": 4,
+              "y": 3
+            }
+          ]
+        }
+      ],
+      "finalBoard": [
+        ".........",
+        ".........",
+        "...BW....",
+        "..BW.W...",
+        "...BW....",
+        ".........",
+        ".........",
+        ".........",
+        "WB......B"
+      ]
+    },
+    {
+      "name": "playing out of turn is rejected",
+      "size": 9,
+      "steps": [
+        {
+          "color": "black",
+          "x": 2,
+          "y": 2,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "black",
+          "x": 3,
+          "y": 3,
+          "valid": false,
+          "error": "It is white's turn"
+        },
+        {
+          "color": "white",
+          "x": 3,
+          "y": 3,
+          "valid": true,
+          "captured": []
+        }
+      ],
+      "finalBoard": [
+        ".........",
+        ".........",
+        "..B......",
+        "...W.....",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        "........."
+      ]
+    },
+    {
+      "name": "an occupied point is rejected",
+      "size": 9,
+      "steps": [
+        {
+          "color": "black",
+          "x": 2,
+          "y": 2,
+          "valid": true,
+          "captured": []
+        },
+        {
+          "color": "white",
+          "x": 2,
+          "y": 2,
+          "valid": false,
+          "error": "Point is already occupied"
+        },
+        {
+          "color": "white",
+          "x": 3,
+          "y": 3,
+          "valid": true,
+          "captured": []
+        }
+      ],
+      "finalBoard": [
+        ".........",
+        ".........",
+        "..B......",
+        "...W.....",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        "........."
+      ]
+    },
+    {
+      "name": "a point off the board is rejected",
+      "size": 9,
+      "steps": [
+        {
+          "color": "black",
+          "x": 9,
+          "y": 4,
+          "valid": false,
+          "error": "Point is outside the board"
+        },
+        {
+          "color": "black",
+          "x": -1,
+          "y": 4,
+          "valid": false,
+          "error": "Point is outside the board"
+        },
+        {
+          "color": "black",
+          "x": 4,
+          "y": 9,
+          "valid": false,
+          "error": "Point is outside the board"
+        },
+        {
+          "color": "black",
+          "x": 0,
+          "y": 0,
+          "valid": true,
+          "captured": []
+        }
+      ],
+      "finalBoard": [
+        "B........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        "........."
+      ]
+    }
+  ],
+  "scoring": [
+    {
+      "name": "split board, no captures",
+      "size": 9,
+      "board": [
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW...."
+      ],
+      "captures": {
+        "black": 0,
+        "white": 0
+      },
+      "komi": 6.5,
+      "dead": [],
+      "seki": [],
+      "expect": {
+        "black": 27,
+        "white": 42.5,
+        "winner": "white",
+        "margin": 15.5,
+        "blackTerritory": 27,
+        "whiteTerritory": 36
+      }
+    },
+    {
+      "name": "split board with komi 0",
+      "size": 9,
+      "board": [
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW...."
+      ],
+      "captures": {
+        "black": 0,
+        "white": 0
+      },
+      "komi": 0,
+      "dead": [],
+      "seki": [],
+      "expect": {
+        "black": 27,
+        "white": 36,
+        "winner": "white",
+        "margin": 9,
+        "blackTerritory": 27,
+        "whiteTerritory": 36
+      }
+    },
+    {
+      "name": "a dead stone counts as a prisoner and its point as territory",
+      "size": 9,
+      "board": [
+        "..BW.....",
+        "..BW.....",
+        "..BW.....",
+        "..BWB....",
+        "..BW.....",
+        "..BW.....",
+        "..BW.....",
+        "..BW.....",
+        "..BW....."
+      ],
+      "captures": {
+        "black": 0,
+        "white": 0
+      },
+      "komi": 6.5,
+      "dead": [
+        {
+          "x": 4,
+          "y": 3
+        }
+      ],
+      "seki": [],
+      "expect": {
+        "black": 18,
+        "white": 52.5,
+        "winner": "white",
+        "margin": 34.5,
+        "blackTerritory": 18,
+        "whiteTerritory": 45
+      }
+    },
+    {
+      "name": "prisoners already taken count towards the score",
+      "size": 9,
+      "board": [
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW....",
+        "...BW...."
+      ],
+      "captures": {
+        "black": 7,
+        "white": 2
+      },
+      "komi": 6.5,
+      "dead": [],
+      "seki": [],
+      "expect": {
+        "black": 34,
+        "white": 44.5,
+        "winner": "white",
+        "margin": 10.5,
+        "blackTerritory": 27,
+        "whiteTerritory": 36
+      }
+    }
+  ],
+  "handicap": [
+    {
+      "size": 9,
+      "handicap": 2,
+      "points": [
+        {
+          "x": 6,
+          "y": 2
+        },
+        {
+          "x": 2,
+          "y": 6
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 9,
+      "handicap": 3,
+      "points": [
+        {
+          "x": 6,
+          "y": 2
+        },
+        {
+          "x": 2,
+          "y": 6
+        },
+        {
+          "x": 6,
+          "y": 6
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 9,
+      "handicap": 4,
+      "points": [
+        {
+          "x": 6,
+          "y": 2
+        },
+        {
+          "x": 2,
+          "y": 6
+        },
+        {
+          "x": 6,
+          "y": 6
+        },
+        {
+          "x": 2,
+          "y": 2
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 9,
+      "handicap": 5,
+      "points": [
+        {
+          "x": 6,
+          "y": 2
+        },
+        {
+          "x": 2,
+          "y": 6
+        },
+        {
+          "x": 6,
+          "y": 6
+        },
+        {
+          "x": 2,
+          "y": 2
+        },
+        {
+          "x": 4,
+          "y": 4
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 9,
+      "handicap": 6,
+      "points": [
+        {
+          "x": 6,
+          "y": 2
+        },
+        {
+          "x": 2,
+          "y": 6
+        },
+        {
+          "x": 6,
+          "y": 6
+        },
+        {
+          "x": 2,
+          "y": 2
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 9,
+      "handicap": 7,
+      "points": [
+        {
+          "x": 6,
+          "y": 2
+        },
+        {
+          "x": 2,
+          "y": 6
+        },
+        {
+          "x": 6,
+          "y": 6
+        },
+        {
+          "x": 2,
+          "y": 2
+        },
+        {
+          "x": 4,
+          "y": 4
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 9,
+      "handicap": 8,
+      "points": [
+        {
+          "x": 6,
+          "y": 2
+        },
+        {
+          "x": 2,
+          "y": 6
+        },
+        {
+          "x": 6,
+          "y": 6
+        },
+        {
+          "x": 2,
+          "y": 2
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 9,
+      "handicap": 9,
+      "points": [
+        {
+          "x": 6,
+          "y": 2
+        },
+        {
+          "x": 2,
+          "y": 6
+        },
+        {
+          "x": 6,
+          "y": 6
+        },
+        {
+          "x": 2,
+          "y": 2
+        },
+        {
+          "x": 4,
+          "y": 4
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 13,
+      "handicap": 2,
+      "points": [
+        {
+          "x": 9,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 13,
+      "handicap": 3,
+      "points": [
+        {
+          "x": 9,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 9
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 13,
+      "handicap": 4,
+      "points": [
+        {
+          "x": 9,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 9
+        },
+        {
+          "x": 3,
+          "y": 3
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 13,
+      "handicap": 5,
+      "points": [
+        {
+          "x": 9,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 9
+        },
+        {
+          "x": 3,
+          "y": 3
+        },
+        {
+          "x": 6,
+          "y": 6
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 13,
+      "handicap": 6,
+      "points": [
+        {
+          "x": 9,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 9
+        },
+        {
+          "x": 3,
+          "y": 3
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 13,
+      "handicap": 7,
+      "points": [
+        {
+          "x": 9,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 9
+        },
+        {
+          "x": 3,
+          "y": 3
+        },
+        {
+          "x": 6,
+          "y": 6
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 13,
+      "handicap": 8,
+      "points": [
+        {
+          "x": 9,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 9
+        },
+        {
+          "x": 3,
+          "y": 3
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 13,
+      "handicap": 9,
+      "points": [
+        {
+          "x": 9,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 9
+        },
+        {
+          "x": 3,
+          "y": 3
+        },
+        {
+          "x": 6,
+          "y": 6
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 19,
+      "handicap": 2,
+      "points": [
+        {
+          "x": 15,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 15
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 19,
+      "handicap": 3,
+      "points": [
+        {
+          "x": 15,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 15
+        },
+        {
+          "x": 15,
+          "y": 15
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 19,
+      "handicap": 4,
+      "points": [
+        {
+          "x": 15,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 15
+        },
+        {
+          "x": 15,
+          "y": 15
+        },
+        {
+          "x": 3,
+          "y": 3
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 19,
+      "handicap": 5,
+      "points": [
+        {
+          "x": 15,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 15
+        },
+        {
+          "x": 15,
+          "y": 15
+        },
+        {
+          "x": 3,
+          "y": 3
+        },
+        {
+          "x": 9,
+          "y": 9
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 19,
+      "handicap": 6,
+      "points": [
+        {
+          "x": 15,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 15
+        },
+        {
+          "x": 15,
+          "y": 15
+        },
+        {
+          "x": 3,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 15,
+          "y": 9
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 19,
+      "handicap": 7,
+      "points": [
+        {
+          "x": 15,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 15
+        },
+        {
+          "x": 15,
+          "y": 15
+        },
+        {
+          "x": 3,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 15,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 9
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 19,
+      "handicap": 8,
+      "points": [
+        {
+          "x": 15,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 15
+        },
+        {
+          "x": 15,
+          "y": 15
+        },
+        {
+          "x": 3,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 15,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 3
+        },
+        {
+          "x": 9,
+          "y": 15
+        }
+      ],
+      "komi": 0.5
+    },
+    {
+      "size": 19,
+      "handicap": 9,
+      "points": [
+        {
+          "x": 15,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 15
+        },
+        {
+          "x": 15,
+          "y": 15
+        },
+        {
+          "x": 3,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 15,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 3
+        },
+        {
+          "x": 9,
+          "y": 15
+        },
+        {
+          "x": 9,
+          "y": 9
+        }
+      ],
+      "komi": 0.5
+    }
+  ],
+  "clocks": [
+    {
+      "name": "inside main time",
+      "state": {
+        "remainingMs": 600000,
+        "periodsLeft": 5
+      },
+      "byoyomiSeconds": 30,
+      "elapsedMs": 10000,
+      "expect": {
+        "timedOut": false,
+        "after": {
+          "remainingMs": 590000,
+          "periodsLeft": 5
+        }
+      }
+    },
+    {
+      "name": "exactly main time",
+      "state": {
+        "remainingMs": 600000,
+        "periodsLeft": 5
+      },
+      "byoyomiSeconds": 30,
+      "elapsedMs": 600000,
+      "expect": {
+        "timedOut": false,
+        "after": {
+          "remainingMs": 0,
+          "periodsLeft": 5
+        }
+      }
+    },
+    {
+      "name": "into the first period",
+      "state": {
+        "remainingMs": 5000,
+        "periodsLeft": 5
+      },
+      "byoyomiSeconds": 30,
+      "elapsedMs": 20000,
+      "expect": {
+        "timedOut": false,
+        "after": {
+          "remainingMs": 0,
+          "periodsLeft": 5
+        }
+      }
+    },
+    {
+      "name": "a whole period burned",
+      "state": {
+        "remainingMs": 0,
+        "periodsLeft": 5
+      },
+      "byoyomiSeconds": 30,
+      "elapsedMs": 31000,
+      "expect": {
+        "timedOut": false,
+        "after": {
+          "remainingMs": 0,
+          "periodsLeft": 4
+        }
+      }
+    },
+    {
+      "name": "two whole periods burned",
+      "state": {
+        "remainingMs": 0,
+        "periodsLeft": 5
+      },
+      "byoyomiSeconds": 30,
+      "elapsedMs": 61000,
+      "expect": {
+        "timedOut": false,
+        "after": {
+          "remainingMs": 0,
+          "periodsLeft": 3
+        }
+      }
+    },
+    {
+      "name": "moving within a period costs nothing",
+      "state": {
+        "remainingMs": 0,
+        "periodsLeft": 3
+      },
+      "byoyomiSeconds": 30,
+      "elapsedMs": 29999,
+      "expect": {
+        "timedOut": false,
+        "after": {
+          "remainingMs": 0,
+          "periodsLeft": 3
+        }
+      }
+    },
+    {
+      "name": "the last period runs out",
+      "state": {
+        "remainingMs": 0,
+        "periodsLeft": 1
+      },
+      "byoyomiSeconds": 30,
+      "elapsedMs": 31000,
+      "expect": {
+        "timedOut": true,
+        "after": {
+          "remainingMs": 0,
+          "periodsLeft": 0
+        }
+      }
+    },
+    {
+      "name": "correspondence: a day per move",
+      "state": {
+        "remainingMs": 0,
+        "periodsLeft": 1
+      },
+      "byoyomiSeconds": 86400,
+      "elapsedMs": 3600000,
+      "expect": {
+        "timedOut": false,
+        "after": {
+          "remainingMs": 0,
+          "periodsLeft": 1
+        }
+      }
+    }
+  ],
+  "timeControls": [
+    {
+      "name": "unlimited",
+      "preset": null
+    },
+    {
+      "name": "standard",
+      "preset": {
+        "mainTimeSeconds": 600,
+        "byoyomiSeconds": 30,
+        "byoyomiPeriods": 5
+      }
+    },
+    {
+      "name": "correspondence",
+      "preset": {
+        "mainTimeSeconds": 0,
+        "byoyomiSeconds": 86400,
+        "byoyomiPeriods": 1
+      }
+    },
+    {
+      "name": "nonsense",
+      "preset": null
+    }
+  ],
+  "presets": {
+    "standard": {
+      "mainTimeSeconds": 600,
+      "byoyomiSeconds": 30,
+      "byoyomiPeriods": 5
+    },
+    "correspondence": {
+      "mainTimeSeconds": 0,
+      "byoyomiSeconds": 86400,
+      "byoyomiPeriods": 1
+    }
+  }
+}

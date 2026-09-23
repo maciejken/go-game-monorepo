@@ -1,3 +1,4 @@
+export * from './clock.js';
 export type Color = 'black' | 'white';
 export type Board = (Color | null)[][];
 export interface Point {
@@ -42,3 +43,5 @@ export interface ScoreResult {
 }
 export declare function findSekiPartnerStones(board: Board, point: Point): Point[];
 export declare function scoreBoard(board: Board, captures: Captures, komi: number, declaredSekiPoints?: Point[]): ScoreResult;
+export declare function getHandicapPoints(size: number, handicap: number): [number, number][];
+export declare const BOARD_SIZES: number[];
