@@ -242,5 +242,11 @@
   "opponentUsername or ai is required": "opponentUsername ou ai est requis",
   "you play %@": "vous jouez %@",
   "Offline": "Hors ligne",
-  "Offline — showing games saved on this device": "Hors ligne — seules les parties enregistrées sur cet appareil sont affichées"
+  "Offline — showing games saved on this device": "Hors ligne — seules les parties enregistrées sur cet appareil sont affichées",
+  "Nearby": "À proximité",
+  "Host a game": "Créer une partie",
+  "Join a game": "Rejoindre une partie",
+  "Joining…": "Connexion…",
+  "Looking for games nearby…": "Recherche de parties à proximité…",
+  "Waiting for a nearby player to join…": "En attente d'un joueur à proximité…"
 }

@@ -242,5 +242,11 @@
   "opponentUsername or ai is required": "opponentUsername or ai is required",
   "you play %@": "you play %@",
   "Offline": "Offline",
-  "Offline — showing games saved on this device": "Offline — showing games saved on this device"
+  "Offline — showing games saved on this device": "Offline — showing games saved on this device",
+  "Nearby": "Nearby",
+  "Host a game": "Host a game",
+  "Join a game": "Join a game",
+  "Joining…": "Joining…",
+  "Looking for games nearby…": "Looking for games nearby…",
+  "Waiting for a nearby player to join…": "Waiting for a nearby player to join…"
 }

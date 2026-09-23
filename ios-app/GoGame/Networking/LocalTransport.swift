@@ -199,7 +199,7 @@ struct LocalTransport: GameTransport {
             whiteUserId: nil,
             currentColor: flow.currentColor,
             captures: flow.captures,
-            myColor: .both,
+            myColor: record.myColor,
             pendingInviteResponse: false,
             lastMove: lastMovePoint(record.gameEvents),
             lastEvent: lastEvent,

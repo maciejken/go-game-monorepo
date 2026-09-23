@@ -59,6 +59,13 @@ struct ServerTransport: GameTransport {
 // Which transport a given game needs. Offline games carry a recognisable
 // id (see offlineGameIdPrefix), so nothing has to be looked up or passed
 // down through the views to know where a game lives.
+//
+// A game joined from a nearby device is the exception: it has the host's id,
+// which says nothing about where it is from this side, so the open
+// connection is what identifies it.
 func makeTransport(forGameId id: String) -> GameTransport {
-    isOfflineGameId(id) ? LocalTransport() : ServerTransport()
+    if let nearby = NearbySessions.shared.transport(forGameId: id) {
+        return nearby
+    }
+    return isOfflineGameId(id) ? LocalTransport() : ServerTransport()
 }

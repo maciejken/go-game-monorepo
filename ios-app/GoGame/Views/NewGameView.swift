@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // Native Form port of client/src/pages/Home.tsx's new-game modal — the web
 // version uses hand-built range sliders with tick marks; SwiftUI's own
@@ -11,7 +12,11 @@ struct NewGameView: View {
     @Environment(QuickGameStore.self) private var quickGame
 
     @State private var title = ""
-    @State private var mode = "remote" // "offline" | "local" | "remote" | "gnugo"
+    @State private var mode = "remote" // "offline" | "nearby" | "local" | "remote" | "gnugo"
+    // Nearby games come in two halves: one device offers the game, the
+    // other joins it.
+    @State private var nearbyRole = "host" // "host" | "join"
+    @State private var guest = NearbyGuest()
     @State private var boardSize = 19
     @State private var handicap = 0
     @State private var komi: Double = 6.5
@@ -72,8 +77,14 @@ struct NewGameView: View {
                         Text("Remote").tag("remote")
                         Text("Vs. Computer").tag("gnugo")
                         Text("Offline").tag("offline")
+                        Text("Nearby").tag("nearby")
                     }
                     .onChange(of: mode) { _, newMode in
+                        if newMode == "nearby" && nearbyRole == "join" {
+                            guest.startLooking(as: playerName)
+                        } else {
+                            guest.stop()
+                        }
                         if newMode != "remote" {
                             usernameSuggestions = []
                             opponentError = nil
@@ -159,7 +170,7 @@ struct NewGameView: View {
                     }
                 }
 
-                if mode == "remote" || mode == "gnugo" {
+                if mode == "remote" || mode == "gnugo" || (mode == "nearby" && nearbyRole == "host") {
                     Section("Your color") {
                         Picker("Color", selection: $color) {
                             Text("Black").tag("black")
@@ -199,6 +210,28 @@ struct NewGameView: View {
                     }
                 }
 
+                if mode == "nearby" {
+                    Section("Nearby") {
+                        Picker("Nearby", selection: $nearbyRole) {
+                            Text("Host a game").tag("host")
+                            Text("Join a game").tag("join")
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .onChange(of: nearbyRole) { _, role in
+                            if role == "join" {
+                                guest.startLooking(as: playerName)
+                            } else {
+                                guest.stop()
+                            }
+                        }
+
+                        if nearbyRole == "join" {
+                            nearbyJoinRows
+                        }
+                    }
+                }
+
                 // No section header: the picker's own label already says
                 // "Time control", and the two read as a stutter.
                 Section {
@@ -215,6 +248,20 @@ struct NewGameView: View {
                     Text("Saves these settings as your quick game preset when the game starts, and shakes start one like it.")
                 }
             }
+            // Joining is the guest's "Start": the board opens as soon as
+            // the host lets it in.
+            .onChange(of: guest.phase) { _, phase in
+                if case let .joined(gameId) = phase {
+                    onCreated(gameId)
+                }
+            }
+            .onDisappear {
+                // Browsing stops with the sheet, but a game that was
+                // actually joined keeps its connection — the board it just
+                // opened is playing over it.
+                if case .joined = guest.phase { return }
+                guest.stop()
+            }
             .navigationTitle("New Game")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -222,11 +269,67 @@ struct NewGameView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Start") { Task { await create() } }
-                        .disabled(isCreating)
+                    if mode != "nearby" || nearbyRole == "host" {
+                        Button("Start") { Task { await create() } }
+                            .disabled(isCreating)
+                    }
                 }
             }
         }
+    }
+
+    // What the other device shows this player as. The remembered session's
+    // name when there is one, the device's own name otherwise — a game
+    // offered by "iPhone" is still easier to pick out of a list than one
+    // offered by nobody.
+    private var playerName: String {
+        if let username = session.currentUser?.username, !username.isEmpty {
+            return username
+        }
+        return UIDevice.current.name
+    }
+
+    @ViewBuilder
+    private var nearbyJoinRows: some View {
+        switch guest.phase {
+        case .joining:
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("Joining…")
+            }
+        case let .failed(reason):
+            Text(reason).foregroundStyle(.red)
+        default:
+            if guest.games.isEmpty {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Looking for games nearby…")
+                }
+            } else {
+                ForEach(guest.games) { game in
+                    Button {
+                        guest.join(game)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(game.title ?? game.hostName)
+                            Text(nearbyGameSummary(game))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func nearbyGameSummary(_ game: NearbyGame) -> String {
+        let colour = game.yourColor == .black ? String(localized: "Black") : String(localized: "White")
+        var parts = [game.hostName, "\(game.size)×\(game.size)"]
+        if game.handicap > 0 {
+            parts.append(String(format: String(localized: "handicap %lld"), game.handicap))
+        }
+        parts.append(String(format: String(localized: "you play %@"), colour))
+        return parts.joined(separator: " · ")
     }
 
     // Saved only once the game itself was created, so a form that the
@@ -328,6 +431,25 @@ struct NewGameView: View {
                     blackName: myName,
                     whiteName: myName
                 )
+                onCreated(record.id)
+                return
+            }
+            // A nearby game is an offline game with the other seat open: it
+            // is held here, refereed here, and the other device plays it
+            // over the link (see NearbyHost).
+            if mode == "nearby" {
+                let myName = playerName
+                let hostColor: StoneColor = color == "white" ? .white : .black
+                let record = try OfflineGameStore.shared.create(
+                    size: boardSize,
+                    handicap: handicap,
+                    komi: komi,
+                    title: trimmedTitle.isEmpty ? nil : trimmedTitle,
+                    blackName: hostColor == .black ? myName : nil,
+                    whiteName: hostColor == .white ? myName : nil,
+                    hostColor: hostColor
+                )
+                NearbyHost().start(record: record, hostName: myName)
                 onCreated(record.id)
                 return
             }

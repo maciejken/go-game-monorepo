@@ -26,7 +26,10 @@ struct GameState: Codable {
     let whiteUserId: String?
     var currentColor: StoneColor
     var captures: Captures
-    let myColor: MyColor?
+    // var, not let: a game held on another device is answered from that
+    // device's side, and the host rewrites this to the guest's colour
+    // before sending it (see PeerHostService).
+    var myColor: MyColor?
     // True only for the invited side of a remote-game invite that hasn't
     // been responded to yet — drives the accept/reject confirmation sheet.
     let pendingInviteResponse: Bool
@@ -78,7 +81,7 @@ struct GameState: Codable {
 }
 
 // Mirrors client/src/services/api.ts's MoveResponse.
-struct MoveResponse: Decodable {
+struct MoveResponse: Codable {
     let board: Board
     let capturedPoints: [Point]
     let nextColor: StoneColor
@@ -86,26 +89,26 @@ struct MoveResponse: Decodable {
 }
 
 // Mirrors client/src/services/api.ts's ValidateMoveResponse.
-struct ValidateMoveResponse: Decodable {
+struct ValidateMoveResponse: Codable {
     let valid: Bool
     let error: String?
 }
 
 // Mirrors client/src/services/api.ts's PassResponse.
-struct PassResponse: Decodable {
+struct PassResponse: Codable {
     let status: String
     let result: String?
     let nextColor: StoneColor
 }
 
 // Mirrors client/src/services/api.ts's ResignResponse.
-struct ResignResponse: Decodable {
+struct ResignResponse: Codable {
     let status: String
     let result: String?
 }
 
 // Mirrors client/src/services/api.ts's FinalizeScoringResponse.
-struct FinalizeScoringResponse: Decodable {
+struct FinalizeScoringResponse: Codable {
     let status: String
     let result: String?
     let captures: Captures
@@ -114,7 +117,7 @@ struct FinalizeScoringResponse: Decodable {
 // Mirrors client/src/services/api.ts's ReopenScoringResponse — a union of
 // three shapes ('requested'/'cancelled'/'confirmed'), collapsed into one
 // struct with optional fields since Codable ignores whichever aren't present.
-struct ReopenScoringResponse: Decodable {
+struct ReopenScoringResponse: Codable {
     let action: String
     let pendingReopenBy: StoneColor?
     let status: String?

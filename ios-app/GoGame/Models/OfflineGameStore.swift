@@ -80,6 +80,10 @@ struct OfflineGameRecord: Codable {
     // why these are optional.
     var blackName: String?
     var whiteName: String?
+    // Set only for a game shared with a nearby device: the colour this
+    // device plays, the guest taking the other. nil means nobody else is
+    // playing and both colours are this player's.
+    var hostColor: StoneColor?
     // Only set once scoring has been finalised: a resignation's result is
     // derivable from the log, a counted one is not.
     var scoredResult: String?
@@ -92,6 +96,16 @@ struct OfflineGameRecord: Codable {
 
     var gameEvents: [GameEvent] {
         events.compactMap(\.event)
+    }
+
+    // Which side this device plays: one colour once the game is shared with
+    // a nearby device, both while it is nobody else's.
+    var myColor: MyColor {
+        switch hostColor {
+        case .black: return .black
+        case .white: return .white
+        case nil: return .both
+        }
     }
 }
 
@@ -146,7 +160,8 @@ final class OfflineGameStore {
         komi: Double?,
         title: String?,
         blackName: String? = nil,
-        whiteName: String? = nil
+        whiteName: String? = nil,
+        hostColor: StoneColor? = nil
     ) throws -> OfflineGameRecord {
         let configuration = GameConfiguration(size: size, handicap: handicap, komi: komi)
         let now = Int(Date().timeIntervalSince1970 * 1000)
@@ -163,6 +178,7 @@ final class OfflineGameStore {
             sekiPoints: [],
             blackName: blackName,
             whiteName: whiteName,
+            hostColor: hostColor,
             scoredResult: nil,
             scoredBlack: nil,
             scoredWhite: nil
@@ -229,7 +245,7 @@ extension OfflineGameRecord {
             whiteUsername: displayName(whiteName, colour: .white),
             blackUserId: nil,
             whiteUserId: nil,
-            myColor: .both,
+            myColor: myColor,
             isAiOpponent: false,
             gnugoLevel: nil,
             timeControl: nil,

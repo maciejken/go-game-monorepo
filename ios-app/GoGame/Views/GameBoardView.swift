@@ -69,6 +69,22 @@ struct GameBoardView: View {
     // offline game. Chosen from the id unless a caller passes one.
     var transportOverride: GameTransport?
     private var transport: GameTransport { transportOverride ?? makeTransport(forGameId: gameId) }
+
+    // Set only while this game is the one being shared with, or played on,
+    // a nearby device — which side of the link this is decides how the
+    // board hears about changes and who it has to tell.
+    private var nearbyHost: NearbyHost? {
+        let host = NearbySessions.shared.host
+        return host?.gameId == gameId ? host : nil
+    }
+
+    private var nearbyGuestClient: PeerClient? {
+        (NearbySessions.shared.transport(forGameId: gameId) as? PeerTransport)?.client
+    }
+
+    private func notifyNearbyGuest() {
+        nearbyHost?.notifyChanged()
+    }
     @AppStorage("go-coordinate-entry") private var coordinateEntryEnabled = true
     // Watching a board isn't touching it, so the screen would otherwise dim
     // mid-game — but that is a battery trade, so it stays a choice.
@@ -120,6 +136,18 @@ struct GameBoardView: View {
         // user pulled to refresh. listen() refetches on every (re)connect,
         // so the restart also picks up whatever was missed while away.
         .task(id: socketGeneration) {
+            // A game held on this device has no server to hear from: either
+            // nobody else can change it, or the other device says so itself
+            // over the link.
+            if let guest = nearbyGuestClient {
+                await guest.setOnChanged { Task { await load(surfacingErrors: false) } }
+                return
+            }
+            if let host = nearbyHost {
+                host.onGuestActed = { Task { await load(surfacingErrors: false) } }
+                return
+            }
+            if isOfflineGameId(gameId) { return }
             await LiveSocket.listen(path: "/ws/games/\(gameId)") {
                 guard !isDeleted else { return }
                 await load(surfacingErrors: false)
@@ -151,6 +179,13 @@ struct GameBoardView: View {
         .onDisappear {
             quickGame.isBoardOpen = false
             UIApplication.shared.isIdleTimerDisabled = false
+            nearbyHost?.onGuestActed = nil
+            // A guest's game is only reachable from this screen, so leaving
+            // it hangs up. The host starts offering the game again, which is
+            // how to come back.
+            if nearbyGuestClient != nil {
+                NearbySessions.shared.guest?.stop()
+            }
         }
         // Takes effect on the board already open, not just the next one.
         .onChange(of: keepScreenAwake) { _, keepAwake in
@@ -297,6 +332,14 @@ struct GameBoardView: View {
     private func boardContent(_ game: GameState) -> some View {
         ScrollView {
             VStack(spacing: 12) {
+                // While the other seat is empty there is nobody to play
+                // against, and the board would otherwise look like an
+                // ordinary game waiting on a move that can't come.
+                if nearbyHost?.phase == .waiting {
+                    Text("Waiting for a nearby player to join…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
                 BoardGridView(
                     board: displayedBoard(game),
                     size: game.size,
@@ -1788,6 +1831,7 @@ struct GameBoardView: View {
         defer { isBusy = false }
         do {
             let response = try await transport.makeMove(gameId: gameId, x: x, y: y, color: game.currentColor)
+            notifyNearbyGuest()
             self.game?.board = response.board
             self.game?.currentColor = response.nextColor
             self.game?.captures = response.captures
@@ -1806,6 +1850,7 @@ struct GameBoardView: View {
         defer { isBusy = false }
         do {
             _ = try await transport.pass(gameId: gameId, color: game.currentColor)
+            notifyNearbyGuest()
             await load()
         } catch {
             errorMessage = error.localizedDescription
@@ -1827,6 +1872,7 @@ struct GameBoardView: View {
         }
         do {
             _ = try await transport.resign(gameId: gameId, color: resignColor)
+            notifyNearbyGuest()
             await load()
         } catch {
             errorMessage = error.localizedDescription
@@ -1901,6 +1947,7 @@ struct GameBoardView: View {
         let sekiPoints = pendingSekiKeys.compactMap(parsePointKey)
         do {
             _ = try await transport.finalizeScoring(gameId: gameId, deadPoints: deadPoints, sekiPoints: sekiPoints)
+            notifyNearbyGuest()
             await load()
         } catch {
             errorMessage = error.localizedDescription
@@ -1913,6 +1960,7 @@ struct GameBoardView: View {
         defer { isBusy = false }
         do {
             let response = try await transport.reopenScoring(gameId: gameId)
+            notifyNearbyGuest()
             if response.action == "confirmed" { showResultSheet = false }
             await load()
         } catch {

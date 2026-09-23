@@ -27,6 +27,13 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Igo5 uses the local network to find and play games on nearby devices, with no server involved.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_igo5-game._tcp</string>
+		<string>_igo5-game._udp</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

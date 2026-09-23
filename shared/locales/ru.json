@@ -242,5 +242,11 @@
   "opponentUsername or ai is required": "Требуется opponentUsername или ai",
   "you play %@": "вы играете %@",
   "Offline": "Офлайн",
-  "Offline — showing games saved on this device": "Офлайн — показываем партии, сохранённые на этом устройстве"
+  "Offline — showing games saved on this device": "Офлайн — показываем партии, сохранённые на этом устройстве",
+  "Nearby": "Рядом",
+  "Host a game": "Создать игру",
+  "Join a game": "Присоединиться к игре",
+  "Joining…": "Подключение…",
+  "Looking for games nearby…": "Ищем игры рядом…",
+  "Waiting for a nearby player to join…": "Ждём, пока присоединится игрок рядом…"
 }

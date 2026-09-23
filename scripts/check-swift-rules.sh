@@ -18,6 +18,9 @@ swiftc -O \
   ios-app/GoGame/Models/GameSummary.swift \
   ios-app/GoGame/Networking/GameTransport.swift \
   ios-app/GoGame/Networking/LocalTransport.swift \
+  ios-app/GoGame/Networking/PeerProtocol.swift \
+  ios-app/GoGame/Networking/PeerHostService.swift \
+  ios-app/GoGame/Networking/PeerTransport.swift \
   ios-app/Tests/main.swift \
   -o "$OUT/rule-fixtures"
 "$OUT/rule-fixtures" shared/fixtures/rules.json

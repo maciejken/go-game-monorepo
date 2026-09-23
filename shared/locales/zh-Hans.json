@@ -242,5 +242,11 @@
   "opponentUsername or ai is required": "需要 opponentUsername 或 ai",
   "you play %@": "你执%@",
   "Offline": "离线",
-  "Offline — showing games saved on this device": "离线 — 仅显示保存在本机的对局"
+  "Offline — showing games saved on this device": "离线 — 仅显示保存在本机的对局",
+  "Nearby": "附近",
+  "Host a game": "创建对局",
+  "Join a game": "加入对局",
+  "Joining…": "正在加入…",
+  "Looking for games nearby…": "正在寻找附近的对局…",
+  "Waiting for a nearby player to join…": "正在等待附近的玩家加入…"
 }

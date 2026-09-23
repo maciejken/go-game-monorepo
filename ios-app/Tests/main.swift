@@ -467,6 +467,223 @@ if let flowData = FileManager.default.contents(atPath: flowPath) {
     print("LocalTransport checked against the same \(flowFixtures.cases.count) cases")
 }
 
+// And once more with two devices: the guest's half of the game goes over a
+// link to the host, which referees it with the very same LocalTransport. The
+// link here is a pair of in-memory ends rather than MultipeerConnectivity —
+// what is being checked is the protocol and the host's authority, and those
+// are the same whichever wire carries the bytes.
+final class LoopbackLink: PeerLink {
+    var onReceive: ((Data) -> Void)?
+    weak var other: LoopbackLink?
+
+    func send(_ data: Data) throws {
+        // Delivered off this call, the way a real link does it: a host that
+        // only works when its answer arrives synchronously isn't a host.
+        let destination = other
+        DispatchQueue.global().async { destination?.onReceive?(data) }
+    }
+}
+
+if let flowData = FileManager.default.contents(atPath: flowPath) {
+    let flowFixtures = try JSONDecoder().decode(FlowFixtures.self, from: flowData)
+    let scratch = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("peer-games-\(UUID().uuidString)")
+    let hostTransport = LocalTransport(store: OfflineGameStore(directory: scratch))
+    defer { try? FileManager.default.removeItem(at: scratch) }
+
+    // The host takes white throughout, so black's moves in every fixture
+    // arrive over the link and white's are played on the host itself —
+    // which is exactly the shape of a real game between two devices.
+    let guestColor = StoneColor.black
+
+    for testCase in flowFixtures.cases {
+        let hostEnd = LoopbackLink()
+        let guestEnd = LoopbackLink()
+        hostEnd.other = guestEnd
+        guestEnd.other = hostEnd
+
+        guard
+            let record = try? hostTransport.store.create(
+                size: testCase.size,
+                handicap: testCase.handicap,
+                komi: nil as Double?,
+                title: testCase.name,
+                hostColor: .white
+            )
+        else {
+            expect(false, "PeerTransport/\(testCase.name): could not create the game")
+            continue
+        }
+        let gameId = record.id
+        let label = "PeerTransport/\(testCase.name)"
+
+        let host = PeerHostService(transport: hostTransport, gameId: gameId, guestColor: guestColor, link: hostEnd)
+        let client = PeerClient(link: guestEnd)
+        let guest = PeerTransport(client: client)
+        _ = try runBlocking { await client.start() }
+
+        guard let opening = try? runBlocking({ try await guest.state(gameId: gameId) }) else {
+            expect(false, "\(label) [opening]: the guest could not read the game")
+            continue
+        }
+        expect(
+            opening.currentColor.rawValue == testCase.opening.currentColor,
+            "\(label) [opening]: currentColor \(opening.currentColor.rawValue), expected \(testCase.opening.currentColor)"
+        )
+        // The host answers from the guest's side, not its own.
+        expect(
+            opening.myColor == .black,
+            "\(label) [opening]: myColor \(opening.myColor?.rawValue ?? "nil"), expected black"
+        )
+
+        for (index, action) in testCase.actions.enumerated() {
+            let where_ = "\(label) [action \(index + 1): \(action.type) \(action.color)]"
+            let colour: StoneColor = action.color == "black" ? .black : .white
+            // Each side plays its own stones: the guest's over the link, the
+            // host's on the host.
+            let transport: GameTransport = colour == guestColor ? guest : hostTransport
+            var thrown: String?
+            do {
+                switch action.type {
+                case "move":
+                    _ = try runBlocking {
+                        try await transport.makeMove(gameId: gameId, x: action.x ?? -1, y: action.y ?? -1, color: colour)
+                    }
+                case "pass":
+                    _ = try runBlocking { try await transport.pass(gameId: gameId, color: colour) }
+                default:
+                    _ = try runBlocking { try await transport.resign(gameId: gameId, color: colour) }
+                }
+            } catch {
+                thrown = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+
+            if let rejected = action.expect.rejected {
+                expect(thrown == rejected, "\(where_): refused with \(thrown ?? "nothing"), expected \(rejected)")
+            } else {
+                expect(thrown == nil, "\(where_): unexpectedly refused with \(thrown ?? "")")
+            }
+
+            // Read back through the link every time: what the guest can see
+            // is what the host has saved.
+            guard let state = try? runBlocking({ try await guest.state(gameId: gameId) }) else {
+                expect(false, "\(where_): the guest could not read the game back")
+                continue
+            }
+            if let status = action.expect.status {
+                expect(state.status == status, "\(where_): status \(state.status), expected \(status)")
+            }
+            if let colourExpected = action.expect.currentColor {
+                expect(
+                    state.currentColor.rawValue == colourExpected,
+                    "\(where_): currentColor \(state.currentColor.rawValue), expected \(colourExpected)"
+                )
+            }
+            if let shortResult = action.expect.shortResult {
+                expect(
+                    state.shortResult == shortResult,
+                    "\(where_): shortResult \(state.shortResult ?? "nil"), expected \(shortResult)"
+                )
+            }
+            if let captures = action.expect.captures {
+                expect(
+                    state.captures.black == captures.black && state.captures.white == captures.white,
+                    "\(where_): captures b\(state.captures.black)/w\(state.captures.white), expected b\(captures.black)/w\(captures.white)"
+                )
+            }
+        }
+
+        // Keeps the host alive until the case is done — nothing else holds
+        // it, and a deallocated host answers nobody.
+        _ = host
+    }
+    print("PeerTransport checked against the same \(flowFixtures.cases.count) cases, host refereeing")
+
+    // What the fixtures can't show, because a rules refusal would hide it:
+    // the host refusing the guest the host's own stones at a moment when the
+    // rules would have allowed the move. A guest running a tampered-with app
+    // gets no further than a well-behaved one.
+    func expectRefusal(_ what: String, _ work: @escaping () async throws -> Void) {
+        var refusal: String?
+        do {
+            try runBlocking(work)
+        } catch {
+            refusal = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        expect(
+            refusal == "Those aren't your stones to play.",
+            "PeerTransport/[\(what)]: refused with \(refusal ?? "nothing"), expected the host to refuse it"
+        )
+    }
+
+    let hostEnd = LoopbackLink()
+    let guestEnd = LoopbackLink()
+    hostEnd.other = guestEnd
+    guestEnd.other = hostEnd
+
+    if let record = try? hostTransport.store.create(
+        size: 9,
+        handicap: 0,
+        komi: nil as Double?,
+        title: "authority",
+        hostColor: .white
+    ) {
+        let gameId = record.id
+        let host = PeerHostService(transport: hostTransport, gameId: gameId, guestColor: .black, link: hostEnd)
+        let client = PeerClient(link: guestEnd)
+        let guest = PeerTransport(client: client)
+        _ = try runBlocking { await client.start() }
+
+        // Black's move is the guest's to make, and it lands.
+        var played: String?
+        do {
+            _ = try runBlocking { _ = try await guest.makeMove(gameId: gameId, x: 2, y: 2, color: .black) }
+        } catch {
+            played = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        expect(played == nil, "PeerTransport/[guest plays its own colour]: refused with \(played ?? "")")
+
+        // It is now white's turn, so nothing but the host's authority stands
+        // between the guest and white's stones.
+        expectRefusal("guest plays white on white's turn") {
+            _ = try await guest.makeMove(gameId: gameId, x: 4, y: 4, color: .white)
+        }
+        expectRefusal("guest passes as white") { _ = try await guest.pass(gameId: gameId, color: .white) }
+        // Resigning is allowed off-turn, so this one is refused on colour
+        // alone — a guest must not be able to resign the host's game.
+        expectRefusal("guest resigns as white") { _ = try await guest.resign(gameId: gameId, color: .white) }
+        expectRefusal("guest asks whether white may play") {
+            let validation = try await guest.validateMove(gameId: gameId, x: 4, y: 4, color: .white)
+            guard validation.valid else { throw PeerProtocolError.refused(validation.error ?? "") }
+        }
+
+        // And a guest asking about a game this host isn't sharing gets
+        // nothing back.
+        var strayer: String?
+        do {
+            _ = try runBlocking { _ = try await guest.state(gameId: "offline-somebody-elses-game") }
+        } catch {
+            strayer = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        expect(
+            strayer == "That game isn't being shared.",
+            "PeerTransport/[stray game id]: refused with \(strayer ?? "nothing"), expected the host to refuse it"
+        )
+
+        // The game still says black to move: none of that got through.
+        if let state = try? runBlocking({ try await guest.state(gameId: gameId) }) {
+            expect(
+                state.currentColor == .white && state.status == "in_progress",
+                "PeerTransport/[after refusals]: the game moved on anyway (\(state.currentColor.rawValue)/\(state.status))"
+            )
+        } else {
+            expect(false, "PeerTransport/[after refusals]: the guest could not read the game back")
+        }
+        _ = host
+    } else {
+        expect(false, "PeerTransport/[authority]: could not create the game")
+    }
+}
+
 if failures.isEmpty {
     print("""
     Swift engine agrees with the TypeScript one: \(fixtures.moveSequences.count) sequences, \

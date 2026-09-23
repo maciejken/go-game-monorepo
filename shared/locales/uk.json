@@ -242,5 +242,11 @@
   "opponentUsername or ai is required": "Потрібно вказати opponentUsername або ai",
   "you play %@": "ви граєте %@",
   "Offline": "Офлайн",
-  "Offline — showing games saved on this device": "Офлайн — показуємо партії, збережені на цьому пристрої"
+  "Offline — showing games saved on this device": "Офлайн — показуємо партії, збережені на цьому пристрої",
+  "Nearby": "Поблизу",
+  "Host a game": "Створити гру",
+  "Join a game": "Приєднатися до гри",
+  "Joining…": "Приєднання…",
+  "Looking for games nearby…": "Шукаю ігри поблизу…",
+  "Waiting for a nearby player to join…": "Очікуємо, доки приєднається гравець поблизу…"
 }
