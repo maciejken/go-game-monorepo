@@ -65,6 +65,9 @@ struct GameBoardView: View {
     // way in for anyone it doesn't work for. On by default, since someone
     // who needs it can't discover a setting they can't reach the board to
     // miss; anyone who would rather have the space back turns it off.
+    // Where this game actually lives. The only implementation today is the
+    // server; offline and peer-to-peer games will pass their own.
+    var transport: GameTransport = ServerTransport()
     @AppStorage("go-coordinate-entry") private var coordinateEntryEnabled = true
     // Watching a board isn't touching it, so the screen would otherwise dim
     // mid-game — but that is a battery trade, so it stays a choice.
@@ -1369,7 +1372,7 @@ struct GameBoardView: View {
             guard let typed else { return }
             Task {
                 do {
-                    let result = try await APIClient.validateMove(
+                    let result = try await transport.validateMove(
                         gameId: gameId,
                         x: typed.x,
                         y: typed.y,
@@ -1696,8 +1699,8 @@ struct GameBoardView: View {
                 // refetch) fall through to the plain path below, which only
                 // ever fetches history for a game already confirmed
                 // finished — never repeatedly for one still being played.
-                async let gameFetch = APIClient.withRetry { try await APIClient.getGame(id: gameId) }
-                async let historyFetch = try? APIClient.withRetry { try await APIClient.getGameHistory(id: gameId) }
+                async let gameFetch = APIClient.withRetry { try await transport.state(gameId: gameId) }
+                async let historyFetch = try? APIClient.withRetry { try await transport.history(gameId: gameId) }
                 let fetchedGame = try await gameFetch
                 let fetchedHistory = await historyFetch
                 game = fetchedGame
@@ -1706,7 +1709,7 @@ struct GameBoardView: View {
                     reviewMoveNumber = fetchedHistory.moves.count - 1
                 }
             } else {
-                game = try await APIClient.withRetry { try await APIClient.getGame(id: gameId) }
+                game = try await APIClient.withRetry { try await transport.state(gameId: gameId) }
             }
             pendingDeadKeys = []
             // A pending (unconfirmed) move marker only makes sense for the
@@ -1715,7 +1718,7 @@ struct GameBoardView: View {
             // opponent's move arriving live, etc.), mirrors
             // client/src/pages/Game.tsx's own pendingMove-clearing effect.
             pendingMove = nil
-            if game?.status == "finished", history == nil, let fetched = try? await APIClient.getGameHistory(id: gameId) {
+            if game?.status == "finished", history == nil, let fetched = try? await transport.history(gameId: gameId) {
                 history = fetched
                 reviewMoveNumber = fetched.moves.count - 1
             }
@@ -1767,7 +1770,7 @@ struct GameBoardView: View {
             return
         }
         do {
-            let result = try await APIClient.validateMove(gameId: gameId, x: x, y: y, color: game.currentColor)
+            let result = try await transport.validateMove(gameId: gameId, x: x, y: y, color: game.currentColor)
             if result.valid {
                 pendingMove = Point(x: x, y: y)
             } else {
@@ -1783,7 +1786,7 @@ struct GameBoardView: View {
         isBusy = true
         defer { isBusy = false }
         do {
-            let response = try await APIClient.makeMove(gameId: gameId, x: x, y: y, color: game.currentColor)
+            let response = try await transport.makeMove(gameId: gameId, x: x, y: y, color: game.currentColor)
             self.game?.board = response.board
             self.game?.currentColor = response.nextColor
             self.game?.captures = response.captures
@@ -1801,7 +1804,7 @@ struct GameBoardView: View {
         isBusy = true
         defer { isBusy = false }
         do {
-            _ = try await APIClient.pass(gameId: gameId, color: game.currentColor)
+            _ = try await transport.pass(gameId: gameId, color: game.currentColor)
             await load()
         } catch {
             errorMessage = error.localizedDescription
@@ -1822,7 +1825,7 @@ struct GameBoardView: View {
         case .both, .none: resignColor = game.currentColor
         }
         do {
-            _ = try await APIClient.resign(gameId: gameId, color: resignColor)
+            _ = try await transport.resign(gameId: gameId, color: resignColor)
             await load()
         } catch {
             errorMessage = error.localizedDescription
@@ -1896,7 +1899,7 @@ struct GameBoardView: View {
         let deadPoints = pendingDeadKeys.compactMap(parsePointKey)
         let sekiPoints = pendingSekiKeys.compactMap(parsePointKey)
         do {
-            _ = try await APIClient.finalizeScoring(gameId: gameId, deadPoints: deadPoints, sekiPoints: sekiPoints)
+            _ = try await transport.finalizeScoring(gameId: gameId, deadPoints: deadPoints, sekiPoints: sekiPoints)
             await load()
         } catch {
             errorMessage = error.localizedDescription
@@ -1908,7 +1911,7 @@ struct GameBoardView: View {
         isBusy = true
         defer { isBusy = false }
         do {
-            let response = try await APIClient.reopenScoring(gameId: gameId)
+            let response = try await transport.reopenScoring(gameId: gameId)
             if response.action == "confirmed" { showResultSheet = false }
             await load()
         } catch {
@@ -1928,7 +1931,7 @@ struct GameBoardView: View {
         isDeleted = true
         defer { isBusy = false }
         do {
-            try await APIClient.deleteGame(gameId: gameId)
+            try await transport.deleteGame(gameId: gameId)
             dismiss()
         } catch {
             isDeleted = false
@@ -1972,7 +1975,7 @@ struct GameBoardView: View {
 
     private func exportSgf() async {
         do {
-            let sgf = try await APIClient.getSgf(id: gameId)
+            let sgf = try await transport.sgf(gameId: gameId)
             let safeName = game?.title?
                 .replacingOccurrences(of: "[^a-zA-Z0-9-_ ]", with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespaces)
@@ -2005,7 +2008,7 @@ struct GameBoardView: View {
         }
         defer { isBusy = false }
         do {
-            try await APIClient.respondToInvite(gameId: gameId, accept: accept)
+            try await transport.respondToInvite(gameId: gameId, accept: accept)
             if accept {
                 await load()
             } else {
@@ -2027,7 +2030,7 @@ struct GameBoardView: View {
     // there's nothing here to visibly wait for either way.
     private func recomputeAiMove() async {
         do {
-            try await APIClient.recomputeAiMove(gameId: gameId)
+            try await transport.recomputeAiMove(gameId: gameId)
         } catch {
             errorMessage = error.localizedDescription
         }
