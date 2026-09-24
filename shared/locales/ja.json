@@ -263,5 +263,13 @@
   "Play on this device, or with someone nearby. Games stay here until you publish them.": "この端末で、または近くの人と対局できます。対局は公開するまでこの端末に残ります。",
   "Playing without an account — these games are saved on this device": "アカウントなしでプレイ中 — これらの対局はこの端末に保存されています",
   "Sign in to play other people, and to keep your games on the server.": "サインインすると、他の人と対局でき、対局をサーバーに保存できます。",
-  "Account": "アカウント"
+  "Account": "アカウント",
+  "Local game": "ローカル対局",
+  "Offline game": "オフライン対局",
+  "Nearby game": "近くの端末との対局",
+  "Game vs computer": "コンピュータとの対局",
+  "Remote game": "リモート対局",
+  "Your move": "あなたの番です",
+  "%@'s move": "%@ の番です",
+  "Opponent's move": "相手の番です"
 }

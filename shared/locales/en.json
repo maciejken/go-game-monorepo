@@ -263,5 +263,13 @@
   "Play on this device, or with someone nearby. Games stay here until you publish them.": "Play on this device, or with someone nearby. Games stay here until you publish them.",
   "Playing without an account — these games are saved on this device": "Playing without an account — these games are saved on this device",
   "Sign in to play other people, and to keep your games on the server.": "Sign in to play other people, and to keep your games on the server.",
-  "Account": "Account"
+  "Account": "Account",
+  "Local game": "Local game",
+  "Offline game": "Offline game",
+  "Nearby game": "Nearby game",
+  "Game vs computer": "Game vs computer",
+  "Remote game": "Remote game",
+  "Your move": "Your move",
+  "%@'s move": "%@'s move",
+  "Opponent's move": "Opponent's move"
 }

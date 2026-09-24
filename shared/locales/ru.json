@@ -263,5 +263,13 @@
   "Play on this device, or with someone nearby. Games stay here until you publish them.": "Играйте на этом устройстве или с кем-то рядом. Партии остаются здесь, пока вы их не опубликуете.",
   "Playing without an account — these games are saved on this device": "Вы играете без учётной записи — эти партии сохранены на этом устройстве",
   "Sign in to play other people, and to keep your games on the server.": "Войдите, чтобы играть с другими и хранить партии на сервере.",
-  "Account": "Учётная запись"
+  "Account": "Учётная запись",
+  "Local game": "Локальная партия",
+  "Offline game": "Партия офлайн",
+  "Nearby game": "Партия рядом",
+  "Game vs computer": "Партия с компьютером",
+  "Remote game": "Удалённая партия",
+  "Your move": "Ваш ход",
+  "%@'s move": "Ход игрока %@",
+  "Opponent's move": "Ход соперника"
 }

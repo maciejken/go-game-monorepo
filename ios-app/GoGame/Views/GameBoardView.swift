@@ -316,7 +316,7 @@ struct GameBoardView: View {
         .sheet(isPresented: $showActionsSheet) {
             if let game {
                 actionsSheetContent(game)
-                    .presentationDetents([.height(180)])
+                    .presentationDetents([.height(200)])
                     // A sheet's default background is a translucent system
                     // material, which applies automatic vibrancy blending to
                     // semantic colors like Color.primary — that washed the
@@ -743,8 +743,15 @@ struct GameBoardView: View {
     @ViewBuilder
     private func actionsSheetContent(_ game: GameState) -> some View {
         VStack(spacing: 16) {
-            Text(game.currentColor == .black ? "Black to move" : "White to move")
-                .font(.headline)
+            // Two lines: what kind of game this is, quietly, and whose move
+            // it is, which is what anyone opening this sheet came for.
+            VStack(spacing: 2) {
+                Text(gameKindLabel(game))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(turnLabel(game))
+                    .font(.headline)
+            }
             Group {
                 if #available(iOS 26.0, *) {
                     Button {
@@ -794,6 +801,45 @@ struct GameBoardView: View {
             .disabled(game.myColor == nil || isBusy)
         }
         .padding()
+    }
+
+    // Which kind of game this is. The board looks the same whoever is on
+    // the other side of it — or whether there is anyone — and that is worth
+    // one quiet line.
+    private func gameKindLabel(_ game: GameState) -> String {
+        if NearbySessions.shared.transport(forGameId: gameId) != nil || nearbyHost != nil {
+            return String(localized: "Nearby game")
+        }
+        if isOfflineGameId(gameId) {
+            return String(localized: "Offline game")
+        }
+        if game.isAiOpponent {
+            return String(localized: "Game vs computer")
+        }
+        if game.myColor == .both {
+            return String(localized: "Local game")
+        }
+        return String(localized: "Remote game")
+    }
+
+    // Whose move it is, put the way the person reading it would put it:
+    // their own turn is "your move", and the other side is named when there
+    // is a name for it — "GNU Go's move" says more than "White to move".
+    private func turnLabel(_ game: GameState) -> String {
+        let colour = game.currentColor
+        // One person holding both colours, or nobody's game to play: the
+        // colour is the only thing that tells the sides apart.
+        guard let myColor = game.myColor, myColor != .both else {
+            return colour == .black ? String(localized: "Black to move") : String(localized: "White to move")
+        }
+        if (myColor == .black && colour == .black) || (myColor == .white && colour == .white) {
+            return String(localized: "Your move")
+        }
+        let name = colour == .black ? game.blackUsername : game.whiteUsername
+        if let name, !name.isEmpty {
+            return String(format: String(localized: "%@'s move"), name)
+        }
+        return String(localized: "Opponent's move")
     }
 
     // Mirrors the web client's footer: captures (+ clock, if timed) for

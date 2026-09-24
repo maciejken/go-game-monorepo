@@ -263,5 +263,13 @@
   "Play on this device, or with someone nearby. Games stay here until you publish them.": "Gioca su questo dispositivo o con qualcuno nelle vicinanze. Le partite restano qui finché non le pubblichi.",
   "Playing without an account — these games are saved on this device": "Stai giocando senza account — queste partite sono salvate su questo dispositivo",
   "Sign in to play other people, and to keep your games on the server.": "Accedi per giocare con altre persone e conservare le tue partite sul server.",
-  "Account": "Account"
+  "Account": "Account",
+  "Local game": "Partita locale",
+  "Offline game": "Partita offline",
+  "Nearby game": "Partita nelle vicinanze",
+  "Game vs computer": "Partita contro il computer",
+  "Remote game": "Partita a distanza",
+  "Your move": "Tocca a te",
+  "%@'s move": "Tocca a %@",
+  "Opponent's move": "Tocca all'avversario"
 }

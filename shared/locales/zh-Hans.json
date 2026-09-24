@@ -263,5 +263,13 @@
   "Play on this device, or with someone nearby. Games stay here until you publish them.": "在本机下棋，或与附近的人对局。对局会留在本机，直到你发布它们。",
   "Playing without an account — these games are saved on this device": "你正在无账号下棋 — 这些对局保存在本机",
   "Sign in to play other people, and to keep your games on the server.": "登录后即可与他人对局，并把对局保存在服务器上。",
-  "Account": "账号"
+  "Account": "账号",
+  "Local game": "本机对局",
+  "Offline game": "离线对局",
+  "Nearby game": "附近的对局",
+  "Game vs computer": "与电脑对局",
+  "Remote game": "远程对局",
+  "Your move": "轮到你了",
+  "%@'s move": "轮到 %@",
+  "Opponent's move": "轮到对手"
 }
