@@ -204,6 +204,17 @@ final class NearbyHost: NSObject, MCNearbyServiceAdvertiserDelegate {
         try? OfflineGameStore.shared.save(record)
     }
 
+    // Coming back to the app. The advertiser doesn't survive being
+    // suspended, so a game nobody has joined is offered again; one that was
+    // joined has lost its connection too, and waits to be rejoined.
+    func resume() {
+        guard advertiser != nil else { return }
+        if link?.isConnected != true {
+            phase = .waiting
+            advertiser?.startAdvertisingPeer()
+        }
+    }
+
     // Tells the guest the game moved on after the host's own move.
     func notifyChanged() {
         service?.notifyChanged()
@@ -256,6 +267,11 @@ final class NearbyGuest: NSObject, MCNearbyServiceBrowserDelegate {
         case looking
         case joining
         case joined(String)
+        // The game is still this guest's; the connection to it isn't there
+        // at the moment. Losing it is ordinary — walking out of range, or
+        // either app spending a moment in the background, is enough — so
+        // this is a state to sit in and come back from, not a failure.
+        case reconnecting(String)
         case failed(String)
     }
 
@@ -266,28 +282,66 @@ final class NearbyGuest: NSObject, MCNearbyServiceBrowserDelegate {
     private var peerId: MCPeerID?
     private var link: MultipeerLink?
     private var peers: [String: MCPeerID] = [:]
+    // The game this guest is in, kept so the same one can be rejoined
+    // without asking anyone: the host offers it again under the same id.
+    private var joinedGame: NearbyGame?
+    // Outlives each connection, so the board's transport and its refetch
+    // hook survive a reconnection rather than being swapped underneath it.
+    private var client: PeerClient?
 
     func startLooking(as name: String) {
         stop()
         let peerId = MCPeerID(displayName: String(name.prefix(63)))
-        let browser = MCNearbyServiceBrowser(peer: peerId, serviceType: nearbyServiceType)
-        browser.delegate = self
-        browser.startBrowsingForPeers()
         self.peerId = peerId
-        self.browser = browser
+        startBrowsing()
         phase = .looking
     }
 
+    private func startBrowsing() {
+        guard let peerId else { return }
+        browser?.stopBrowsingForPeers()
+        let browser = MCNearbyServiceBrowser(peer: peerId, serviceType: nearbyServiceType)
+        browser.delegate = self
+        browser.startBrowsingForPeers()
+        self.browser = browser
+    }
+
     func join(_ game: NearbyGame) {
+        joinedGame = game
+        let client = self.client ?? PeerClient()
+        self.client = client
+        connect(to: game, using: client)
+    }
+
+    // Coming back to the app: whatever the session was doing, it wasn't
+    // doing it while suspended. Browsing restarts, and a game that was
+    // joined is looked for again.
+    func resume() {
+        switch phase {
+        case .joined, .reconnecting:
+            guard let game = joinedGame else { return }
+            if link?.isConnected != true {
+                phase = .reconnecting(game.gameId)
+                startBrowsing()
+            }
+        case .looking:
+            startBrowsing()
+        default:
+            break
+        }
+    }
+
+    private func connect(to game: NearbyGame, using client: PeerClient) {
         guard let peerId, let browser, let peer = peers[game.gameId] else { return }
         let link = MultipeerLink(peerId: peerId)
-        let client = PeerClient(link: link)
         link.onConnected = {
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                await client.attach(link)
                 NearbySessions.shared.guest = self
                 NearbySessions.shared.register(gameId: game.gameId, transport: PeerTransport(client: client))
                 phase = .joined(game.gameId)
+                // Nothing more to find: the game is in hand again.
                 browser.stopBrowsingForPeers()
             }
         }
@@ -296,19 +350,28 @@ final class NearbyGuest: NSObject, MCNearbyServiceBrowserDelegate {
                 // Whatever the board was waiting on fails now rather than
                 // sitting there until each request times out.
                 await client.disconnected()
-                NearbySessions.shared.forget(gameId: game.gameId)
-                guard let self, case .joined = phase else { return }
-                phase = .failed(PeerProtocolError.disconnected.localizedDescription)
+                guard let self else { return }
+                switch phase {
+                case .joined, .joining, .reconnecting:
+                    // The transport stays registered: the board keeps
+                    // talking to the same client, which starts answering
+                    // again once there is a link under it.
+                    phase = .reconnecting(game.gameId)
+                    games = []
+                    peers = [:]
+                    startBrowsing()
+                default:
+                    break
+                }
             }
         }
         Task { @MainActor [weak self] in
-            // The board sets the refetch hook when it opens; until then
-            // there is nothing on screen to refresh.
-            await client.start()
             guard let self else { return }
             browser.invitePeer(peer, to: link.session, withContext: nil, timeout: 20)
             self.link = link
-            phase = .joining
+            if case .reconnecting = phase {} else {
+                phase = .joining
+            }
         }
     }
 
@@ -317,15 +380,34 @@ final class NearbyGuest: NSObject, MCNearbyServiceBrowserDelegate {
         browser = nil
         link?.disconnect()
         link = nil
-        if case let .joined(gameId) = phase {
+        if let gameId = joinedGameId {
             NearbySessions.shared.forget(gameId: gameId)
         }
+        joinedGame = nil
+        client = nil
         games = []
         peers = [:]
         phase = .idle
         if NearbySessions.shared.guest === self {
             NearbySessions.shared.guest = nil
         }
+    }
+
+    // The game being played over this session, connected or not — what the
+    // board asks about to know whether it is looking at a peer game that is
+    // currently out of touch.
+    var joinedGameId: String? {
+        switch phase {
+        case let .joined(gameId), let .reconnecting(gameId):
+            return gameId
+        default:
+            return nil
+        }
+    }
+
+    var isConnected: Bool {
+        if case .joined = phase { return true }
+        return false
     }
 
     // MARK: - MCNearbyServiceBrowserDelegate
@@ -336,6 +418,11 @@ final class NearbyGuest: NSObject, MCNearbyServiceBrowserDelegate {
             peers[game.gameId] = peerID
             if !games.contains(game) {
                 games.append(game)
+            }
+            // The game this guest was already in, on offer again: rejoining
+            // it needs no decision from anyone, so it doesn't ask for one.
+            if case let .reconnecting(gameId) = phase, gameId == game.gameId, let client {
+                connect(to: game, using: client)
             }
         }
     }

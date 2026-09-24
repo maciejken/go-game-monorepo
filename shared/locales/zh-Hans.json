@@ -257,5 +257,6 @@
   "That game has too many moves to publish": "该对局的着手过多，无法发布",
   "That game carries on after it ended": "该对局在结束后还有着手",
   "Only a finished game can be published": "只有已结束的对局才能发布",
-  "Too many games published — try again later.": "发布的对局过多 — 请稍后再试。"
+  "Too many games published — try again later.": "发布的对局过多 — 请稍后再试。",
+  "Reconnecting…": "正在重新连接…"
 }

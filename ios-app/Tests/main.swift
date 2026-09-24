@@ -517,9 +517,9 @@ if let flowData = FileManager.default.contents(atPath: flowPath) {
         let label = "PeerTransport/\(testCase.name)"
 
         let host = PeerHostService(transport: hostTransport, gameId: gameId, guestColor: guestColor, link: hostEnd)
-        let client = PeerClient(link: guestEnd)
+        let client = PeerClient()
         let guest = PeerTransport(client: client)
-        _ = try runBlocking { await client.start() }
+        _ = try runBlocking { await client.attach(guestEnd) }
 
         guard let opening = try? runBlocking({ try await guest.state(gameId: gameId) }) else {
             expect(false, "\(label) [opening]: the guest could not read the game")
@@ -629,9 +629,9 @@ if let flowData = FileManager.default.contents(atPath: flowPath) {
     ) {
         let gameId = record.id
         let host = PeerHostService(transport: hostTransport, gameId: gameId, guestColor: .black, link: hostEnd)
-        let client = PeerClient(link: guestEnd)
+        let client = PeerClient()
         let guest = PeerTransport(client: client)
-        _ = try runBlocking { await client.start() }
+        _ = try runBlocking { await client.attach(guestEnd) }
 
         // Black's move is the guest's to make, and it lands.
         var played: String?

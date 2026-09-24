@@ -9,6 +9,7 @@ enum MarkMode {
 
 struct GameBoardView: View {
     let gameId: String
+    @Environment(SessionStore.self) private var session
     @State private var game: GameState?
     @State private var errorMessage: String?
     // Said once, after publishing — the game itself doesn't change, so
@@ -156,7 +157,10 @@ struct GameBoardView: View {
         // hide it here specifically, same as the pre-tab-bar layout.
         .toolbar(.hidden, for: .tabBar)
         .navigationTitle(navigationTitle)
-        .task { await load() }
+        .task {
+            startHostingIfShared()
+            await load()
+        }
         // Keyed on socketGeneration so coming back from the background
         // tears the old socket down and starts a fresh one: a connection
         // that died while the app was suspended often doesn't report the
@@ -193,6 +197,8 @@ struct GameBoardView: View {
             case .active:
                 if wasBackgrounded {
                     wasBackgrounded = false
+                    nearbyHost?.resume()
+                    NearbySessions.shared.guest?.resume()
                     socketGeneration += 1
                 }
             default:
@@ -208,7 +214,10 @@ struct GameBoardView: View {
         .onDisappear {
             quickGame.isBoardOpen = false
             UIApplication.shared.isIdleTimerDisabled = false
-            nearbyHost?.onGuestActed = nil
+            // Hosting lives with the board: there is nothing to play on
+            // while it isn't open, so the game stops being offered rather
+            // than being advertised out of sight.
+            nearbyHost?.stop()
             // A guest's game is only reachable from this screen, so leaving
             // it hangs up. The host starts offering the game again, which is
             // how to come back.
@@ -381,8 +390,8 @@ struct GameBoardView: View {
                 // While the other seat is empty there is nobody to play
                 // against, and the board would otherwise look like an
                 // ordinary game waiting on a move that can't come.
-                if nearbyHost?.phase == .waiting {
-                    Text("Waiting for a nearby player to join…")
+                if let nearbyStatus {
+                    Text(nearbyStatus)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -1299,7 +1308,56 @@ struct GameBoardView: View {
     }
 
     private func isInteractive(_ game: GameState) -> Bool {
-        game.status == "scoring" ? game.myColor != nil : canAct(game)
+        // A move with nowhere to go isn't worth taking: the guest's side of
+        // a game is played on the host, and there is no host to send it to
+        // until the connection is back.
+        guard !isWaitingToReconnect else { return false }
+        return game.status == "scoring" ? game.myColor != nil : canAct(game)
+    }
+
+    // True while this board is a game held on another device that can't be
+    // reached at the moment.
+    private var isWaitingToReconnect: Bool {
+        guard let guest = NearbySessions.shared.guest, guest.joinedGameId == gameId else { return false }
+        return !guest.isConnected
+    }
+
+    // The line above the board for a game being shared with, or played on,
+    // another device — nil for every other game, which is most of them.
+    private var nearbyStatus: String? {
+        if isWaitingToReconnect {
+            return String(localized: "Reconnecting…")
+        }
+        if nearbyHost?.phase == .waiting {
+            return String(localized: "Waiting for a nearby player to join…")
+        }
+        return nil
+    }
+
+    // A game this device holds and shares: opening its board is what offers
+    // it, so quitting the app and coming back doesn't leave a game that
+    // looks shared but isn't. Only one game is offered at a time — opening
+    // another shared game's board takes over.
+    private func startHostingIfShared() {
+        guard nearbyHost == nil,
+              isOfflineGameId(gameId),
+              NearbySessions.shared.transport(forGameId: gameId) == nil,
+              let record = try? OfflineGameStore.shared.load(gameId),
+              record.hostColor != nil
+        else {
+            return
+        }
+        NearbyHost().start(record: record, hostName: hostDisplayName)
+        nearbyHost?.onGuestActed = { Task { await load(surfacingErrors: false) } }
+    }
+
+    // What the other device shows this player as: their name when there is
+    // one, the device's own otherwise.
+    private var hostDisplayName: String {
+        if let username = session.currentUser?.username, !username.isEmpty {
+            return username
+        }
+        return UIDevice.current.name
     }
 
     // Mirrors server/src/server.ts's canActAsColor: the logged-in viewer can

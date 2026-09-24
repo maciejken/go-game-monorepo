@@ -257,5 +257,6 @@
   "That game has too many moves to publish": "この対局は手数が多すぎて公開できません",
   "That game carries on after it ended": "この対局は終局後にも手が続いています",
   "Only a finished game can be published": "終局した対局のみ公開できます",
-  "Too many games published — try again later.": "公開した対局が多すぎます — しばらくしてからお試しください。"
+  "Too many games published — try again later.": "公開した対局が多すぎます — しばらくしてからお試しください。",
+  "Reconnecting…": "再接続しています…"
 }

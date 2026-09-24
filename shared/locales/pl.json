@@ -257,5 +257,6 @@
   "That game has too many moves to publish": "Ta partia ma za dużo ruchów, aby ją opublikować",
   "That game carries on after it ended": "Ta partia ma ruchy po jej zakończeniu",
   "Only a finished game can be published": "Opublikować można tylko zakończoną partię",
-  "Too many games published — try again later.": "Za dużo opublikowanych partii — spróbuj później."
+  "Too many games published — try again later.": "Za dużo opublikowanych partii — spróbuj później.",
+  "Reconnecting…": "Ponowne łączenie…"
 }

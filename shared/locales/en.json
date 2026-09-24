@@ -257,5 +257,6 @@
   "That game has too many moves to publish": "That game has too many moves to publish",
   "That game carries on after it ended": "That game carries on after it ended",
   "Only a finished game can be published": "Only a finished game can be published",
-  "Too many games published — try again later.": "Too many games published — try again later."
+  "Too many games published — try again later.": "Too many games published — try again later.",
+  "Reconnecting…": "Reconnecting…"
 }

@@ -257,5 +257,6 @@
   "That game has too many moves to publish": "В этой партии слишком много ходов для публикации",
   "That game carries on after it ended": "В этой партии есть ходы после её окончания",
   "Only a finished game can be published": "Опубликовать можно только завершённую партию",
-  "Too many games published — try again later.": "Слишком много опубликованных партий — попробуйте позже."
+  "Too many games published — try again later.": "Слишком много опубликованных партий — попробуйте позже.",
+  "Reconnecting…": "Переподключение…"
 }

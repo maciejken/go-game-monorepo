@@ -257,5 +257,6 @@
   "That game has too many moves to publish": "У цій партії забагато ходів для публікації",
   "That game carries on after it ended": "Ця партія має ходи після завершення",
   "Only a finished game can be published": "Опублікувати можна лише завершену партію",
-  "Too many games published — try again later.": "Забагато опублікованих партій — спробуйте пізніше."
+  "Too many games published — try again later.": "Забагато опублікованих партій — спробуйте пізніше.",
+  "Reconnecting…": "Повторне підключення…"
 }

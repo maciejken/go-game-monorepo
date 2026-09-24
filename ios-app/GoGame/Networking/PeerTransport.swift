@@ -12,7 +12,10 @@ import Foundation
 // both sides of that bookkeeping — a request going out and a reply arriving
 // on the link's own queue — touch the same table of what's outstanding.
 actor PeerClient {
-    private let link: PeerLink
+    // Replaced, not recreated, when a dropped connection comes back: the
+    // board holds a transport around this client, so reconnecting behind it
+    // keeps the screen — and its refetch hook — as it was.
+    private var link: PeerLink?
     private var pending: [String: CheckedContinuation<PeerReply, Error>] = [:]
     // Called when the host says the game moved on. The board screen sets
     // this to refetch, which is the peer equivalent of its polling.
@@ -21,12 +24,12 @@ actor PeerClient {
     // long isn't slow, it's gone.
     private let timeout: Duration
 
-    init(link: PeerLink, timeout: Duration = .seconds(10)) {
-        self.link = link
+    init(timeout: Duration = .seconds(10)) {
         self.timeout = timeout
     }
 
-    func start() {
+    func attach(_ link: PeerLink) {
+        self.link = link
         link.onReceive = { [weak self] data in
             Task { await self?.receive(data) }
         }
@@ -41,6 +44,7 @@ actor PeerClient {
     func send(_ request: PeerRequest) async throws -> PeerReply {
         let id = UUID().uuidString
         let data = try PeerCoding.encode(.request(id: id, request))
+        guard let link else { throw PeerProtocolError.disconnected }
         return try await withCheckedThrowingContinuation { continuation in
             pending[id] = continuation
             do {
@@ -57,8 +61,12 @@ actor PeerClient {
     }
 
     // The link went down: everything still waiting fails now rather than
-    // waiting out its timeout one by one.
+    // waiting out its timeout one by one. Nothing is retried when it comes
+    // back — a move may have reached the host with only the answer lost,
+    // and sending it again would play it twice. The board refetches
+    // instead, and shows where the game actually stands.
     func disconnected() {
+        link = nil
         let waiting = pending.values
         pending.removeAll()
         for continuation in waiting {
