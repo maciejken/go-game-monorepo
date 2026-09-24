@@ -744,8 +744,10 @@ struct GameBoardView: View {
     private func actionsSheetContent(_ game: GameState) -> some View {
         VStack(spacing: 16) {
             // Two lines: what kind of game this is, quietly, and whose move
-            // it is, which is what anyone opening this sheet came for.
-            VStack(spacing: 2) {
+            // it is, which is what anyone opening this sheet came for. They
+            // are separate facts, and read as two lines rather than one
+            // stacked label.
+            VStack(spacing: 8) {
                 Text(gameKindLabel(game))
                     .font(.caption)
                     .foregroundStyle(.secondary)
