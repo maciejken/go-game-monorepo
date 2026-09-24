@@ -258,5 +258,8 @@
   "That game carries on after it ended": "Cette partie continue après sa fin",
   "Only a finished game can be published": "Seule une partie terminée peut être publiée",
   "Too many games published — try again later.": "Trop de parties publiées — réessayez plus tard.",
-  "Reconnecting…": "Reconnexion…"
+  "Reconnecting…": "Reconnexion…",
+  "Play without an account": "Jouer sans compte",
+  "Play on this device, or with someone nearby. Games stay here until you publish them.": "Jouez sur cet appareil, ou avec quelqu'un à proximité. Les parties restent ici jusqu'à ce que vous les publiiez.",
+  "Playing without an account — these games are saved on this device": "Vous jouez sans compte — ces parties sont enregistrées sur cet appareil"
 }

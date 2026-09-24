@@ -10326,6 +10326,183 @@
         }
       }
     },
+    "Play on this device, or with someone nearby. Games stay here until you publish them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play on this device, or with someone nearby. Games stay here until you publish them."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Graj na tym urządzeniu lub z kimś w pobliżu. Partie zostają tutaj, dopóki ich nie opublikujesz."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Грайте на цьому пристрої або з кимось поблизу. Партії залишаються тут, доки ви їх не опублікуєте."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Играйте на этом устройстве или с кем-то рядом. Партии остаются здесь, пока вы их не опубликуете."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiele auf diesem Gerät oder mit jemandem in der Nähe. Partien bleiben hier, bis du sie veröffentlichst."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jouez sur cet appareil, ou avec quelqu'un à proximité. Les parties restent ici jusqu'à ce que vous les publiiez."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gioca su questo dispositivo o con qualcuno nelle vicinanze. Le partite restano qui finché non le pubblichi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在本机下棋，或与附近的人对局。对局会留在本机，直到你发布它们。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この端末で、または近くの人と対局できます。対局は公開するまでこの端末に残ります。"
+          }
+        }
+      }
+    },
+    "Play without an account": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play without an account"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Graj bez konta"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Грати без облікового запису"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Играть без учётной записи"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne Konto spielen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jouer sans compte"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gioca senza account"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无需账号即可下棋"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントなしで遊ぶ"
+          }
+        }
+      }
+    },
+    "Playing without an account — these games are saved on this device": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing without an account — these games are saved on this device"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grasz bez konta — te partie są zapisane na tym urządzeniu"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ви граєте без облікового запису — ці партії збережені на цьому пристрої"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вы играете без учётной записи — эти партии сохранены на этом устройстве"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du spielst ohne Konto — diese Partien liegen auf diesem Gerät"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vous jouez sans compte — ces parties sont enregistrées sur cet appareil"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stai giocando senza account — queste partite sono salvate su questo dispositivo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你正在无账号下棋 — 这些对局保存在本机"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントなしでプレイ中 — これらの対局はこの端末に保存されています"
+          }
+        }
+      }
+    },
     "Point": {
       "extractionState": "manual",
       "localizations": {

@@ -13,6 +13,8 @@ struct NewGameView: View {
 
     @State private var title = ""
     @State private var mode = "remote" // "offline" | "nearby" | "local" | "remote" | "gnugo"
+    // Without an account there is nothing else to pick, and the picker
+    // shows only these two.
     // Nearby games come in two halves: one device offers the game, the
     // other joins it.
     @State private var nearbyRole = "host" // "host" | "join"
@@ -73,9 +75,14 @@ struct NewGameView: View {
                     // than a full-width rule like every other row.
                     .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                     Picker("Mode", selection: $mode) {
-                        Text("Local").tag("local")
-                        Text("Remote").tag("remote")
-                        Text("Vs. Computer").tag("gnugo")
+                        // The first three are games the server keeps: a
+                        // local game belongs to an account, a remote one
+                        // needs somebody to invite, and GNU Go runs there.
+                        if session.currentUser != nil {
+                            Text("Local").tag("local")
+                            Text("Remote").tag("remote")
+                            Text("Vs. Computer").tag("gnugo")
+                        }
                         Text("Offline").tag("offline")
                         Text("Nearby").tag("nearby")
                     }
@@ -261,6 +268,11 @@ struct NewGameView: View {
                 // opened is playing over it.
                 if case .joined = guest.phase { return }
                 guest.stop()
+            }
+            .onAppear {
+                if session.currentUser == nil, mode != "nearby" {
+                    mode = "offline"
+                }
             }
             .navigationTitle("New Game")
             .navigationBarTitleDisplayMode(.inline)

@@ -258,5 +258,8 @@
   "That game carries on after it ended": "В этой партии есть ходы после её окончания",
   "Only a finished game can be published": "Опубликовать можно только завершённую партию",
   "Too many games published — try again later.": "Слишком много опубликованных партий — попробуйте позже.",
-  "Reconnecting…": "Переподключение…"
+  "Reconnecting…": "Переподключение…",
+  "Play without an account": "Играть без учётной записи",
+  "Play on this device, or with someone nearby. Games stay here until you publish them.": "Играйте на этом устройстве или с кем-то рядом. Партии остаются здесь, пока вы их не опубликуете.",
+  "Playing without an account — these games are saved on this device": "Вы играете без учётной записи — эти партии сохранены на этом устройстве"
 }

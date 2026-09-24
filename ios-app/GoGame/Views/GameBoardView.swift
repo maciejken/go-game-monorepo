@@ -94,6 +94,7 @@ struct GameBoardView: View {
     // finished, and hasn't been published yet. A game being played from the
     // guest's side isn't this device's to publish — it lives on the host.
     private var publishableRecord: OfflineGameRecord? {
+        guard session.currentUser != nil else { return nil }
         guard isOfflineGameId(gameId), NearbySessions.shared.transport(forGameId: gameId) == nil else { return nil }
         guard let record = try? OfflineGameStore.shared.load(gameId), record.publishedGameId == nil else { return nil }
         let flow = GameFlow.replay(record.gameEvents, configuration: record.configuration)

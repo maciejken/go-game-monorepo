@@ -13,6 +13,10 @@ final class SessionStore {
     // server could not be reached: offline games work, server ones are
     // missing until it comes back.
     var isOffline = false
+    // Chosen, not fallen into: someone with no account (or who signed out)
+    // asking to play on this device alone. Games saved here are reachable
+    // either way, and nothing about them needs a server.
+    var isPlayingOffline = false
 
     // Who was signed in last, kept on the device so an unreachable server
     // doesn't strand someone on the login screen with offline games they
@@ -64,6 +68,7 @@ final class SessionStore {
             currentUser = try await APIClient.register(username: username, password: password)
             rememberedUser = currentUser
             isOffline = false
+            isPlayingOffline = false
             PushNotifications.requestAuthorizationAndRegister()
         } catch {
             errorMessage = error.localizedDescription
@@ -76,10 +81,15 @@ final class SessionStore {
             currentUser = try await APIClient.login(username: username, password: password)
             rememberedUser = currentUser
             isOffline = false
+            isPlayingOffline = false
             PushNotifications.requestAuthorizationAndRegister()
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func playOffline() {
+        isPlayingOffline = true
     }
 
     func logout() async {
@@ -87,5 +97,6 @@ final class SessionStore {
         currentUser = nil
         rememberedUser = nil
         isOffline = false
+        isPlayingOffline = false
     }
 }

@@ -258,5 +258,8 @@
   "That game carries on after it ended": "该对局在结束后还有着手",
   "Only a finished game can be published": "只有已结束的对局才能发布",
   "Too many games published — try again later.": "发布的对局过多 — 请稍后再试。",
-  "Reconnecting…": "正在重新连接…"
+  "Reconnecting…": "正在重新连接…",
+  "Play without an account": "无需账号即可下棋",
+  "Play on this device, or with someone nearby. Games stay here until you publish them.": "在本机下棋，或与附近的人对局。对局会留在本机，直到你发布它们。",
+  "Playing without an account — these games are saved on this device": "你正在无账号下棋 — 这些对局保存在本机"
 }

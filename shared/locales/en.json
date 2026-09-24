@@ -258,5 +258,8 @@
   "That game carries on after it ended": "That game carries on after it ended",
   "Only a finished game can be published": "Only a finished game can be published",
   "Too many games published — try again later.": "Too many games published — try again later.",
-  "Reconnecting…": "Reconnecting…"
+  "Reconnecting…": "Reconnecting…",
+  "Play without an account": "Play without an account",
+  "Play on this device, or with someone nearby. Games stay here until you publish them.": "Play on this device, or with someone nearby. Games stay here until you publish them.",
+  "Playing without an account — these games are saved on this device": "Playing without an account — these games are saved on this device"
 }

@@ -40,6 +40,17 @@ struct AuthView: View {
                     }
                     .disabled(isSubmitting || username.isEmpty || password.isEmpty)
                 }
+
+                // An account is for playing other people. A game against
+                // the person opposite you, or one saved on this device,
+                // needs nobody's permission.
+                Section {
+                    Button("Play without an account") {
+                        session.playOffline()
+                    }
+                } footer: {
+                    Text("Play on this device, or with someone nearby. Games stay here until you publish them.")
+                }
             }
             .navigationTitle("Igo5")
         }

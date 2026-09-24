@@ -258,5 +258,8 @@
   "That game carries on after it ended": "Ця партія має ходи після завершення",
   "Only a finished game can be published": "Опублікувати можна лише завершену партію",
   "Too many games published — try again later.": "Забагато опублікованих партій — спробуйте пізніше.",
-  "Reconnecting…": "Повторне підключення…"
+  "Reconnecting…": "Повторне підключення…",
+  "Play without an account": "Грати без облікового запису",
+  "Play on this device, or with someone nearby. Games stay here until you publish them.": "Грайте на цьому пристрої або з кимось поблизу. Партії залишаються тут, доки ви їх не опублікуєте.",
+  "Playing without an account — these games are saved on this device": "Ви граєте без облікового запису — ці партії збережені на цьому пристрої"
 }

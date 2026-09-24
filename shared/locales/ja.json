@@ -258,5 +258,8 @@
   "That game carries on after it ended": "この対局は終局後にも手が続いています",
   "Only a finished game can be published": "終局した対局のみ公開できます",
   "Too many games published — try again later.": "公開した対局が多すぎます — しばらくしてからお試しください。",
-  "Reconnecting…": "再接続しています…"
+  "Reconnecting…": "再接続しています…",
+  "Play without an account": "アカウントなしで遊ぶ",
+  "Play on this device, or with someone nearby. Games stay here until you publish them.": "この端末で、または近くの人と対局できます。対局は公開するまでこの端末に残ります。",
+  "Playing without an account — these games are saved on this device": "アカウントなしでプレイ中 — これらの対局はこの端末に保存されています"
 }

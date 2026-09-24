@@ -7,7 +7,7 @@ struct RootView: View {
         Group {
             if session.isCheckingSession {
                 ProgressView()
-            } else if session.currentUser != nil {
+            } else if session.currentUser != nil || session.isPlayingOffline {
                 MainTabView()
             } else {
                 AuthView()

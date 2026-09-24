@@ -35,6 +35,10 @@ struct MainTabView: View {
                 Group {
                     if let myId = session.currentUser?.id {
                         ProfileView(userId: myId)
+                    } else {
+                        // Playing without an account: this tab is how to
+                        // get one, or sign back in.
+                        AuthView()
                     }
                 }
                 .navigationDestination(item: $linkedProfileId) { id in
@@ -50,7 +54,10 @@ struct MainTabView: View {
         // collide, since this one stands down while a board is open.
         .shakeSource()
         .onShake { Task { await startQuickGame() } }
-        .task { await quickGame.load() }
+        .task {
+            guard session.currentUser != nil else { return }
+            await quickGame.load()
+        }
         .alert(
             "Couldn't start a game",
             isPresented: Binding(get: { quickGameError != nil }, set: { if !$0 { quickGameError = nil } })
@@ -81,6 +88,7 @@ struct MainTabView: View {
     // rather than silence. Routing through deepLinkRouter reuses the same
     // path a game link takes, including its pop-then-push handling.
     private func startQuickGame() async {
+        guard session.currentUser != nil else { return }
         guard quickGame.isShakeEnabled, !quickGame.isBoardOpen, !isCreatingQuickGame else { return }
         guard let preset = quickGame.preset else { return }
         isCreatingQuickGame = true

@@ -72,7 +72,11 @@ struct GameListView: View {
             List {
                 // Says why the list is short before anyone wonders where
                 // their server games went.
-                if session.isOffline {
+                if session.currentUser == nil {
+                    Text("Playing without an account — these games are saved on this device")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if session.isOffline {
                     Text("Offline — showing games saved on this device")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -219,7 +223,12 @@ struct GameListView: View {
             // the socket's reconnect churn or its navigation hazard.
             .navigationTitle("Your Games")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { favouritesFilterButton }
+                // Favourites are one of the user's own tags, which live on
+                // the server — there is nothing to filter by without an
+                // account.
+                if session.currentUser != nil {
+                    ToolbarItem(placement: .topBarTrailing) { favouritesFilterButton }
+                }
             }
             .sheet(isPresented: $showFavouritesHelp) {
                 favouritesHelpSheet
@@ -319,6 +328,14 @@ struct GameListView: View {
     // into whatever pages are currently loaded, at the cost of losing
     // scroll-loaded pages on those refreshes — mirrors Home.tsx's refresh.
     private func loadGames() async {
+        // No account, nothing to ask for: the device's own games are the
+        // whole list, and a request would only come back 401.
+        guard session.currentUser != nil else {
+            games = merged(serverGames: [])
+            hasMore = false
+            errorMessage = nil
+            return
+        }
         do {
             // withRetry absorbs a transient failure (e.g. the network still
             // recovering right after resuming from background, which a
@@ -362,7 +379,7 @@ struct GameListView: View {
             // A published game is in the list twice otherwise. The device's
             // copy is what's left when the server can't be reached, so it
             // is hidden rather than dropped.
-            .filter { session.isOffline || $0.publishedGameId == nil }
+            .filter { session.isOffline || session.currentUser == nil || $0.publishedGameId == nil }
             .map(\.summary)
             .filter { summary in
             guard !appliedSearch.isEmpty else { return true }
