@@ -1,6 +1,11 @@
 import SwiftUI
 
 struct AuthView: View {
+    // Only the screen standing between someone and the app offers a way
+    // past it. Reached from the Account tab, they are already playing
+    // without an account, and the offer would do nothing.
+    var offersOfflinePlay = true
+
     @Environment(SessionStore.self) private var session
     @State private var username = ""
     @State private var password = ""
@@ -44,15 +49,23 @@ struct AuthView: View {
                 // An account is for playing other people. A game against
                 // the person opposite you, or one saved on this device,
                 // needs nobody's permission.
-                Section {
-                    Button("Play without an account") {
-                        session.playOffline()
+                if offersOfflinePlay {
+                    Section {
+                        Button("Play without an account") {
+                            session.playOffline()
+                        }
+                    } footer: {
+                        Text("Play on this device, or with someone nearby. Games stay here until you publish them.")
                     }
-                } footer: {
-                    Text("Play on this device, or with someone nearby. Games stay here until you publish them.")
+                } else {
+                    Section {
+                        Text("Sign in to play other people, and to keep your games on the server.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
-            .navigationTitle("Igo5")
+            .navigationTitle(offersOfflinePlay ? "Igo5" : "Account")
         }
     }
 }

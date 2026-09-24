@@ -261,5 +261,7 @@
   "Reconnecting…": "Verbindung wird wiederhergestellt…",
   "Play without an account": "Ohne Konto spielen",
   "Play on this device, or with someone nearby. Games stay here until you publish them.": "Spiele auf diesem Gerät oder mit jemandem in der Nähe. Partien bleiben hier, bis du sie veröffentlichst.",
-  "Playing without an account — these games are saved on this device": "Du spielst ohne Konto — diese Partien liegen auf diesem Gerät"
+  "Playing without an account — these games are saved on this device": "Du spielst ohne Konto — diese Partien liegen auf diesem Gerät",
+  "Sign in to play other people, and to keep your games on the server.": "Melde dich an, um gegen andere zu spielen und deine Partien auf dem Server zu behalten.",
+  "Account": "Konto"
 }

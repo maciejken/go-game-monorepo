@@ -261,5 +261,7 @@
   "Reconnecting…": "Повторне підключення…",
   "Play without an account": "Грати без облікового запису",
   "Play on this device, or with someone nearby. Games stay here until you publish them.": "Грайте на цьому пристрої або з кимось поблизу. Партії залишаються тут, доки ви їх не опублікуєте.",
-  "Playing without an account — these games are saved on this device": "Ви граєте без облікового запису — ці партії збережені на цьому пристрої"
+  "Playing without an account — these games are saved on this device": "Ви граєте без облікового запису — ці партії збережені на цьому пристрої",
+  "Sign in to play other people, and to keep your games on the server.": "Увійдіть, щоб грати з іншими та зберігати партії на сервері.",
+  "Account": "Обліковий запис"
 }

@@ -38,7 +38,7 @@ struct MainTabView: View {
                     } else {
                         // Playing without an account: this tab is how to
                         // get one, or sign back in.
-                        AuthView()
+                        AuthView(offersOfflinePlay: false)
                     }
                 }
                 .navigationDestination(item: $linkedProfileId) { id in
