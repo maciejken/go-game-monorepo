@@ -248,5 +248,14 @@
   "Join a game": "Приєднатися до гри",
   "Joining…": "Приєднання…",
   "Looking for games nearby…": "Шукаю ігри поблизу…",
-  "Waiting for a nearby player to join…": "Очікуємо, доки приєднається гравець поблизу…"
+  "Waiting for a nearby player to join…": "Очікуємо, доки приєднається гравець поблизу…",
+  "Publish to server": "Опублікувати на сервері",
+  "Published": "Опубліковано",
+  "This game is now on the server, in your games list.": "Ця партія тепер на сервері, у списку ваших ігор.",
+  "Unsupported board size": "Непідтримуваний розмір дошки",
+  "A published game needs its moves": "Опублікована партія має містити ходи",
+  "That game has too many moves to publish": "У цій партії забагато ходів для публікації",
+  "That game carries on after it ended": "Ця партія має ходи після завершення",
+  "Only a finished game can be published": "Опублікувати можна лише завершену партію",
+  "Too many games published — try again later.": "Забагато опублікованих партій — спробуйте пізніше."
 }

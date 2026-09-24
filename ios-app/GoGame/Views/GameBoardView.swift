@@ -11,6 +11,9 @@ struct GameBoardView: View {
     let gameId: String
     @State private var game: GameState?
     @State private var errorMessage: String?
+    // Said once, after publishing — the game itself doesn't change, so
+    // without this nothing on screen would acknowledge it.
+    @State private var noticeMessage: String?
     @State private var isBusy = false
     @State private var markMode: MarkMode = .dead
     // Point keys ("x,y") marked dead/seki during the scoring phase — local
@@ -84,6 +87,32 @@ struct GameBoardView: View {
 
     private func notifyNearbyGuest() {
         nearbyHost?.notifyChanged()
+    }
+
+    // The game behind this screen when it is one this device holds, has
+    // finished, and hasn't been published yet. A game being played from the
+    // guest's side isn't this device's to publish — it lives on the host.
+    private var publishableRecord: OfflineGameRecord? {
+        guard isOfflineGameId(gameId), NearbySessions.shared.transport(forGameId: gameId) == nil else { return nil }
+        guard let record = try? OfflineGameStore.shared.load(gameId), record.publishedGameId == nil else { return nil }
+        let flow = GameFlow.replay(record.gameEvents, configuration: record.configuration)
+        let isFinished = record.scoredResult != nil || flow.status == .finished
+        return isFinished ? record : nil
+    }
+
+    private func publish(_ record: OfflineGameRecord) async {
+        guard !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let publishedId = try await APIClient.publishGame(record, tags: game?.tagList ?? [])
+            var published = record
+            published.publishedGameId = publishedId
+            try? OfflineGameStore.shared.save(published)
+            noticeMessage = String(localized: "This game is now on the server, in your games list.")
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
     @AppStorage("go-coordinate-entry") private var coordinateEntryEnabled = true
     // Watching a board isn't touching it, so the screen would otherwise dim
@@ -219,6 +248,15 @@ struct GameBoardView: View {
                     } label: {
                         Label("Title & tags", systemImage: "tag")
                     }
+                    // Only a finished game held on this device, and only
+                    // once: publishing sends it up, it doesn't move it.
+                    if let record = publishableRecord {
+                        Button {
+                            Task { await publish(record) }
+                        } label: {
+                            Label("Publish to server", systemImage: "arrow.up.circle")
+                        }
+                    }
                     Button {
                         Task { await exportSgf() }
                     } label: {
@@ -311,6 +349,14 @@ struct GameBoardView: View {
             Button("OK") { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
+        }
+        .alert(
+            "Published",
+            isPresented: Binding(get: { noticeMessage != nil }, set: { if !$0 { noticeMessage = nil } })
+        ) {
+            Button("OK") { noticeMessage = nil }
+        } message: {
+            Text(noticeMessage ?? "")
         }
     }
 

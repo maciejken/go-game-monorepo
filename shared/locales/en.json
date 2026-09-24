@@ -248,5 +248,14 @@
   "Join a game": "Join a game",
   "Joining…": "Joining…",
   "Looking for games nearby…": "Looking for games nearby…",
-  "Waiting for a nearby player to join…": "Waiting for a nearby player to join…"
+  "Waiting for a nearby player to join…": "Waiting for a nearby player to join…",
+  "Publish to server": "Publish to server",
+  "Published": "Published",
+  "This game is now on the server, in your games list.": "This game is now on the server, in your games list.",
+  "Unsupported board size": "Unsupported board size",
+  "A published game needs its moves": "A published game needs its moves",
+  "That game has too many moves to publish": "That game has too many moves to publish",
+  "That game carries on after it ended": "That game carries on after it ended",
+  "Only a finished game can be published": "Only a finished game can be published",
+  "Too many games published — try again later.": "Too many games published — try again later."
 }

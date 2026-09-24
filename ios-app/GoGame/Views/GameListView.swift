@@ -358,7 +358,13 @@ struct GameListView: View {
     // favourites filter (a favourite is a tag, and tags are a server idea).
     private func merged(serverGames: [GameSummary]) -> [GameSummary] {
         guard isHome else { return serverGames }
-        let offline = OfflineGameStore.shared.all().map(\.summary).filter { summary in
+        let offline = OfflineGameStore.shared.all()
+            // A published game is in the list twice otherwise. The device's
+            // copy is what's left when the server can't be reached, so it
+            // is hidden rather than dropped.
+            .filter { session.isOffline || $0.publishedGameId == nil }
+            .map(\.summary)
+            .filter { summary in
             guard !appliedSearch.isEmpty else { return true }
             return (summary.title ?? "").localizedCaseInsensitiveContains(appliedSearch)
         }

@@ -21,3 +21,4 @@ for _ in $(seq 1 40); do
 done
 
 node scripts/check-server-flow.mjs "http://localhost:$PORT"
+node scripts/check-server-import.mjs "http://localhost:$PORT"

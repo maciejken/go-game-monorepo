@@ -248,5 +248,14 @@
   "Join a game": "対局に参加",
   "Joining…": "参加中…",
   "Looking for games nearby…": "近くの対局を探しています…",
-  "Waiting for a nearby player to join…": "近くのプレイヤーの参加を待っています…"
+  "Waiting for a nearby player to join…": "近くのプレイヤーの参加を待っています…",
+  "Publish to server": "サーバーに公開",
+  "Published": "公開しました",
+  "This game is now on the server, in your games list.": "この対局はサーバーに保存され、対局一覧に表示されます。",
+  "Unsupported board size": "対応していない盤のサイズです",
+  "A published game needs its moves": "公開する対局には手順が必要です",
+  "That game has too many moves to publish": "この対局は手数が多すぎて公開できません",
+  "That game carries on after it ended": "この対局は終局後にも手が続いています",
+  "Only a finished game can be published": "終局した対局のみ公開できます",
+  "Too many games published — try again later.": "公開した対局が多すぎます — しばらくしてからお試しください。"
 }

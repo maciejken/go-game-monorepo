@@ -248,5 +248,14 @@
   "Join a game": "Unisciti a una partita",
   "Joining…": "Accesso in corso…",
   "Looking for games nearby…": "Ricerca di partite nelle vicinanze…",
-  "Waiting for a nearby player to join…": "In attesa di un giocatore nelle vicinanze…"
+  "Waiting for a nearby player to join…": "In attesa di un giocatore nelle vicinanze…",
+  "Publish to server": "Pubblica sul server",
+  "Published": "Pubblicata",
+  "This game is now on the server, in your games list.": "Questa partita è ora sul server, nel tuo elenco di partite.",
+  "Unsupported board size": "Dimensione della scacchiera non supportata",
+  "A published game needs its moves": "Una partita pubblicata deve contenere le sue mosse",
+  "That game has too many moves to publish": "Questa partita ha troppe mosse per essere pubblicata",
+  "That game carries on after it ended": "Questa partita prosegue dopo la sua fine",
+  "Only a finished game can be published": "Solo una partita conclusa può essere pubblicata",
+  "Too many games published — try again later.": "Troppe partite pubblicate — riprova più tardi."
 }

@@ -248,5 +248,14 @@
   "Join a game": "Rejoindre une partie",
   "Joining…": "Connexion…",
   "Looking for games nearby…": "Recherche de parties à proximité…",
-  "Waiting for a nearby player to join…": "En attente d'un joueur à proximité…"
+  "Waiting for a nearby player to join…": "En attente d'un joueur à proximité…",
+  "Publish to server": "Publier sur le serveur",
+  "Published": "Publiée",
+  "This game is now on the server, in your games list.": "Cette partie est maintenant sur le serveur, dans votre liste de parties.",
+  "Unsupported board size": "Taille de plateau non prise en charge",
+  "A published game needs its moves": "Une partie publiée doit contenir ses coups",
+  "That game has too many moves to publish": "Cette partie a trop de coups pour être publiée",
+  "That game carries on after it ended": "Cette partie continue après sa fin",
+  "Only a finished game can be published": "Seule une partie terminée peut être publiée",
+  "Too many games published — try again later.": "Trop de parties publiées — réessayez plus tard."
 }

@@ -306,6 +306,47 @@ enum APIClient {
     // for Optional properties, so passing nil here omits the key from the
     // JSON entirely rather than sending `null` — matching Home.tsx's
     // conditional object-spread.
+    // Sends a finished game played on this device up to the server, where
+    // it is replayed and checked before being kept. The result isn't sent:
+    // the server counts the game itself, from the moves.
+    static func publishGame(_ record: OfflineGameRecord, tags: [String] = []) async throws -> String {
+        struct EventBody: Encodable {
+            let type: String
+            let color: String?
+            let x: Int?
+            let y: Int?
+        }
+        struct Body: Encodable {
+            let size: Int
+            let handicap: Int
+            let komi: Double
+            let title: String?
+            let events: [EventBody]
+            let deadPoints: [Point]
+            let sekiPoints: [Point]
+            let tags: [String]
+        }
+        struct Response: Decodable { let id: String }
+
+        let events = record.events.map { event in
+            EventBody(type: event.type, color: event.color?.rawValue, x: event.point?.x, y: event.point?.y)
+        }
+        let response: Response = try await post(
+            "api/games/import",
+            body: Body(
+                size: record.size,
+                handicap: record.handicap,
+                komi: record.komi,
+                title: record.title,
+                events: events,
+                deadPoints: record.deadPoints,
+                sekiPoints: record.sekiPoints,
+                tags: tags
+            )
+        )
+        return response.id
+    }
+
     static func createGame(
         size: Int,
         handicap: Int,
@@ -448,9 +489,6 @@ enum APIClient {
         try await put("api/quick-game-preset", body: preset)
     }
 
-    // Creates the game a shake asks for. Just POST /api/games with the
-    // preset's own values, so the one-open-short-game limits and invite
-    // rules are enforced exactly as they are for the new-game form.
     static func createGame(from preset: QuickGamePreset) async throws -> String {
         try await createGame(
             size: preset.size,

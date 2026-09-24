@@ -80,6 +80,10 @@ struct OfflineGameRecord: Codable {
     // why these are optional.
     var blackName: String?
     var whiteName: String?
+    // The id this game was given when it was published to the server, once
+    // it has been. The device's own copy stays as it is — publishing sends
+    // a finished game up, it doesn't move it.
+    var publishedGameId: String?
     // Set only for a game shared with a nearby device: the colour this
     // device plays, the guest taking the other. nil means nobody else is
     // playing and both colours are this player's.

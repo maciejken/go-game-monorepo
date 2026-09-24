@@ -248,5 +248,14 @@
   "Join a game": "加入对局",
   "Joining…": "正在加入…",
   "Looking for games nearby…": "正在寻找附近的对局…",
-  "Waiting for a nearby player to join…": "正在等待附近的玩家加入…"
+  "Waiting for a nearby player to join…": "正在等待附近的玩家加入…",
+  "Publish to server": "发布到服务器",
+  "Published": "已发布",
+  "This game is now on the server, in your games list.": "该对局已发布到服务器，可在你的对局列表中查看。",
+  "Unsupported board size": "不支持的棋盘大小",
+  "A published game needs its moves": "发布的对局需要包含着手记录",
+  "That game has too many moves to publish": "该对局的着手过多，无法发布",
+  "That game carries on after it ended": "该对局在结束后还有着手",
+  "Only a finished game can be published": "只有已结束的对局才能发布",
+  "Too many games published — try again later.": "发布的对局过多 — 请稍后再试。"
 }

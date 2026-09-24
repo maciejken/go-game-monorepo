@@ -248,5 +248,14 @@
   "Join a game": "Присоединиться к игре",
   "Joining…": "Подключение…",
   "Looking for games nearby…": "Ищем игры рядом…",
-  "Waiting for a nearby player to join…": "Ждём, пока присоединится игрок рядом…"
+  "Waiting for a nearby player to join…": "Ждём, пока присоединится игрок рядом…",
+  "Publish to server": "Опубликовать на сервере",
+  "Published": "Опубликовано",
+  "This game is now on the server, in your games list.": "Эта партия теперь на сервере, в списке ваших игр.",
+  "Unsupported board size": "Неподдерживаемый размер доски",
+  "A published game needs its moves": "Публикуемая партия должна содержать ходы",
+  "That game has too many moves to publish": "В этой партии слишком много ходов для публикации",
+  "That game carries on after it ended": "В этой партии есть ходы после её окончания",
+  "Only a finished game can be published": "Опубликовать можно только завершённую партию",
+  "Too many games published — try again later.": "Слишком много опубликованных партий — попробуйте позже."
 }

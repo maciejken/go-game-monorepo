@@ -2040,6 +2040,233 @@ app.post('/api/games', async (req, res) => {
   maybeTriggerAiMove(id);
 });
 
+// A game played on a device — offline, or against someone nearby — sent up
+// to be kept. One way: a finished game comes in, is checked move by move
+// against the same rules every game here is played under, and is stored
+// like any other. Nothing is sent back down, and a game that already lives
+// here is never imported.
+//
+// The device refereed it, but that is not why it is accepted: every move is
+// replayed here before anything is written, so a device sending a log it
+// made up gets a refusal rather than a game. The result is computed here
+// too, never taken from the request.
+const importRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many games published — try again later.' },
+});
+
+// Long enough for any real game on any board offered here (a 19x19 game
+// runs to a few hundred moves), short enough that a replay can't be used to
+// tie the server up.
+const MAX_IMPORTED_EVENTS = 1000;
+
+app.post('/api/games/import', importRateLimiter, (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
+  const requestedSize = Number(req.body?.size);
+  if (!ALLOWED_BOARD_SIZES.includes(requestedSize)) {
+    fail(res, 400, 'Unsupported board size');
+    return;
+  }
+  const size = requestedSize;
+  const maxHandicap = size === 19 ? 9 : 5;
+  const handicap = Math.min(Math.max(0, Number(req.body?.handicap) || 0), maxHandicap);
+  const requestedKomi = Number(req.body?.komi);
+  const allowedKomi = handicap > 0 ? ALLOWED_KOMI_HANDICAP : ALLOWED_KOMI_EVEN;
+  const komi = allowedKomi.includes(requestedKomi) ? requestedKomi : handicap > 0 ? 0.5 : 6.5;
+  const title = sanitizeTitle(req.body?.title);
+
+  const rawEvents: unknown = req.body?.events;
+  if (!Array.isArray(rawEvents)) {
+    fail(res, 400, 'A published game needs its moves');
+    return;
+  }
+  if (rawEvents.length > MAX_IMPORTED_EVENTS) {
+    fail(res, 400, 'That game has too many moves to publish');
+    return;
+  }
+
+  // The same starting position the server would have built for a game with
+  // this handicap: the placement is derived here rather than taken from the
+  // device, so an import can't invent its own stones.
+  let board = createEmptyBoard(size);
+  const handicapPoints = getHandicapPoints(size, handicap);
+  for (const [x, y] of handicapPoints) {
+    board[y][x] = 'black';
+  }
+
+  // Mirrors getGameHistory: a handicap game's first position is the
+  // placement, a plain game's is the empty board.
+  const history: PositionRecord[] = [
+    { board, hash: hashBoard(board).toString(), nextColor: getCurrentColor(turnMoveNumber(1, handicap)) },
+  ];
+
+  type PendingEvent = {
+    moveNumber: number;
+    eventType: string;
+    payload: unknown;
+    snapshot?: { state: string; hash: string };
+  };
+  const pending: PendingEvent[] = [];
+  const captures: Captures = { black: 0, white: 0 };
+  let played = 0;
+  let consecutivePasses = 0;
+  let ending: 'resign' | 'scoring' | null = null;
+  let resignedColor: Color = 'black';
+
+  for (const raw of rawEvents as Record<string, unknown>[]) {
+    if (ending) {
+      fail(res, 400, 'That game carries on after it ended');
+      return;
+    }
+    // The placement is the server's to make (above), so the device's own
+    // record of it is skipped rather than trusted.
+    if (raw?.type === 'handicap') {
+      continue;
+    }
+
+    const color: Color | null = raw?.color === 'black' || raw?.color === 'white' ? raw.color : null;
+    if (!color) {
+      fail(res, 400, 'A published game needs its moves');
+      return;
+    }
+    const moveNumber = played + 1;
+
+    if (raw.type === 'move') {
+      const x = Number(raw.x);
+      const y = Number(raw.y);
+      const validation = validateMove(board, { x, y }, color, turnMoveNumber(moveNumber, handicap), history);
+      if (!validation.valid) {
+        fail(res, 400, validation.error!);
+        return;
+      }
+      board = validation.board!;
+      const capturedPoints = validation.capturedPoints!;
+      captures[color] += capturedPoints.length;
+      pending.push({
+        moveNumber,
+        eventType: 'MOVE',
+        payload: { x, y, color, capturedPoints },
+        snapshot: { state: JSON.stringify(board), hash: hashBoard(board).toString() },
+      });
+      history.push({
+        board,
+        hash: hashBoard(board).toString(),
+        nextColor: getCurrentColor(turnMoveNumber(moveNumber + 1, handicap)),
+      });
+      played += 1;
+      consecutivePasses = 0;
+      continue;
+    }
+
+    if (raw.type === 'pass') {
+      const currentColor = getCurrentColor(turnMoveNumber(moveNumber, handicap));
+      if (color !== currentColor) {
+        fail(res, 400, `It is ${currentColor}'s turn`);
+        return;
+      }
+      pending.push({ moveNumber, eventType: 'PASS', payload: { color } });
+      played += 1;
+      consecutivePasses += 1;
+      if (consecutivePasses === 2) {
+        ending = 'scoring';
+      }
+      continue;
+    }
+
+    if (raw.type === 'resign') {
+      pending.push({ moveNumber, eventType: 'RESIGN', payload: { color } });
+      played += 1;
+      ending = 'resign';
+      resignedColor = color;
+      continue;
+    }
+
+    fail(res, 400, 'A published game needs its moves');
+    return;
+  }
+
+  if (!ending) {
+    fail(res, 400, 'Only a finished game can be published');
+    return;
+  }
+
+  let result: string;
+  if (ending === 'resign') {
+    result = `${resignedColor === 'black' ? 'Black' : 'White'} resigned`;
+  } else {
+    // Counted here, from the board this replay arrived at — the device's
+    // own result is never taken on trust, only which stones it marked.
+    const deadPoints = parsePointArray(req.body?.deadPoints, size);
+    const sekiPoints = parsePointArray(req.body?.sekiPoints, size);
+    const { board: effectiveBoard, captures: adjusted } = applyDeadStones(board, captures, deadPoints);
+    const score = scoreBoard(effectiveBoard, adjusted, komi, sekiPoints);
+    const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
+    const marginLabel = Number.isInteger(score.margin) ? String(score.margin) : score.margin.toFixed(1);
+    result = `${winnerLabel} wins by ${marginLabel} (B: ${score.black}, W: ${score.white})`;
+  }
+
+  const id = randomUUID();
+  const now = Date.now();
+  const tags = sanitizePresetTags(req.body?.tags);
+
+  // Both seats belong to whoever published it, exactly as a local game's do:
+  // the other player may have no account here, and inventing one for them
+  // would put a game in a stranger's list.
+  db.transaction(() => {
+    db.prepare(`
+      INSERT INTO games (
+        id, size, handicap, title, created_at, updated_at, status, black_user_id, white_user_id,
+        komi, result, end_reason
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, size, handicap, title, now, now, 'finished', user.id, user.id, komi, result, ending);
+
+    if (handicapPoints.length > 0) {
+      const placed = createEmptyBoard(size);
+      for (const [x, y] of handicapPoints) {
+        placed[y][x] = 'black';
+      }
+      db.prepare(`
+        INSERT INTO snapshots (game_id, move_number, state, hash, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(id, 0, JSON.stringify(placed), hashBoard(placed).toString(), now);
+      db.prepare(`
+        INSERT INTO events (game_id, move_number, event_type, payload, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(id, 0, 'HANDICAP', JSON.stringify({ handicap, points: handicapPoints }), now);
+    }
+
+    for (const event of pending) {
+      if (event.snapshot) {
+        db.prepare(`
+          INSERT INTO snapshots (game_id, move_number, state, hash, created_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(id, event.moveNumber, event.snapshot.state, event.snapshot.hash, now);
+      }
+      db.prepare(`
+        INSERT INTO events (game_id, move_number, event_type, payload, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(id, event.moveNumber, event.eventType, JSON.stringify(event.payload), now);
+    }
+
+    for (const tag of tags) {
+      addGameTag(id, tag, user.id, now);
+      rememberUserTag(user.id, tag, false, now);
+    }
+  })();
+
+  broadcastGamesListUpdate();
+
+  res.status(201).json({ id, status: 'finished', result });
+});
+
 app.get('/api/games/:id', (req, res) => {
   let game = getGameRow(req.params.id);
   if (!game) {

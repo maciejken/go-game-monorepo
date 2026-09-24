@@ -248,5 +248,14 @@
   "Join a game": "Partie beitreten",
   "Joining…": "Beitreten…",
   "Looking for games nearby…": "Suche nach Partien in der Nähe…",
-  "Waiting for a nearby player to join…": "Warten auf einen Mitspieler in der Nähe…"
+  "Waiting for a nearby player to join…": "Warten auf einen Mitspieler in der Nähe…",
+  "Publish to server": "Auf dem Server veröffentlichen",
+  "Published": "Veröffentlicht",
+  "This game is now on the server, in your games list.": "Diese Partie liegt jetzt auf dem Server, in deiner Partienliste.",
+  "Unsupported board size": "Nicht unterstützte Brettgröße",
+  "A published game needs its moves": "Eine veröffentlichte Partie braucht ihre Züge",
+  "That game has too many moves to publish": "Diese Partie hat zu viele Züge zum Veröffentlichen",
+  "That game carries on after it ended": "Diese Partie geht nach ihrem Ende weiter",
+  "Only a finished game can be published": "Nur eine beendete Partie kann veröffentlicht werden",
+  "Too many games published — try again later.": "Zu viele veröffentlichte Partien — versuche es später erneut."
 }
