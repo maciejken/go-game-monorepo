@@ -316,7 +316,7 @@ struct GameBoardView: View {
         .sheet(isPresented: $showActionsSheet) {
             if let game {
                 actionsSheetContent(game)
-                    .presentationDetents([.height(200)])
+                    .presentationDetents([.height(204)])
                     // A sheet's default background is a translucent system
                     // material, which applies automatic vibrancy blending to
                     // semantic colors like Color.primary — that washed the
@@ -747,7 +747,7 @@ struct GameBoardView: View {
             // it is, which is what anyone opening this sheet came for. They
             // are separate facts, and read as two lines rather than one
             // stacked label.
-            VStack(spacing: 8) {
+            VStack(spacing: 12) {
                 Text(gameKindLabel(game))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -1133,12 +1133,17 @@ struct GameBoardView: View {
     @ViewBuilder
     private func resultSheetContent(_ game: GameState) -> some View {
         VStack(spacing: 16) {
-            Text(plainResult(game))
-                .font(.headline)
-                .multilineTextAlignment(.center)
-                // Clear of the sheet's grabber, which sits close enough to
-                // the headline to read as crowding it.
-                .padding(.top, 16)
+            VStack(spacing: 12) {
+                Text(gameKindLabel(game))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(plainResult(game))
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+            }
+            // Clear of the sheet's grabber, which sits close enough to the
+            // first line to read as crowding it.
+            .padding(.top, 16)
             // The stone markers' own centre line is this row's centre line:
             // each player's name-and-details column is centred against it
             // (an HStack's default .center alignment), so extra detail lines
@@ -1260,9 +1265,9 @@ struct GameBoardView: View {
             playerDetails(game, color: .black).count,
             playerDetails(game, color: .white).count
         )
-        // padding + the headline's own top inset + result headline + the
-        // stone row + the setup/started lines
-        var height: CGFloat = 32 + 16 + 22 + 16 + max(52, 22 + CGFloat(detailLines) * 17)
+        // padding + the block's own top inset + the game-kind line + the
+        // result headline + the stone row + the setup/started lines
+        var height: CGFloat = 32 + 16 + (16 + 12) + 22 + 16 + max(52, 22 + CGFloat(detailLines) * 17)
         height += 16 + (game.createdAt == nil ? 16 : 36)
         if game.resultBreakdown != nil, game.myColor != nil {
             height += 16 + 34
