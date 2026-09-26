@@ -82,11 +82,11 @@ struct TagPicker: View {
         }
     }
 
-    // Both symbols drawn in the same square, so neither decides how tall
-    // its button is. Left to themselves the share glyph is much the
-    // taller of the two, which made one button bigger than the other and
-    // their words sit on different lines; the plus, scaled up to match,
-    // also reads better against a word than the small one did.
+    // Drawn at a fixed size rather than left to the symbol's own metrics:
+    // a glyph that decides its own height decides its button's height
+    // too, which is what had these two buttons disagreeing. 15pt is under
+    // the text's line height, so the word sets the height and both
+    // buttons match whether or not they carry an icon.
     private func icon(_ name: String) -> some View {
         Image(systemName: name)
             .resizable()
@@ -145,12 +145,11 @@ struct TagPicker: View {
                     Button {
                         Task { _ = await add(trimmedDraft, isPublic: true) }
                     } label: {
-                        Label {
-                            Text("Share").lineLimit(1)
-                        } icon: {
-                            icon("square.and.arrow.up")
-                        }
-                        .labelStyle(.titleAndIcon)
+                        // No icon: the share glyph is drawn small beside a
+                        // word whatever size it is given, and matching it
+                        // to the plus was two fixes deep already. The word
+                        // says it.
+                        Text("Share").lineLimit(1)
                     }
                     .buttonStyle(.bordered)
                     .disabled(isBusy || trimmedDraft.isEmpty)
