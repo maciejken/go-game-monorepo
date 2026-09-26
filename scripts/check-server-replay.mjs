@@ -66,17 +66,34 @@ await call('POST', '/api/auth/register', { username, password: 'password123' });
 
 const played = (await call('POST', '/api/games', { size: 9, handicap: 2, mode: 'local', color: 'black' })).body;
 // A handicap game, so the replay has to get the placement and the
-// white-moves-first numbering right as well as the moves.
-// Black's second move takes the corner stone: a replay that places
-// stones without resolving captures diverges here and nowhere else.
-for (const [color, x, y] of [
+// white-moves-first numbering right as well as the moves. Black's second
+// move takes the corner stone: a replay that places stones without
+// resolving captures diverges there and nowhere else.
+const opening = [
   ['white', 0, 0],
   ['black', 1, 0],
   ['white', 8, 8],
   ['black', 0, 1],
   ['white', 4, 4],
   ['black', 5, 5],
-]) {
+];
+// Then enough quiet moves to cross a couple of keyframes, since what is
+// being checked is that the boards between them can be reconstructed.
+// Only points whose coordinates sum to an even number, which are never
+// adjacent to each other, so nothing is captured or surrounded by
+// accident — minus the ones already taken and the corner, where a stone
+// would now be suicide.
+const taken = new Set(['0,0', '8,8', '4,4', '5,5', '2,6', '6,2']);
+const quiet = [];
+for (let y = 0; y < 9 && quiet.length < 24; y += 1) {
+  for (let x = 0; x < 9 && quiet.length < 24; x += 1) {
+    if ((x + y) % 2 === 0 && !taken.has(`${x},${y}`)) {
+      quiet.push([quiet.length % 2 === 0 ? 'white' : 'black', x, y]);
+    }
+  }
+}
+
+for (const [color, x, y] of [...opening, ...quiet]) {
   const response = await call('POST', `/api/games/${played.id}/moves`, { x, y, color });
   expect(response.status < 400, `playing out the finished game: ${color} ${x},${y} (${response.body?.error})`);
 }

@@ -623,6 +623,12 @@ function sanitizeTitle(rawTitle: unknown): string | null {
 // Re-exported under the name the routes below already use; the table
 // itself lives in shared, since the device-side engine needs the same
 // handicap placement the server applies.
+// How often a board is written down. A dozen moves of replay is a
+// fraction of a millisecond; the alternative — one board per move — is
+// a couple of kilobytes on every move of every game ever played, which
+// is what made the snapshots table larger than everything else together.
+const SNAPSHOT_INTERVAL = 12;
+
 const ALLOWED_BOARD_SIZES = BOARD_SIZES;
 
 // Komi values that support correct classic scoring for an even (no
@@ -650,15 +656,43 @@ function getNextMoveNumber(gameId: string): number {
   return (row.maxMoveNumber ?? 0) + 1;
 }
 
+// Boards are stored every SNAPSHOT_INTERVAL moves rather than every move,
+// so the newest one can be a little behind: the moves logged after it are
+// replayed onto it. That is a dozen applications of a rule at worst, and
+// it is the difference between a game costing one stored board per move
+// and one per dozen.
 function getCurrentBoard(gameId: string, size: number): Board {
   const row = db.prepare(`
-    SELECT state FROM snapshots
+    SELECT move_number, state FROM snapshots
     WHERE game_id = ?
     ORDER BY move_number DESC
     LIMIT 1
-  `).get(gameId) as { state: string } | undefined;
+  `).get(gameId) as { move_number: number; state: string } | undefined;
 
-  return row ? (JSON.parse(row.state) as Board) : createEmptyBoard(size);
+  let board = row ? (JSON.parse(row.state) as Board) : createEmptyBoard(size);
+  const since = row?.move_number ?? -1;
+
+  const later = db
+    .prepare(
+      `SELECT event_type, payload FROM events
+        WHERE game_id = ? AND move_number > ? AND event_type IN ('MOVE', 'HANDICAP')
+        ORDER BY move_number ASC`,
+    )
+    .all(gameId, since) as { event_type: string; payload: string }[];
+
+  for (const event of later) {
+    const payload = JSON.parse(event.payload) as { color?: Color; x?: number; y?: number; points?: [number, number][] };
+    if (event.event_type === 'HANDICAP') {
+      board = createEmptyBoard(size);
+      for (const [x, y] of payload.points ?? []) {
+        board[y][x] = 'black';
+      }
+    } else if (payload.x !== undefined && payload.y !== undefined && payload.color) {
+      board = applyMove(board, { x: payload.x, y: payload.y }, payload.color).board;
+    }
+  }
+
+  return board;
 }
 
 // Every position the game has passed through so far, for the situational
@@ -1117,10 +1151,16 @@ function applyMoveToGame(
   const capturedPoints = validation.capturedPoints!;
   const now = Date.now();
 
-  db.prepare(`
-    INSERT INTO snapshots (game_id, move_number, state, hash, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(game.id, moveNumber, JSON.stringify(newBoard), validation.hash!, now);
+  // Every SNAPSHOT_INTERVAL moves, not every move. What a stored board
+  // buys is a shorter replay for getCurrentBoard; what it costs is a few
+  // kilobytes on every move of every game forever, which is what made
+  // this table the whole database.
+  if (moveNumber % SNAPSHOT_INTERVAL === 0) {
+    db.prepare(`
+      INSERT INTO snapshots (game_id, move_number, state, hash, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(game.id, moveNumber, JSON.stringify(newBoard), validation.hash!, now);
+  }
 
   db.prepare(`
     INSERT INTO events (game_id, move_number, event_type, payload, created_at)
@@ -2385,7 +2425,11 @@ app.post('/api/games/import', importRateLimiter, (req, res) => {
         moveNumber,
         eventType: 'MOVE',
         payload: { x, y, color, capturedPoints },
-        snapshot: { state: JSON.stringify(board), hash: hashBoard(board).toString() },
+        // Keyframes, as a played game writes them.
+        snapshot:
+          moveNumber % SNAPSHOT_INTERVAL === 0
+            ? { state: JSON.stringify(board), hash: hashBoard(board).toString() }
+            : undefined,
       });
       history.push({
         board,
