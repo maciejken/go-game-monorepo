@@ -84,45 +84,34 @@ app.use((req, res, next) => {
 });
 // Lets certbot verify domain ownership in webroot mode.
 app.use('/.well-known/acme-challenge', express.static('/etc/certbot-webroot/.well-known/acme-challenge'));
-// Universal Links config for the iOS app (ios-app/, associated domain
-// applinks:igo5.online): lets a plain https://igo5.online/games/<id> link
-// (shared in a text/email/etc.) open straight into the app instead of a
-// browser tab, no custom URL scheme needed. Must be served as exact JSON
-// with no redirect — iOS fetches and caches this once per install, over a
-// plain GET, before ever consulting the app's own entitlements. The appID
-// here must exactly match the app's own application-identifier entitlement
-// (team + bundle id) — iOS silently falls back to opening the link in
-// Safari on any mismatch. The bundle id is com.maciejkedra.igo5 (renamed
-// from the original com.maciejkedra.gogame, which turned out to be
-// registered under a team this Mac's Xcode could never get a working
-// certificate for via automatic signing) — this App ID + its provisioning
-// profile were created manually on developer.apple.com under team
-// H36M3YGDVV and installed via manual (not automatic) code signing in
-// project.pbxproj, since automatic signing kept re-registering new
-// identifiers under whichever team it preferred rather than the one with
-// a usable certificate. Confirm with `codesign -d --entitlements :-
-// <built .app>` on the actual currently-installed build if links ever
-// stop working again.
+// Universal Links and shared-password config for the iOS app (ios-app/,
+// associated domains applinks: and webcredentials: on igo5.online). The
+// first lets a plain https://igo5.online/games/<id> link open in the app
+// rather than a browser tab; the second tells iOS the app and the site
+// share an account, so a password saved for one is offered for the other
+// and updating it in one updates it everywhere.
+//
+// The document itself is server/public/apple-app-site-association — it is
+// configuration, not code. It is served from here rather than by
+// express.static because the path Apple fetches has no file extension,
+// which static would serve as application/octet-stream; iOS wants JSON.
+// It must also arrive without a redirect: iOS fetches it once per install
+// over a plain GET, before ever consulting the app's entitlements.
+//
+// The appIDs in it must exactly match the app's own
+// application-identifier entitlement (team + bundle id) — iOS silently
+// falls back to Safari, and forgets about shared passwords, on any
+// mismatch. The bundle id is com.maciejkedra.igo5 (renamed from the
+// original com.maciejkedra.gogame, which turned out to be registered
+// under a team this Mac's Xcode could never get a working certificate for
+// via automatic signing) — this App ID + its provisioning profile were
+// created manually on developer.apple.com under team H36M3YGDVV and
+// installed via manual (not automatic) code signing in project.pbxproj.
+// Confirm with `codesign -d --entitlements :- <built .app>` on the
+// actually-installed build if links or passwords ever stop working.
 app.get('/.well-known/apple-app-site-association', (_req, res) => {
     res.type('application/json');
-    res.json({
-        applinks: {
-            apps: [],
-            details: [
-                {
-                    appIDs: ['H36M3YGDVV.com.maciejkedra.igo5'],
-                    components: [{ '/': '/' }, { '/': '/games/*' }, { '/': '/profile/*' }],
-                },
-            ],
-        },
-        // Says the app and this site share an account. Without it iOS keeps
-        // two unrelated saved passwords — the website's and a guess about
-        // the app's — and never offers to update one when the other changes,
-        // which is exactly what happens after a password reset.
-        webcredentials: {
-            apps: ['H36M3YGDVV.com.maciejkedra.igo5'],
-        },
-    });
+    res.sendFile(path.resolve(__dirname, '../public/apple-app-site-association'));
 });
 app.use(express.static(path.resolve(__dirname, '../../client/dist')));
 app.get('/', (req, res) => {

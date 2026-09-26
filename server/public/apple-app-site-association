@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["H36M3YGDVV.com.maciejkedra.igo5"],
+        "components": [{ "/": "/" }, { "/": "/games/*" }, { "/": "/profile/*" }]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["H36M3YGDVV.com.maciejkedra.igo5"]
+  }
+}
