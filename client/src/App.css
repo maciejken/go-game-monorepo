@@ -516,6 +516,20 @@
   color: #d1242f;
 }
 
+/* The one destructive submit on the site (deleting an account), and the
+   explanation above it. Dimmed by opacity rather than a fixed grey, which
+   would need its own value again under the dark theme. */
+.muted {
+  font-size: 14px;
+  opacity: 0.75;
+}
+
+button.danger {
+  background: #d1242f;
+  border-color: #d1242f;
+  color: #fff;
+}
+
 .success {
   color: #1a7f37;
 }

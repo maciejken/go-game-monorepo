@@ -106,7 +106,7 @@ export function getSessionUser(req: Request): SessionUser | null {
     SELECT users.id as id, users.username as username, users.favourite_tag as favouriteTag
     FROM sessions
     JOIN users ON users.id = sessions.user_id
-    WHERE sessions.token = ? AND sessions.created_at >= ?
+    WHERE sessions.token = ? AND sessions.created_at >= ? AND users.deleted_at IS NULL
   `).get(token, Date.now() - SESSION_LIFETIME_MS) as SessionUser | undefined;
 
   return row ?? null;

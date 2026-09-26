@@ -4072,6 +4072,65 @@
         }
       }
     },
+    "Delete account": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usuń konto"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Видалити обліковий запис"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить учётную запись"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto löschen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer le compte"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elimina account"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除账号"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントを削除"
+          }
+        }
+      }
+    },
     "Delete game": {
       "extractionState": "manual",
       "localizations": {
@@ -4186,6 +4245,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "この対局と全ての着手を削除しますか？元に戻せません。"
+          }
+        }
+      }
+    },
+    "Deletes your account and the games you played alone. Games against other players stay with them, without your name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deletes your account and the games you played alone. Games against other players stay with them, without your name."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usuwa Twoje konto i partie rozegrane samodzielnie. Partie z innymi graczami pozostaną u nich, bez Twojej nazwy."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Видаляє ваш обліковий запис і партії, зіграні наодинці. Партії з іншими гравцями залишаться в них, без вашого імені."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удаляет вашу учётную запись и партии, сыгранные в одиночку. Партии с другими игроками останутся у них, без вашего имени."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löscht dein Konto und die Partien, die du allein gespielt hast. Partien gegen andere bleiben bei ihnen, ohne deinen Namen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprime votre compte et les parties jouées seul. Les parties contre d'autres joueurs restent chez eux, sans votre nom."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elimina il tuo account e le partite giocate da solo. Le partite contro altri giocatori restano a loro, senza il tuo nome."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除你的账号以及你独自下的对局。与其他玩家的对局会留在他们那里，但不再显示你的名字。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アカウントと、ひとりで打った対局を削除します。他の人との対局は相手の側に残りますが、あなたの名前は表示されません。"
           }
         }
       }
@@ -13685,6 +13803,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "相手が整地のやり直しを求めています。"
+          }
+        }
+      }
+    },
+    "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tej operacji nie można cofnąć. Twoje konto i partie rozegrane samodzielnie zostaną usunięte; partie z innymi graczami pozostaną u nich, bez Twojej nazwy."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цю дію не можна скасувати. Ваш обліковий запис і партії, зіграні наодинці, буде видалено; партії з іншими гравцями залишаться в них, без вашого імені."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это действие нельзя отменить. Ваша учётная запись и партии, сыгранные в одиночку, будут удалены; партии с другими игроками останутся у них, без вашего имени."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das lässt sich nicht rückgängig machen. Dein Konto und die Partien, die du allein gespielt hast, werden gelöscht; Partien gegen andere bleiben bei ihnen, ohne deinen Namen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette action est irréversible. Votre compte et les parties jouées seul sont supprimés ; les parties contre d'autres joueurs restent chez eux, sans votre nom."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa operazione è irreversibile. Il tuo account e le partite giocate da solo vengono eliminati; le partite contro altri giocatori restano a loro, senza il tuo nome."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此操作无法撤销。你的账号以及你独自下的对局将被删除；与其他玩家的对局会留在他们那里，但不再显示你的名字。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この操作は取り消せません。アカウントと、ひとりで打った対局は削除されます。他の人との対局は相手の側に残りますが、あなたの名前は表示されません。"
           }
         }
       }

@@ -217,6 +217,18 @@ enum APIClient {
         return (response.user, response.features ?? ServerFeatures())
     }
 
+    // Ends the account. The password is sent again because the server asks
+    // for it again: a session left open on someone else's device is not
+    // enough to do this.
+    static func deleteAccount(password: String) async throws {
+        struct Body: Encodable { let password: String }
+        var request = URLRequest(url: url("api/auth/me"))
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(Body(password: password))
+        try await send(request)
+    }
+
     static func changePassword(currentPassword: String, newPassword: String) async throws {
         struct Body: Encodable { let currentPassword: String; let newPassword: String }
         try await post("api/auth/password", body: Body(currentPassword: currentPassword, newPassword: newPassword))

@@ -22,3 +22,4 @@ done
 
 node scripts/check-server-flow.mjs "http://localhost:$PORT"
 node scripts/check-server-import.mjs "http://localhost:$PORT"
+node scripts/check-server-account.mjs "http://localhost:$PORT"

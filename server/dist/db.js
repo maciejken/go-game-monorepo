@@ -314,6 +314,15 @@ if (!usersColumns.has('accepts_invitations')) {
 if (!usersColumns.has('favourite_tag')) {
     db.exec('ALTER TABLE users ADD COLUMN favourite_tag TEXT');
 }
+// When an account was deleted. The row survives its account because games
+// point at it: a game played against somebody who later left is still the
+// other player's game, and it would lose its opponent entirely. Everything
+// that made the row theirs — name, password, settings — is scrubbed at
+// that moment (see DELETE /api/auth/me), so what is left is a marker, not
+// an account.
+if (!usersColumns.has('deleted_at')) {
+    db.exec('ALTER TABLE users ADD COLUMN deleted_at INTEGER');
+}
 // Migrate older `snapshots` tables that predate the `hash` column (used for
 // situational superko checks), backfilling it for any existing rows.
 const snapshotsColumns = new Set(db.prepare('PRAGMA table_info(snapshots)').all().map((column) => column.name));

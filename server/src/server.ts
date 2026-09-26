@@ -1426,6 +1426,88 @@ app.post('/api/auth/password', (req, res) => {
   res.json({ success: true });
 });
 
+// Deleting an account, which Apple requires any app that creates one to
+// offer. The password is asked for again: a session that has been left
+// open on someone else's device shouldn't be enough to end an account.
+//
+// Games are the awkward part, because half of one belongs to somebody
+// else. A game this account played alone — both colours, or against GNU Go
+// — is nobody else's record and goes with it. A game against another
+// player is that player's game too, so it stays, and the row that used to
+// be an account becomes a marker with nothing personal left on it: no
+// name, no password that can be used, no settings, no tags. The games keep
+// an opponent; the person is gone.
+app.delete('/api/auth/me', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id) as
+    | { password_hash: string }
+    | undefined;
+  if (!row || !verifyPassword(password, row.password_hash)) {
+    fail(res, 400, 'Current password is incorrect');
+    return;
+  }
+
+  const aiId = getAiUserId();
+  const soloGames = db
+    .prepare(
+      `SELECT id FROM games
+         WHERE (black_user_id = ? OR white_user_id = ?)
+           AND (black_user_id = white_user_id
+                OR black_user_id = ? OR white_user_id = ?)`,
+    )
+    .all(user.id, user.id, aiId, aiId) as { id: string }[];
+
+  const now = Date.now();
+  db.transaction(() => {
+    for (const game of soloGames) {
+      db.prepare('DELETE FROM events WHERE game_id = ?').run(game.id);
+      db.prepare('DELETE FROM snapshots WHERE game_id = ?').run(game.id);
+      db.prepare('DELETE FROM game_tags WHERE game_id = ?').run(game.id);
+      db.prepare('DELETE FROM stars WHERE game_id = ?').run(game.id);
+      db.prepare('DELETE FROM vision_tokens WHERE game_id = ?').run(game.id);
+      db.prepare('DELETE FROM games WHERE id = ?').run(game.id);
+    }
+
+    // Everything that was only ever this account's.
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+    db.prepare('DELETE FROM device_tokens WHERE user_id = ?').run(user.id);
+    db.prepare('DELETE FROM user_tags WHERE user_id = ?').run(user.id);
+    db.prepare('DELETE FROM quick_game_presets WHERE user_id = ?').run(user.id);
+    db.prepare('DELETE FROM stars WHERE user_id = ?').run(user.id);
+    db.prepare('DELETE FROM vision_tokens WHERE created_by = ?').run(user.id);
+    // Their personal tags on games that remain. A shared tag stays: it was
+    // put on the game for both players, and the other one still has it.
+    db.prepare('DELETE FROM game_tags WHERE user_id = ? AND is_public = 0').run(user.id);
+    // An invitation nobody can accept any more.
+    db.prepare("UPDATE games SET invited_user_id = NULL, invite_status = NULL WHERE invited_user_id = ? AND invite_status = 'pending'")
+      .run(user.id);
+
+    // What's left is a marker, and it is never an account again: no
+    // password verifies against a hash that isn't one.
+    db.prepare(
+      `UPDATE users
+          SET username = ?, password_hash = '', accepts_invitations = 0, favourite_tag = NULL, deleted_at = ?
+        WHERE id = ?`,
+    ).run(deletedUsername(user.id), now, user.id);
+  })();
+
+  broadcastGamesListUpdate();
+  res.json({ success: true });
+});
+
+// The name a deleted account leaves behind: unmistakably not a person, and
+// derived from the id so two of them can't collide. The original username
+// is freed by this, which is deliberate — it was theirs, and it is nobody's
+// now.
+function deletedUsername(userId: string): string {
+  return `deleted_${userId.replace(/-/g, '').slice(0, 4)}`;
+}
+
 // A 1-2 character query is too short to search the whole user base
 // usefully (way too many matches), but is exactly enough to jog a memory
 // of "who did I just play" — so under 3 characters, search is narrowed to
@@ -1460,7 +1542,7 @@ app.get('/api/users/search', (req, res) => {
     const rows = db
       .prepare(
         `SELECT id, username FROM users
-         WHERE username LIKE ? ESCAPE '\\' AND (accepts_invitations = 1 OR id = ?)
+         WHERE username LIKE ? ESCAPE '\\' AND deleted_at IS NULL AND (accepts_invitations = 1 OR id = ?)
          ORDER BY username LIMIT 10`,
       )
       .all(pattern, user.id) as { id: string; username: string }[];

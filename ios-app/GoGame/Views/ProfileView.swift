@@ -15,6 +15,10 @@ struct ProfileView: View {
     @State private var isChangingPassword = false
     @State private var acceptsInvitations = false
     @State private var acceptsInvitationsError: String?
+    @State private var showDeleteAccount = false
+    @State private var deletePassword = ""
+    @State private var deleteError: String?
+    @State private var isDeletingAccount = false
 
     // Only ever relevant on your own profile — viewing someone else's has
     // no reason to expose a way to change their password.
@@ -114,6 +118,18 @@ struct ProfileView: View {
                                 Task { await session.logout() }
                             }
                         }
+                        // Last on the screen, behind a confirmation and
+                        // the password, and honest about what survives:
+                        // games played against other people are their
+                        // games too and stay, with nothing on them that
+                        // says who this was.
+                        Section {
+                            Button("Delete account", role: .destructive) {
+                                showDeleteAccount = true
+                            }
+                        } footer: {
+                            Text("Deletes your account and the games you played alone. Games against other players stay with them, without your name.")
+                        }
                     }
                 }
             } else {
@@ -122,6 +138,10 @@ struct ProfileView: View {
         }
         .navigationTitle("Profile")
         .task(id: userId) { await load() }
+        .sheet(isPresented: $showDeleteAccount) {
+            deleteAccountSheet
+                .presentationDetents([.height(320)])
+        }
         .alert(
             "Error",
             isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
@@ -129,6 +149,52 @@ struct ProfileView: View {
             Button("OK") { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
+        }
+    }
+
+    // Typing the password again is the confirmation: a "sure?" button is
+    // easy to press by accident, and the server asks for it regardless.
+    private var deleteAccountSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Delete account")
+                .font(.headline)
+            Text("This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            SecureField("Current password", text: $deletePassword)
+                .textContentType(.password)
+                .textFieldStyle(.roundedBorder)
+            if let deleteError {
+                Text(deleteError)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+            Button(role: .destructive) {
+                Task { await deleteAccount() }
+            } label: {
+                Text("Delete account").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .disabled(isDeletingAccount || deletePassword.isEmpty)
+            Spacer(minLength: 0)
+        }
+        .padding()
+    }
+
+    private func deleteAccount() async {
+        guard !isDeletingAccount else { return }
+        isDeletingAccount = true
+        defer { isDeletingAccount = false }
+        do {
+            try await APIClient.deleteAccount(password: deletePassword)
+            deletePassword = ""
+            showDeleteAccount = false
+            // The session went with the account; this just catches the app
+            // up with that.
+            await session.logout()
+        } catch {
+            deleteError = error.localizedDescription
         }
     }
 

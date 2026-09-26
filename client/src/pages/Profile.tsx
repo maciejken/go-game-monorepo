@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   changePassword,
+  deleteAccount,
   getUser,
   listTagSuggestions,
   setAcceptsInvitations,
@@ -119,6 +120,54 @@ function AcceptInvitationsToggle({ initialValue }: { initialValue: boolean }) {
   );
 }
 
+// Last on the page, and honest about what it leaves behind. Typing the
+// password again is the confirmation — a "sure?" button is easy to press
+// by accident, and the server asks for it regardless.
+function DeleteAccountForm() {
+  const { logout } = useAuth();
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    deleteAccount(password)
+      // The session went with the account; this catches the page up.
+      .then(() => logout())
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setSubmitting(false));
+  };
+
+  return (
+    <>
+      <h3>{t('Delete account')}</h3>
+      <p className="muted">
+        {t(
+          'This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.',
+        )}
+      </p>
+      <form className="auth-form" onSubmit={submit}>
+        <label>
+          {t('Current password')}
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+        </label>
+        {error && <p className="error">{error}</p>}
+        <button type="submit" className="danger" disabled={submitting || password.length === 0}>
+          {t('Delete account')}
+        </button>
+      </form>
+    </>
+  );
+}
+
 // Keyed by id so moving between profiles mounts a fresh ProfileView — its
 // state starts empty instead of showing the previous user until the new
 // one loads, and a late response for the old id lands on the unmounted one.
@@ -167,6 +216,7 @@ function ProfileView({ id }: { id: string | undefined }) {
           />
           <AcceptInvitationsToggle initialValue={profile.acceptsInvitations} />
           <ChangePasswordForm />
+          <DeleteAccountForm />
         </>
       )}
       <Link to="/">{t('Back to games')}</Link>

@@ -485,6 +485,18 @@ export function getUser(id: string): Promise<UserProfile> {
   return fetch(`${API_BASE}/users/${id}`).then((res) => handle<UserProfile>(res));
 }
 
+// Ends the account. The password goes with it because the server asks for
+// it again: a session left open on a shared computer is not enough.
+export function deleteAccount(password: string): Promise<void> {
+  return fetch(`${API_BASE}/auth/me`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  })
+    .then((res) => handle<{ success: true }>(res))
+    .then(() => undefined);
+}
+
 export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   return fetch(`${API_BASE}/auth/password`, {
     method: 'POST',
