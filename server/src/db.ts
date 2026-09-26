@@ -360,6 +360,17 @@ if (!usersColumns.has('deleted_at')) {
   db.exec('ALTER TABLE users ADD COLUMN deleted_at INTEGER');
 }
 
+// A one-time code that can set a new password without one, for an app with
+// no email to send a link to. Stored the way a password is — only its hash
+// — so the server can check a code without being able to show it again.
+// NULL for accounts that predate it, until they ask for one.
+if (!usersColumns.has('recovery_hash')) {
+  db.exec('ALTER TABLE users ADD COLUMN recovery_hash TEXT');
+}
+if (!usersColumns.has('recovery_set_at')) {
+  db.exec('ALTER TABLE users ADD COLUMN recovery_set_at INTEGER');
+}
+
 // Migrate older `snapshots` tables that predate the `hash` column (used for
 // situational superko checks), backfilling it for any existing rows.
 const snapshotsColumns = new Set(

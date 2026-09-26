@@ -10,6 +10,7 @@ struct AuthView: View {
     @State private var username = ""
     @State private var password = ""
     @State private var isSubmitting = false
+    @State private var showReset = false
 
     var body: some View {
         NavigationStack {
@@ -44,6 +45,10 @@ struct AuthView: View {
                         }
                     }
                     .disabled(isSubmitting || username.isEmpty || password.isEmpty)
+
+                    Button("Forgot password?") {
+                        showReset = true
+                    }
                 }
 
                 // An account is for playing other people. A game against
@@ -66,6 +71,13 @@ struct AuthView: View {
                 }
             }
             .navigationTitle(offersOfflinePlay ? "Igo5" : "Account")
+            .sheet(isPresented: $showReset) {
+                ResetPasswordSheet(initialUsername: username) { nextCode in
+                    // Straight into the app's own "here is your code"
+                    // sheet, and the new password is theirs to log in with.
+                    session.recoveryCodeToShow = nextCode
+                }
+            }
         }
     }
 }

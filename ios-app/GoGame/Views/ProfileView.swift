@@ -15,6 +15,9 @@ struct ProfileView: View {
     @State private var isChangingPassword = false
     @State private var acceptsInvitations = false
     @State private var acceptsInvitationsError: String?
+    @State private var recoveryPassword = ""
+    @State private var recoveryError: String?
+    @State private var isRequestingRecoveryCode = false
     @State private var showDeleteAccount = false
     @State private var deletePassword = ""
     @State private var deleteError: String?
@@ -114,6 +117,23 @@ struct ProfileView: View {
                             )
                         }
                         Section {
+                            SecureField("Current password", text: $recoveryPassword)
+                                .textContentType(.password)
+                            if let recoveryError {
+                                Text(recoveryError)
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                            }
+                            Button("Get a new recovery code") {
+                                Task { await requestRecoveryCode() }
+                            }
+                            .disabled(isRequestingRecoveryCode || recoveryPassword.isEmpty)
+                        } header: {
+                            Text("Recovery code")
+                        } footer: {
+                            Text("A code that sets a new password when you've forgotten yours. A new one replaces the last.")
+                        }
+                        Section {
                             Button("Log out", role: .destructive) {
                                 Task { await session.logout() }
                             }
@@ -180,6 +200,20 @@ struct ProfileView: View {
             Spacer(minLength: 0)
         }
         .padding()
+    }
+
+    private func requestRecoveryCode() async {
+        guard !isRequestingRecoveryCode else { return }
+        isRequestingRecoveryCode = true
+        defer { isRequestingRecoveryCode = false }
+        do {
+            let code = try await APIClient.newRecoveryCode(password: recoveryPassword)
+            recoveryPassword = ""
+            recoveryError = nil
+            session.recoveryCodeToShow = code
+        } catch {
+            recoveryError = error.localizedDescription
+        }
     }
 
     private func deleteAccount() async {

@@ -14,6 +14,17 @@ struct RootView: View {
             }
         }
         .environment(session)
+        // Wherever a code comes from — registering, recovering, or asking
+        // for a new one — it is shown here, once.
+        .sheet(
+            isPresented: Binding(
+                get: { session.recoveryCodeToShow != nil },
+                set: { if !$0 { session.recoveryCodeToShow = nil } }
+            )
+        ) {
+            RecoveryCodeSheet(code: session.recoveryCodeToShow ?? "")
+                .presentationDetents([.height(340)])
+        }
         .task {
             await session.checkSession()
         }

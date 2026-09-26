@@ -128,8 +128,116 @@ expect(
   `re-registering the name: inherited ${retakenGames?.length} game(s)`,
 );
 
+// --- Losing the password, and getting back in with the code -------------
+
+const forgetful = session();
+const forgetfulName = `fg${suffix}`;
+const registered = await forgetful('POST', '/api/auth/register', {
+  username: forgetfulName,
+  password,
+});
+const firstCode = registered.body?.recoveryCode;
+expect(typeof firstCode === 'string' && firstCode.length >= 16, `register: no recovery code (${firstCode})`);
+
+// A code nobody was given doesn't open anything, and neither does a name
+// that was never registered — and both are refused the same way.
+const guessed = await forgetful('POST', '/api/auth/reset-password', {
+  username: forgetfulName,
+  recoveryCode: 'ZZZZ-ZZZZ-ZZZZ-ZZZZ',
+  newPassword: 'guessed-my-way-in',
+});
+expect(guessed.status === 400, `wrong code: got ${guessed.status}, expected a refusal`);
+const nobody = await forgetful('POST', '/api/auth/reset-password', {
+  username: `no${suffix}`,
+  recoveryCode: firstCode,
+  newPassword: 'guessed-my-way-in',
+});
+expect(nobody.status === 400, `unknown username: got ${nobody.status}, expected a refusal`);
+expect(
+  nobody.body?.error === guessed.body?.error,
+  `unknown username answers "${nobody.body?.error}", a wrong code answers "${guessed.body?.error}" — they should match`,
+);
+
+// The real code sets a new password, and hands back the next one.
+const reset = await forgetful('POST', '/api/auth/reset-password', {
+  username: forgetfulName,
+  // Typed by someone reading it off paper: lowercase, spaces, no dashes.
+  recoveryCode: firstCode.toLowerCase().replace(/-/g, ' '),
+  newPassword: 'brand-new-password',
+});
+expect(reset.status === 200, `reset: got ${reset.status} (${reset.body?.error})`);
+const secondCode = reset.body?.recoveryCode;
+expect(typeof secondCode === 'string' && secondCode !== firstCode, 'reset: no fresh code came back');
+
+// The old password is gone, the new one works.
+const stale = session();
+const staleLogin = await stale('POST', '/api/auth/login', { username: forgetfulName, password });
+expect(staleLogin.status >= 400, `after reset: the old password still logs in (${staleLogin.status})`);
+const fresh = session();
+const freshLogin = await fresh('POST', '/api/auth/login', {
+  username: forgetfulName,
+  password: 'brand-new-password',
+});
+expect(freshLogin.status < 400, `after reset: the new password doesn't log in (${freshLogin.body?.error})`);
+
+// A code is spent once.
+const reused = await fresh('POST', '/api/auth/reset-password', {
+  username: forgetfulName,
+  recoveryCode: firstCode,
+  newPassword: 'third-password',
+});
+expect(reused.status === 400, `reusing a code: got ${reused.status}, expected a refusal`);
+
+// The session that was open before the reset isn't any more.
+const beforeReset = await forgetful('GET', '/api/auth/me');
+expect(beforeReset.body?.user == null, 'after reset: the session from before is still signed in');
+
+// A new code can be asked for with the password, and it replaces the last.
+const regenerated = await fresh('POST', '/api/auth/recovery-code', { password: 'brand-new-password' });
+expect(regenerated.status === 200, `new code: got ${regenerated.status} (${regenerated.body?.error})`);
+expect(
+  typeof regenerated.body?.recoveryCode === 'string' && regenerated.body.recoveryCode !== secondCode,
+  'new code: the same code came back',
+);
+const supersededCode = await fresh('POST', '/api/auth/reset-password', {
+  username: forgetfulName,
+  recoveryCode: secondCode,
+  newPassword: 'fourth-password',
+});
+expect(supersededCode.status === 400, `superseded code: got ${supersededCode.status}, expected a refusal`);
+// ...and asking for one needs the password.
+const noPassword = await fresh('POST', '/api/auth/recovery-code', { password: 'not-it' });
+expect(noPassword.status === 400, `new code without the password: got ${noPassword.status}`);
+
+// A deleted account keeps no key to anything.
+const goner = session();
+const gonerName = `gn${suffix}`;
+const gonerCode = (await goner('POST', '/api/auth/register', { username: gonerName, password })).body?.recoveryCode;
+await goner('DELETE', '/api/auth/me', { password });
+const deadCode = await goner('POST', '/api/auth/reset-password', {
+  username: gonerName,
+  recoveryCode: gonerCode,
+  newPassword: 'back-from-the-dead',
+});
+expect(deadCode.status === 400, `deleted account's code: got ${deadCode.status}, expected a refusal`);
+
+// Guessing is throttled, whatever is being guessed.
+let throttled = false;
+for (let attempt = 0; attempt < 12; attempt += 1) {
+  const response = await forgetful('POST', '/api/auth/reset-password', {
+    username: forgetfulName,
+    recoveryCode: 'ZZZZ-ZZZZ-ZZZZ-ZZZZ',
+    newPassword: 'guessed-my-way-in',
+  });
+  if (response.status === 429) {
+    throttled = true;
+    break;
+  }
+}
+expect(throttled, 'guessing: a dozen attempts in a row were all allowed through');
+
 if (failures.length === 0) {
-  console.log(`Deleting an account leaves the right things behind (${checked} assertions).`);
+  console.log(`Deleting an account and recovering one both behave (${checked} assertions).`);
   process.exit(0);
 }
 

@@ -6,7 +6,8 @@ export interface AuthContextValue {
   features: ServerFeatures;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
+  // Resolves with the recovery code the server issued, to be shown once.
+  register: (username: string, password: string) => Promise<string | undefined>;
   logout: () => Promise<void>;
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { resetPassword } from '../services/api';
 import { t } from '../i18n';
 
 function Auth() {
@@ -13,6 +14,9 @@ function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  // Shown once, and only here: the server keeps nothing but its hash.
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
 
   const redirectTo = (location.state as { from?: string } | null)?.from ?? '/';
 
@@ -20,12 +24,50 @@ function Auth() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    const action = mode === 'login' ? login : register;
-    action(username, password)
-      .then(() => navigate(redirectTo, { replace: true }))
+    if (mode === 'login') {
+      login(username, password)
+        .then(() => navigate(redirectTo, { replace: true }))
+        .catch((err: Error) => setError(err.message))
+        .finally(() => setSubmitting(false));
+      return;
+    }
+    register(username, password)
+      // The account exists either way; the code is shown before going on,
+      // since there is no second chance to see it.
+      .then((code) => (code ? setRecoveryCode(code) : navigate(redirectTo, { replace: true })))
       .catch((err: Error) => setError(err.message))
       .finally(() => setSubmitting(false));
   };
+
+  if (recoveryCode) {
+    return (
+      <div className="auth-wrap">
+        <h2>{t('Your recovery code')}</h2>
+        <p className="muted">
+          {t(
+            "Write this down. It is the only way back into your account if you forget your password, and it isn't shown again.",
+          )}
+        </p>
+        <p className="recovery-code">{recoveryCode}</p>
+        <button type="button" onClick={() => navigate(redirectTo, { replace: true })}>
+          {t('Done')}
+        </button>
+      </div>
+    );
+  }
+
+  if (resetting) {
+    return (
+      <ResetPasswordForm
+        initialUsername={username}
+        onCancel={() => setResetting(false)}
+        onReset={(code) => {
+          setResetting(false);
+          setRecoveryCode(code);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="auth-wrap">
@@ -91,6 +133,92 @@ function Auth() {
         }}
       >
         {mode === 'login' ? t("Don't have an account? Register") : t('Already have an account? Log in')}
+      </button>
+      {mode === 'login' && (
+        <button type="button" className="auth-switch" onClick={() => setResetting(true)}>
+          {t('Forgot password?')}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// No email to send a link to, so the proof is the code the account was
+// given when it was made. Spending it sets a new password and issues the
+// next one.
+function ResetPasswordForm({
+  initialUsername,
+  onCancel,
+  onReset,
+}: {
+  initialUsername: string;
+  onCancel: () => void;
+  onReset: (recoveryCode: string) => void;
+}) {
+  const [username, setUsername] = useState(initialUsername);
+  const [code, setCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    resetPassword(username, code, newPassword)
+      .then(onReset)
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setSubmitting(false));
+  };
+
+  return (
+    <div className="auth-wrap">
+      <h2>{t('Forgot password')}</h2>
+      <p className="muted">
+        {t('The code you were given when the account was made. Using it sets a new password and gives you a new code.')}
+      </p>
+      <form className="auth-form" onSubmit={submit}>
+        <label>
+          {t('Username')}
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            maxLength={12}
+            required
+          />
+        </label>
+        <label>
+          {t('Recovery code')}
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            autoComplete="one-time-code"
+            spellCheck={false}
+            required
+          />
+        </label>
+        <label>
+          {t('New password')}
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={6}
+            maxLength={128}
+            required
+          />
+        </label>
+        {error && <p className="error">{error}</p>}
+        <button type="submit" disabled={submitting}>
+          {t('Reset')}
+        </button>
+      </form>
+      <button type="button" className="auth-switch" onClick={onCancel}>
+        {t('Cancel')}
       </button>
     </div>
   );

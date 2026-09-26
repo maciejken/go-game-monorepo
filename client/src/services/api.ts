@@ -442,12 +442,38 @@ export function finalizeScoring(
   }).then((res) => handle<FinalizeScoringResponse>(res));
 }
 
-export function register(username: string, password: string): Promise<AuthUser> {
+// Registration hands back a recovery code with the account — the one time
+// it is ever shown, since the server keeps only its hash.
+export function register(username: string, password: string): Promise<AuthUser & { recoveryCode?: string }> {
   return fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
-  }).then((res) => handle<AuthUser>(res));
+  }).then((res) => handle<AuthUser & { recoveryCode?: string }>(res));
+}
+
+// A new code, replacing whatever the account had. Needs the password: it
+// hands out a key to the account.
+export function newRecoveryCode(password: string): Promise<string> {
+  return fetch(`${API_BASE}/auth/recovery-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  })
+    .then((res) => handle<{ recoveryCode: string }>(res))
+    .then((data) => data.recoveryCode);
+}
+
+// Setting a password without the old one, for someone who kept their
+// code. Answers with the next one, since this one is spent.
+export function resetPassword(username: string, recoveryCode: string, newPassword: string): Promise<string> {
+  return fetch(`${API_BASE}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, recoveryCode, newPassword }),
+  })
+    .then((res) => handle<{ recoveryCode: string }>(res))
+    .then((data) => data.recoveryCode);
 }
 
 export function login(username: string, password: string): Promise<AuthUser> {

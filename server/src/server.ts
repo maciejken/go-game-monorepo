@@ -36,12 +36,15 @@ import {
   createSession,
   destroySession,
   destroyOtherSessions,
+  generateRecoveryCode,
   getSessionToken,
   getSessionUser,
   hashPassword,
+  hashRecoveryCode,
   requireAuth,
   setSessionCookie,
   verifyPassword,
+  verifyRecoveryCode,
 } from './auth.js';
 import { seedDefaultUser, seedAiUser, getAiUserId } from './seed.js';
 import { attachWebSocketServer, broadcastGameUpdate, broadcastGamesListUpdate } from './ws.js';
@@ -1280,12 +1283,42 @@ app.post('/api/auth/register', registerRateLimiter, (req, res) => {
   }
 
   const id = randomUUID();
-  db.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)')
-    .run(id, username, hashPassword(password), Date.now());
+  const now = Date.now();
+  // Shown here and never again: the server keeps only its hash, the same
+  // way it keeps the password. Whoever registers is told to write it down.
+  const recoveryCode = generateRecoveryCode();
+  db.prepare(
+    `INSERT INTO users (id, username, password_hash, created_at, recovery_hash, recovery_set_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).run(id, username, hashPassword(password), now, hashRecoveryCode(recoveryCode), now);
 
   const token = createSession(id);
   setSessionCookie(res, token);
-  res.status(201).json({ id, username });
+  res.status(201).json({ id, username, recoveryCode });
+});
+
+// A new code for an account that has none (everyone who registered before
+// there were any) or whose code has been used, forgotten or written down
+// somewhere it shouldn't have been. The password is required: this hands
+// out a key to the account.
+app.post('/api/auth/recovery-code', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id) as
+    | { password_hash: string }
+    | undefined;
+  if (!row || !verifyPassword(password, row.password_hash)) {
+    fail(res, 400, 'Current password is incorrect');
+    return;
+  }
+
+  const recoveryCode = generateRecoveryCode();
+  db.prepare('UPDATE users SET recovery_hash = ?, recovery_set_at = ? WHERE id = ?')
+    .run(hashRecoveryCode(recoveryCode), Date.now(), user.id);
+  res.json({ recoveryCode });
 });
 
 // Both limiters key on req.ip, which is the socket's own address because
@@ -1300,6 +1333,57 @@ app.post('/api/auth/register', registerRateLimiter, (req, res) => {
 // Standard login-throttling values (express-rate-limit's own canonical
 // example, matching common OWASP-style guidance): 5 attempts per 15
 // minutes per IP, to slow down password brute-forcing.
+// Guessing a code is the only way in without a password, so this is the
+// endpoint worth throttling. Ten attempts a quarter of an hour against 80
+// bits of code is not a race anyone wins, and it leaves room for someone
+// mistyping one off a piece of paper a few times.
+const recoveryRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts — try again later.' },
+});
+
+// Setting a password without the old one, for someone who kept the code
+// they were given. No email, because this server sends none: the code was
+// handed over at registration and is the whole proof.
+app.post('/api/auth/reset-password', recoveryRateLimiter, (req, res) => {
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim().slice(0, MAX_USERNAME_LENGTH) : '';
+  const code = typeof req.body?.recoveryCode === 'string' ? req.body.recoveryCode : '';
+  const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+
+  if (newPassword.length < MIN_PASSWORD_LENGTH || newPassword.length > MAX_PASSWORD_LENGTH) {
+    fail(res, 400, 'Password must be %@-%@ characters', [MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH]);
+    return;
+  }
+
+  const row = db
+    .prepare('SELECT id, recovery_hash FROM users WHERE username = ? AND deleted_at IS NULL')
+    .get(username) as { id: string; recovery_hash: string | null } | undefined;
+  // One message for a name that doesn't exist, an account with no code and
+  // a code that doesn't match: telling them apart would turn this into a
+  // way of asking which usernames are real.
+  if (!row || !row.recovery_hash || !verifyRecoveryCode(code, row.recovery_hash)) {
+    fail(res, 400, 'Username or recovery code is incorrect');
+    return;
+  }
+
+  // The code is spent, and a fresh one comes back with the answer — losing
+  // a password shouldn't leave anyone without a way to do it again.
+  const recoveryCode = generateRecoveryCode();
+  const now = Date.now();
+  db.transaction(() => {
+    db.prepare('UPDATE users SET password_hash = ?, recovery_hash = ?, recovery_set_at = ? WHERE id = ?')
+      .run(hashPassword(newPassword), hashRecoveryCode(recoveryCode), now, row.id);
+    // Whoever was signed in as this account may be exactly who they are
+    // recovering it from.
+    destroyOtherSessions(row.id, null);
+  })();
+
+  res.json({ recoveryCode });
+});
+
 const loginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
@@ -1491,7 +1575,8 @@ app.delete('/api/auth/me', (req, res) => {
     // password verifies against a hash that isn't one.
     db.prepare(
       `UPDATE users
-          SET username = ?, password_hash = '', accepts_invitations = 0, favourite_tag = NULL, deleted_at = ?
+          SET username = ?, password_hash = '', recovery_hash = NULL, recovery_set_at = NULL,
+              accepts_invitations = 0, favourite_tag = NULL, deleted_at = ?
         WHERE id = ?`,
     ).run(deletedUsername(user.id), now, user.id);
   })();

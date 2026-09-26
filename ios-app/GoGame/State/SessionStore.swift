@@ -20,6 +20,11 @@ final class SessionStore {
     // What the server offers, as of the last time it answered. Assumed
     // until then, so nothing flickers away on a slow launch.
     var features = ServerFeatures()
+    // A recovery code waiting to be shown — from registering, from
+    // recovering an account, or from asking for a new one. Held here
+    // rather than by whichever screen produced it, because registering
+    // replaces that screen with the game list a moment later.
+    var recoveryCodeToShow: String?
 
     // Who was signed in last, kept on the device so an unreachable server
     // doesn't strand someone on the login screen with offline games they
@@ -69,8 +74,11 @@ final class SessionStore {
     func register(username: String, password: String) async {
         errorMessage = nil
         do {
-            currentUser = try await APIClient.register(username: username, password: password)
-            rememberedUser = currentUser
+            let (user, recoveryCode) = try await APIClient.register(username: username, password: password)
+            currentUser = user
+            rememberedUser = user
+            // Shown once, wherever the app happens to be when it arrives.
+            recoveryCodeToShow = recoveryCode
             isOffline = false
             isPlayingOffline = false
             PushNotifications.requestAuthorizationAndRegister()

@@ -26,6 +26,39 @@ export function verifyPassword(password: string, stored: string): boolean {
   return candidate.length === expected.length && timingSafeEqual(candidate, expected);
 }
 
+// Crockford base32 without the letters that get misread — no I, L, O or U
+// — so a code can be written down, read back over the phone and typed
+// without anyone wondering about a zero.
+const RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const RECOVERY_GROUPS = 4;
+const RECOVERY_GROUP_LENGTH = 4;
+
+// 16 characters of that alphabet: 80 bits, which no amount of guessing
+// against a rate-limited endpoint will find.
+export function generateRecoveryCode(): string {
+  const bytes = randomBytes(RECOVERY_GROUPS * RECOVERY_GROUP_LENGTH);
+  const characters = Array.from(bytes, (byte) => RECOVERY_ALPHABET[byte % RECOVERY_ALPHABET.length]);
+  const groups: string[] = [];
+  for (let index = 0; index < characters.length; index += RECOVERY_GROUP_LENGTH) {
+    groups.push(characters.slice(index, index + RECOVERY_GROUP_LENGTH).join(''));
+  }
+  return groups.join('-');
+}
+
+// Typed by a person who has just lost their password: case and grouping
+// are noise, and so is the odd space.
+export function normalizeRecoveryCode(code: string): string {
+  return code.toUpperCase().replace(/[^0-9A-Z]/g, '');
+}
+
+export function hashRecoveryCode(code: string): string {
+  return hashPassword(normalizeRecoveryCode(code));
+}
+
+export function verifyRecoveryCode(code: string, stored: string): boolean {
+  return verifyPassword(normalizeRecoveryCode(code), stored);
+}
+
 function parseCookies(header: string | undefined): Record<string, string> {
   const cookies: Record<string, string> = {};
   if (!header) {

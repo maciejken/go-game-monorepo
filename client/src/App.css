@@ -524,6 +524,16 @@
   opacity: 0.75;
 }
 
+/* A recovery code is read off the screen and typed somewhere else, so it
+   is set in a monospace face with the groups kept apart. */
+.recovery-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  user-select: all;
+}
+
 button.danger {
   background: #d1242f;
   border-color: #d1242f;

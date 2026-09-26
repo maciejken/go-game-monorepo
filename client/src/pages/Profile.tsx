@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import {
   changePassword,
   deleteAccount,
+  newRecoveryCode,
   getUser,
   listTagSuggestions,
   setAcceptsInvitations,
@@ -120,6 +121,64 @@ function AcceptInvitationsToggle({ initialValue }: { initialValue: boolean }) {
   );
 }
 
+// A code for an account that has none, or has spent the one it had. The
+// password is required, because this hands out a key to the account.
+function RecoveryCodeForm() {
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    newRecoveryCode(password)
+      .then((issued) => {
+        setCode(issued);
+        setPassword('');
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setSubmitting(false));
+  };
+
+  return (
+    <>
+      <h3>{t('Recovery code')}</h3>
+      <p className="muted">
+        {t("A code that sets a new password when you've forgotten yours. A new one replaces the last.")}
+      </p>
+      {code ? (
+        <>
+          <p className="recovery-code">{code}</p>
+          <p className="muted">
+            {t(
+              "Write this down. It is the only way back into your account if you forget your password, and it isn't shown again.",
+            )}
+          </p>
+        </>
+      ) : (
+        <form className="auth-form" onSubmit={submit}>
+          <label>
+            {t('Current password')}
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          {error && <p className="error">{error}</p>}
+          <button type="submit" disabled={submitting || password.length === 0}>
+            {t('Get a new recovery code')}
+          </button>
+        </form>
+      )}
+    </>
+  );
+}
+
 // Last on the page, and honest about what it leaves behind. Typing the
 // password again is the confirmation — a "sure?" button is easy to press
 // by accident, and the server asks for it regardless.
@@ -216,6 +275,7 @@ function ProfileView({ id }: { id: string | undefined }) {
           />
           <AcceptInvitationsToggle initialValue={profile.acceptsInvitations} />
           <ChangePasswordForm />
+          <RecoveryCodeForm />
           <DeleteAccountForm />
         </>
       )}

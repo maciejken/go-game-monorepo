@@ -194,9 +194,40 @@ enum APIClient {
         return try await send(request)
     }
 
-    static func register(username: String, password: String) async throws -> AuthUser {
+    // Registration hands back a recovery code along with the account —
+    // the one time it is ever shown, since the server keeps only its hash.
+    static func register(username: String, password: String) async throws -> (user: AuthUser, recoveryCode: String?) {
         struct Body: Encodable { let username: String; let password: String }
-        return try await post("api/auth/register", body: Body(username: username, password: password))
+        struct Response: Decodable {
+            let id: String
+            let username: String
+            let favouriteTag: String?
+            let recoveryCode: String?
+        }
+        let response: Response = try await post("api/auth/register", body: Body(username: username, password: password))
+        let user = AuthUser(id: response.id, username: response.username, favouriteTag: response.favouriteTag)
+        return (user, response.recoveryCode)
+    }
+
+    // A new code, which replaces whatever the account had. Asks for the
+    // password, because it hands out a key to the account.
+    static func newRecoveryCode(password: String) async throws -> String {
+        struct Body: Encodable { let password: String }
+        struct Response: Decodable { let recoveryCode: String }
+        let response: Response = try await post("api/auth/recovery-code", body: Body(password: password))
+        return response.recoveryCode
+    }
+
+    // Setting a password without the old one, for someone who kept their
+    // code. Answers with the next code, since this one is now spent.
+    static func resetPassword(username: String, recoveryCode: String, newPassword: String) async throws -> String {
+        struct Body: Encodable { let username: String; let recoveryCode: String; let newPassword: String }
+        struct Response: Decodable { let recoveryCode: String }
+        let response: Response = try await post(
+            "api/auth/reset-password",
+            body: Body(username: username, recoveryCode: recoveryCode, newPassword: newPassword)
+        )
+        return response.recoveryCode
     }
 
     static func login(username: String, password: String) async throws -> AuthUser {
