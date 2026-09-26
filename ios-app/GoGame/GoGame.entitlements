@@ -5,16 +5,17 @@
 	<key>aps-environment</key>
 	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
-	<!-- TEMPORARY: ?mode=developer makes the device fetch the association
-	     file straight from igo5.online instead of Apple's CDN, which
-	     caches it for up to a day. It needs Developer Mode plus Settings >
-	     Developer > Associated Domains Development on the device, and it
-	     MUST BE REMOVED BEFORE SUBMITTING TO THE APP STORE — a shipped app
-	     carrying it associates nothing for ordinary users, so universal
-	     links and shared passwords would both quietly stop working. -->
+	<!-- applinks opens igo5.online links in the app; webcredentials tells
+	     iOS the app and the site share an account, so a password saved
+	     for one is offered for the other. Both are verified against
+	     https://igo5.online/.well-known/apple-app-site-association, which
+	     iOS reads through Apple's CDN — so a change to that file takes up
+	     to a day to reach a device. Appending ?mode=developer to a domain
+	     bypasses the CDN while testing (it also needs Settings >
+	     Developer > Associated Domains Development), and must not ship. -->
 	<array>
-		<string>applinks:igo5.online?mode=developer</string>
-		<string>webcredentials:igo5.online?mode=developer</string>
+		<string>applinks:igo5.online</string>
+		<string>webcredentials:igo5.online</string>
 	</array>
 </dict>
 </plist>
