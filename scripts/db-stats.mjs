@@ -70,16 +70,22 @@ if (snapshots.count > 0) {
     `\nsnapshots: ${snapshots.count} boards across ${snapshots.games} games, ` +
       `${(snapshots.averageBytes / 1024).toFixed(1)} kB each on average`,
   );
-  const finished = db
+  // What prune-snapshots would remove: a finished game's boards except
+  // its last, which is kept so opening the game doesn't replay it. The
+  // rest of the table is either that last board or a game still being
+  // played, and neither is waste.
+  const prunable = db
     .prepare(
-      `SELECT COUNT(*) AS count, SUM(LENGTH(s.state)) AS bytes
+      `SELECT COUNT(*) AS count, COALESCE(SUM(LENGTH(s.state)), 0) AS bytes
          FROM snapshots s JOIN games g ON g.id = s.game_id
-        WHERE g.status = 'finished'`,
+        WHERE g.status = 'finished'
+          AND s.move_number < (SELECT MAX(move_number) FROM snapshots WHERE game_id = s.game_id)`,
     )
     .get();
   console.log(
-    `  of which ${finished.count} belong to finished games (${mb(finished.bytes ?? 0)}), ` +
-      'which can be replayed from the event log rather than stored',
+    prunable.count > 0
+      ? `  of which ${prunable.count} (${mb(prunable.bytes)}) belong to finished games and can be pruned`
+      : '  nothing to prune: what is left is each finished game\'s last board and the games still being played',
   );
 }
 
