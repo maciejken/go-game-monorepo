@@ -1200,8 +1200,13 @@ function GameView({ gameId }: GameViewProps) {
       </div>
       <footer className="go-footer">
         <div className="footer-row">
+          {/* Each side's count in that side's own stone, matching the turn
+              marker between them and the result panel's score stones — and
+              the iOS footer. The stones in a player's lid are the other
+              colour, but a white disc sitting on black's side of the footer
+              reads as a mistake rather than as a lid. */}
           <span className="capture-label">
-            <span className="capture-count capture-count--white" aria-label={`Black's prisoners: ${displayedCaptures.black}`}>
+            <span className="capture-count capture-count--black" aria-label={`Black's prisoners: ${displayedCaptures.black}`}>
               {displayedCaptures.black}
             </span>
             {!isReviewing && blackClock && (
@@ -1334,7 +1339,7 @@ function GameView({ gameId }: GameViewProps) {
                 {periodDots(whiteClock)}
               </span>
             )}
-            <span className="capture-count capture-count--black" aria-label={`White's prisoners: ${displayedCaptures.white}`}>
+            <span className="capture-count capture-count--white" aria-label={`White's prisoners: ${displayedCaptures.white}`}>
               {displayedCaptures.white}
             </span>
           </span>
