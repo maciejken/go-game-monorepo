@@ -6,7 +6,9 @@
 //
 // Snapshots land in a backups/ directory beside the database itself, so
 // they travel with it and are obvious to whoever finds the data directory.
-// BACKUP_DIR overrides that, KEEP says how many to leave behind (14).
+// BACKUP_DIR overrides that, KEEP says how many to leave behind (60 —
+// two months of nightly snapshots, which at a few hundred kB each is
+// cheaper than deciding how far back you might want to look).
 //
 // Copying go.db with cp is not the same thing: in WAL mode the newest
 // committed data lives in go.db-wal, so a plain copy of the one file is a
@@ -32,7 +34,7 @@ import Database from 'better-sqlite3';
 
 const dbPath = process.env.DB_PATH || './data/go.db';
 const backupDir = process.env.BACKUP_DIR || path.join(path.dirname(path.resolve(dbPath)), 'backups');
-const keep = Number(process.env.KEEP ?? 14);
+const keep = Number(process.env.KEEP ?? 60);
 
 if (!fs.existsSync(dbPath)) {
   console.error(`No database at ${dbPath}. Set DB_PATH to the one the server uses.`);
