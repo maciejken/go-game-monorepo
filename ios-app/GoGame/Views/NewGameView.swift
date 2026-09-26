@@ -40,7 +40,6 @@ struct NewGameView: View {
     // created — "these settings, again, by shaking".
     @State private var shakeToPlay = false
     @State private var tags: [String] = []
-    @State private var tagDraft = ""
 
     private static let boardSizes = [9, 13, 19]
 
@@ -60,20 +59,15 @@ struct NewGameView: View {
                             }
                         }
                     }
-                    HStack(spacing: 8) {
-                        TextField("Add a tag", text: $tagDraft)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
-                            .submitLabel(.done)
-                            .onSubmit { addTag() }
-                        Button("Add", action: addTag)
-                            .disabled(trimmedTagDraft.isEmpty)
-                    }
-                    // Without this the row separator is inset to wherever
-                    // SwiftUI thinks the row's content starts — here the Add
-                    // button, which leaves a stub of a line under it rather
-                    // than a full-width rule like every other row.
-                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+                    // The same picker the game's own Title & tags sheet
+                    // uses. Without Share: the game doesn't exist yet, and
+                    // its tags are the creator's own until it does.
+                    TagPicker(selected: tags) { tag, _ in addTag(tag) }
+                        // Without this the row separator is inset to
+                        // wherever SwiftUI thinks the row's content starts,
+                        // which leaves a stub of a line rather than a
+                        // full-width rule like every other row.
+                        .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                     Picker("Mode", selection: $mode) {
                         // The first three are games the server keeps: a
                         // local game belongs to an account, a remote one
@@ -363,22 +357,17 @@ struct NewGameView: View {
         quickGame.preset = try? await APIClient.setQuickGamePreset(preset)
     }
 
-    private var trimmedTagDraft: String {
-        tagDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     // Trim, dedupe and cap here so the list on screen matches what will be
     // sent; the server still has the last word on a tag's charset and
     // length, and quietly drops anything it won't store.
-    private func addTag() {
-        let tag = trimmedTagDraft
-        guard !tag.isEmpty, tags.count < 12 else { return }
-        guard !tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else {
-            tagDraft = ""
-            return
-        }
+    // Kept here rather than sent anywhere: the game is created with these
+    // in one request, so until then they are just a list.
+    private func addTag(_ raw: String) -> Bool {
+        let tag = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tag.isEmpty, tags.count < 12 else { return false }
+        guard !tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return true }
         tags.append(tag)
-        tagDraft = ""
+        return true
     }
 
     // An unknown/not-yet-valid username, or any other request error, just
