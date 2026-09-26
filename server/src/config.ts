@@ -11,11 +11,12 @@ export const certPath = process.env.CERT_PATH;
 // device tokens are still accepted and stored, sending just no-ops. The
 // auth key (.p8) requires a paid Apple Developer Program membership to
 // generate, so this is expected to stay unset until that's in place.
-// Games against GNU Go, on or off for this server. On unless explicitly
-// switched off, so a machine with the binary installed behaves as it always
-// has; a host that doesn't want to run a subprocess per move sets
-// GNUGO_ENABLED=false and the clients stop offering the mode.
-export const gnugoEnabled = process.env.GNUGO_ENABLED !== 'false';
+// Games against GNU Go, on or off for this server. Off unless asked for:
+// a host that has the binary and wants to spawn a process per move says
+// GNUGO_ENABLED=true, and everywhere else — including a machine that
+// happens to have gnugo installed for other reasons — the clients simply
+// don't offer the mode.
+export const gnugoEnabled = process.env.GNUGO_ENABLED === 'true';
 
 export const apnsKeyPath = process.env.APNS_KEY_PATH;
 export const apnsKeyId = process.env.APNS_KEY_ID;
