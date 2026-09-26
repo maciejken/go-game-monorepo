@@ -103,9 +103,11 @@ struct TagPicker: View {
             Text(suggestion.tag)
                 .font(.subheadline)
                 .lineLimit(1)
-            // Shared tags carry the same icon the Share button uses, so
-            // the list says which kind each one is without a second label.
-            if offersSharing, suggestion.isPublic {
+            // Shown wherever this picker is: the mark says what kind of
+            // tag it is in your own vocabulary, which doesn't change from
+            // one screen to the next. Whether a screen can share a tag is
+            // a separate question, answered by the Share button.
+            if suggestion.isPublic {
                 Image(systemName: "person.2")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -117,13 +119,11 @@ struct TagPicker: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(
-            offersSharing && suggestion.isPublic
-                ? Color.accentColor.opacity(0.14)
-                : Color.primary.opacity(0.08),
+            suggestion.isPublic ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.08),
             in: Capsule()
         )
         .accessibilityLabel(
-            offersSharing && suggestion.isPublic
+            suggestion.isPublic
                 ? Text("Add shared tag \(suggestion.tag)")
                 : Text("Add personal tag \(suggestion.tag)")
         )

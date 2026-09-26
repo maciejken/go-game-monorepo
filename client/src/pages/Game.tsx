@@ -1589,7 +1589,7 @@ function TitleTagsEditor({
             <li key={suggestion.tag}>
               <button
                 type="button"
-                className="tag-chip tag-chip--suggestion"
+                className={`tag-chip tag-chip--suggestion${suggestion.isPublic ? ' tag-chip--shared' : ''}`}
                 disabled={busy}
                 aria-label={
                   suggestion.isPublic

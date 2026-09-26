@@ -340,12 +340,26 @@ function FavouriteTagPicker({
             <li key={suggestion.tag}>
               <button
                 type="button"
-                className={`tag-chip tag-chip--suggestion${isCurrent ? ' tag-chip--current' : ''}`}
+                className={
+                  `tag-chip tag-chip--suggestion${isCurrent ? ' tag-chip--current' : ''}` +
+                  `${suggestion.isPublic ? ' tag-chip--shared' : ''}`
+                }
                 disabled={busy}
                 aria-pressed={isCurrent}
+                aria-label={
+                  suggestion.isPublic
+                    ? t('Shared tag %@', suggestion.tag)
+                    : t('Personal tag %@', suggestion.tag)
+                }
                 onClick={() => choose(suggestion.tag)}
               >
                 {suggestion.tag}
+                {/* The same mark a shared tag carries everywhere else. */}
+                {suggestion.isPublic && (
+                  <span className="tag-chip-shared" aria-hidden="true">
+                    👥
+                  </span>
+                )}
                 <span aria-hidden="true">{isCurrent ? '★' : '+'}</span>
               </button>
             </li>
