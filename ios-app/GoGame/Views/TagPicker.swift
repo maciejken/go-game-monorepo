@@ -60,11 +60,14 @@ struct TagPicker: View {
                     .disabled(isBusy)
                 }
                 Button {
-                    isAddingTag = true
-                    fieldFocused = true
+                    // A second press closes it again, so the chip that
+                    // opened the field is also the way out of it.
+                    isAddingTag.toggle()
+                    fieldFocused = isAddingTag
+                    if !isAddingTag { draft = "" }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "plus")
+                        Image(systemName: isAddingTag ? "xmark" : "plus")
                         Text("New tag")
                     }
                     .font(.subheadline)
@@ -121,7 +124,23 @@ struct TagPicker: View {
                 .submitLabel(.done)
                 .focused($fieldFocused)
                 .onSubmit { Task { _ = await add(trimmedDraft, isPublic: false) } }
+                // Somewhere to put the keyboard down that doesn't mean
+                // committing a tag: without this the field holds focus,
+                // the keyboard covers the screen, and leaving the page is
+                // a fight.
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") { fieldFocused = false }
+                    }
+                }
             HStack(spacing: 8) {
+                Button("Cancel") {
+                    draft = ""
+                    isAddingTag = false
+                    fieldFocused = false
+                }
+                .buttonStyle(.bordered)
                 if offersSharing {
                     Button {
                         Task { _ = await add(trimmedDraft, isPublic: true) }

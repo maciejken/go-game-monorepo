@@ -46,8 +46,14 @@ final class SessionStore {
         }
     }
 
+    // Only the first check gates the UI. A later one — refreshing after a
+    // setting changed, say — must not flip this: RootView shows a spinner
+    // while it is true, which destroys the tab view and everything pushed
+    // onto it, landing the user back on Home with no idea why.
     func checkSession() async {
-        isCheckingSession = true
+        if currentUser == nil, !isPlayingOffline {
+            isCheckingSession = true
+        }
         do {
             // withRetry only retries a thrown error (a failed request) — a
             // clean response of "no user" is never retried, since that's a
@@ -98,6 +104,15 @@ final class SessionStore {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    // The favourite tag lives on the user, and the games list reads it
+    // from here. Changed in the profile, it is one field — not a reason
+    // to ask the server who is signed in all over again.
+    func favouriteTagChanged(to tag: String?) {
+        guard let user = currentUser else { return }
+        currentUser = AuthUser(id: user.id, username: user.username, favouriteTag: tag)
+        rememberedUser = currentUser
     }
 
     func playOffline() {

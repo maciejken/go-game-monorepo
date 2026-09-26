@@ -76,7 +76,7 @@ struct ProfileView: View {
                                     gamesWon: profile.gamesWon,
                                     gamesLost: profile.gamesLost
                                 )
-                                await session.checkSession()
+                                session.favouriteTagChanged(to: chosen)
                             }
                         }
                         Section {
@@ -142,6 +142,13 @@ struct ProfileView: View {
         }
         .navigationTitle("Profile")
         .task(id: userId) { await load() }
+        // Said, then gone: a confirmation that stays until the screen is
+        // closed stops being about what just happened.
+        .task(id: passwordChanged) {
+            guard passwordChanged else { return }
+            try? await Task.sleep(for: .seconds(4))
+            passwordChanged = false
+        }
         .sheet(isPresented: $showDeleteAccount) {
             deleteAccountSheet
                 .presentationDetents([.height(320)])
