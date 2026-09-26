@@ -82,6 +82,9 @@ struct TagPicker: View {
         }
     }
 
+    // Tall enough for the share glyph, which is the taller of the two.
+    private var tagButtonLabelHeight: CGFloat { 22 }
+
     private func isMarked(_ tag: String) -> Bool {
         marked?.caseInsensitiveCompare(tag) == .orderedSame
     }
@@ -145,6 +148,11 @@ struct TagPicker: View {
                         Label("Share", systemImage: "square.and.arrow.up")
                             .labelStyle(.titleAndIcon)
                             .lineLimit(1)
+                            // Both labels are given the same box, or the
+                            // taller glyph (the arrow) makes its button
+                            // taller than the other and lifts its text
+                            // off the line the other one sits on.
+                            .frame(height: tagButtonLabelHeight)
                     }
                     .buttonStyle(.bordered)
                     .disabled(isBusy || trimmedDraft.isEmpty)
@@ -159,6 +167,7 @@ struct TagPicker: View {
                     Label("Add", systemImage: "plus")
                         .labelStyle(.titleAndIcon)
                         .lineLimit(1)
+                        .frame(height: tagButtonLabelHeight)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isBusy || trimmedDraft.isEmpty)
