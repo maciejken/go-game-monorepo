@@ -119,6 +119,7 @@ struct TagPicker: View {
                         Task { _ = await add(trimmedDraft, isPublic: true) }
                     } label: {
                         Label("Share", systemImage: "square.and.arrow.up")
+                            .labelStyle(.titleAndIcon)
                     }
                     .buttonStyle(.bordered)
                     .disabled(isBusy || trimmedDraft.isEmpty)
@@ -126,7 +127,12 @@ struct TagPicker: View {
                 Button {
                     Task { _ = await add(trimmedDraft, isPublic: false) }
                 } label: {
+                    // Spelled out, because a prominent button drops a
+                    // Label's icon once it is enabled and keeps it while
+                    // disabled — so the + appeared only on the button you
+                    // couldn't press.
                     Label("Add", systemImage: "plus")
+                        .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isBusy || trimmedDraft.isEmpty)

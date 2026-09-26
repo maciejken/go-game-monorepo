@@ -14,7 +14,6 @@ struct QuickGamePresetView: View {
     @State private var errorMessage: String?
     @State private var usernameSuggestions: [APIClient.UsernameSearchResult] = []
     @State private var usernameSearchTask: Task<Void, Never>?
-    @State private var tagDraft = ""
 
     private static let boardSizes = [9, 13, 19]
 
@@ -38,20 +37,15 @@ struct QuickGamePresetView: View {
                         }
                     }
                 }
-                HStack(spacing: 8) {
-                    TextField("Add a tag", text: $tagDraft)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .submitLabel(.done)
-                        .onSubmit { addTag() }
-                    Button("Add", action: addTag)
-                        .disabled(trimmedTagDraft.isEmpty)
-                }
-                // Without this the row separator is inset to wherever
-                // SwiftUI thinks the row's content starts — here the Add
-                // button, which leaves a stub of a line under it rather
-                // than a full-width rule like every other row.
-                .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+                // The same picker the new-game form and a game's own
+                // Title & tags sheet use. Without Share: these tags are
+                // stamped on games that don't exist yet.
+                TagPicker(selected: preset.tags) { tag, _ in addTag(tag) }
+                    // Without this the row separator is inset to wherever
+                    // SwiftUI thinks the row's content starts, which
+                    // leaves a stub of a line rather than a full-width
+                    // rule like every other row.
+                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                 Picker("Mode", selection: binding(\.mode)) {
                     Text("Local").tag("local")
                     Text("Remote").tag("remote")
@@ -221,19 +215,16 @@ struct QuickGamePresetView: View {
         }
     }
 
-    private var trimmedTagDraft: String {
-        tagDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     // The server applies the same rules it applies to a tag on a game —
     // charset, length, cap, case-insensitive dedupe — and answers with
     // what it stored, so a rejected tag simply doesn't come back.
-    private func addTag() {
-        let tag = trimmedTagDraft
-        guard !tag.isEmpty else { return }
+    private func addTag(_ raw: String) -> Bool {
+        let tag = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tag.isEmpty else { return false }
+        guard !preset.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return true }
         preset.tags.append(tag)
-        tagDraft = ""
         save()
+        return true
     }
 
     private func remove(tag: String) {
