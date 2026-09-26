@@ -103,6 +103,7 @@ struct TitleTagsSheetView: View {
     // The title reads as a heading until the pencil is pressed; only then
     // does it become something to type in.
     @State private var isEditingTitle = false
+    @FocusState private var titleFieldFocused: Bool
 
     private var trimmedTitle: String {
         titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -160,7 +161,14 @@ struct TitleTagsSheetView: View {
                 TextField("Game title", text: $titleDraft)
                     .textFieldStyle(.roundedBorder)
                     .submitLabel(.done)
+                    .focused($titleFieldFocused)
                     .onSubmit { Task { await saveTitle() } }
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { titleFieldFocused = false }
+                        }
+                    }
                 Button("Save") { Task { await saveTitle() } }
                     .disabled(isBusy)
             }
@@ -234,6 +242,10 @@ struct TitleTagsSheetView: View {
             try await APIClient.setTitle(gameId: gameId, title: newTitle)
             onTitleChange(newTitle.isEmpty ? nil : newTitle)
             errorMessage = nil
+            // Back to reading it, which also puts the keyboard away: the
+            // field stayed open and focused after saving.
+            isEditingTitle = false
+            titleFieldFocused = false
         } catch {
             errorMessage = error.localizedDescription
         }

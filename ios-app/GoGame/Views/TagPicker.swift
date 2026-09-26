@@ -82,8 +82,10 @@ struct TagPicker: View {
         }
     }
 
-    // Tall enough for the share glyph, which is the taller of the two.
-    private var tagButtonLabelHeight: CGFloat { 22 }
+    // Both labels get this, so neither glyph decides its button's height,
+    // and it is roomy enough that icon and word sit centred with air
+    // around them rather than filling the capsule to its edges.
+    private var tagButtonLabelHeight: CGFloat { 26 }
 
     private func isMarked(_ tag: String) -> Bool {
         marked?.caseInsensitiveCompare(tag) == .orderedSame
@@ -155,6 +157,7 @@ struct TagPicker: View {
                             .frame(height: tagButtonLabelHeight)
                     }
                     .buttonStyle(.bordered)
+                    .controlSize(.large)
                     .disabled(isBusy || trimmedDraft.isEmpty)
                 }
                 Button {
@@ -170,6 +173,7 @@ struct TagPicker: View {
                         .frame(height: tagButtonLabelHeight)
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .disabled(isBusy || trimmedDraft.isEmpty)
             }
         }

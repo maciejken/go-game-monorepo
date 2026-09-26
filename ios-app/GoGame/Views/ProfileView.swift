@@ -16,6 +16,7 @@ struct ProfileView: View {
     @State private var isRequestingRecoveryCode = false
     @State private var showDeleteAccount = false
     @State private var deletePassword = ""
+    @FocusState private var deleteFieldFocused: Bool
     @State private var deleteError: String?
     @State private var isDeletingAccount = false
 
@@ -184,6 +185,13 @@ struct ProfileView: View {
             SecureField("Current password", text: $deletePassword)
                 .textContentType(.password)
                 .textFieldStyle(.roundedBorder)
+                .focused($deleteFieldFocused)
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") { deleteFieldFocused = false }
+                    }
+                }
             if let deleteError {
                 Text(deleteError)
                     .font(.footnote)
