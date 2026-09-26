@@ -65,7 +65,7 @@ function SliderTicks({ count }: { count: number }) {
 }
 
 function Home() {
-  const { user, logout } = useAuth();
+  const { user, features, logout } = useAuth();
   const navigate = useNavigate();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -404,7 +404,9 @@ function Home() {
               <select value={mode} onChange={(e) => handleModeChange(e.target.value as 'local' | 'remote' | 'gnugo')}>
                 <option value="local">{t('Local')}</option>
                 <option value="remote">{t('Remote')}</option>
-                <option value="gnugo">{t('Vs. Computer')}</option>
+                {/* Only where there is a GNU Go to play: a server can have
+                    it switched off, or not have it installed at all. */}
+                {features.gnugo && <option value="gnugo">{t('Vs. Computer')}</option>}
               </select>
             </label>
             {mode === 'remote' && (

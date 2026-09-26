@@ -17,6 +17,9 @@ final class SessionStore {
     // asking to play on this device alone. Games saved here are reachable
     // either way, and nothing about them needs a server.
     var isPlayingOffline = false
+    // What the server offers, as of the last time it answered. Assumed
+    // until then, so nothing flickers away on a slow launch.
+    var features = ServerFeatures()
 
     // Who was signed in last, kept on the device so an unreachable server
     // doesn't strand someone on the login screen with offline games they
@@ -44,8 +47,9 @@ final class SessionStore {
             // withRetry only retries a thrown error (a failed request) — a
             // clean response of "no user" is never retried, since that's a
             // genuine "not logged in", not a hiccup.
-            let user = try await APIClient.withRetry { try await APIClient.me() }
+            let (user, features) = try await APIClient.withRetry { try await APIClient.me() }
             currentUser = user
+            self.features = features
             // The server has spoken either way: remember a real session,
             // and forget a stale one rather than letting it linger.
             rememberedUser = user

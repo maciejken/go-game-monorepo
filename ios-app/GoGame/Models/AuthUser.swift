@@ -22,3 +22,12 @@ struct UserProfile: Codable, Identifiable {
     let gamesWon: Int
     let gamesLost: Int
 }
+
+// What the server this app is talking to can do. Asked once at launch,
+// alongside who is signed in — a server either plays GNU Go games or it
+// doesn't, and that doesn't change while it is running.
+struct ServerFeatures: Codable {
+    // Defaults to true for a server old enough not to say: that is how
+    // every server behaved before there was anything to ask.
+    var gnugo = true
+}

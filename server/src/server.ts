@@ -1342,8 +1342,14 @@ app.post('/api/auth/logout', (req, res) => {
   res.status(204).end();
 });
 
-app.get('/api/auth/me', (req, res) => {
-  res.json({ user: getSessionUser(req) });
+// Also what this server can do, since both clients call this at launch and
+// nothing here changes while it runs: a server with GNU Go switched off (or
+// simply not installed) shouldn't be offering games against it.
+app.get('/api/auth/me', async (req, res) => {
+  res.json({
+    user: getSessionUser(req),
+    features: { gnugo: await isGnuGoAvailable() },
+  });
 });
 
 // The "Accept invitations" toggle — the only self-service account setting
@@ -1942,7 +1948,7 @@ app.post('/api/games', async (req, res) => {
     invitedOpponentId = opponent.id;
   } else if (req.body?.mode === 'gnugo') {
     if (!(await isGnuGoAvailable())) {
-      fail(res, 400, 'GNU Go is not installed on the server — AI games are unavailable.');
+      fail(res, 400, 'Games against GNU Go are unavailable on this server.');
       return;
     }
     if (hasOpenAiGame()) {

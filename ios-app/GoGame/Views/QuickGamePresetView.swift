@@ -55,7 +55,12 @@ struct QuickGamePresetView: View {
                 Picker("Mode", selection: binding(\.mode)) {
                     Text("Local").tag("local")
                     Text("Remote").tag("remote")
-                    Text("Vs. Computer").tag("gnugo")
+                    // Kept in the list for a preset that already names it,
+                    // so a server that has since switched GNU Go off shows
+                    // what the preset actually says rather than a blank.
+                    if session.features.gnugo || preset.mode == "gnugo" {
+                        Text("Vs. Computer").tag("gnugo")
+                    }
                 }
                 if preset.mode == "gnugo" {
                     Stepper("GNU Go level: \(preset.gnugoLevel ?? 5)", value: gnugoLevelBinding, in: 1...10)

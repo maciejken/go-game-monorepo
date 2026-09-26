@@ -5075,65 +5075,6 @@
         }
       }
     },
-    "GNU Go is not installed on the server — AI games are unavailable.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GNU Go is not installed on the server — AI games are unavailable."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GNU Go nie jest zainstalowany na serwerze — gry z komputerem są niedostępne."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GNU Go не встановлено на сервері — ігри з комп’ютером недоступні."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GNU Go не установлен на сервере — партии с компьютером недоступны."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GNU Go ist auf dem Server nicht installiert — Partien gegen den Computer sind nicht möglich."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GNU Go n’est pas installé sur le serveur — les parties contre l’ordinateur sont indisponibles."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "GNU Go non è installato sul server — le partite contro il computer non sono disponibili."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "服务器未安装 GNU Go —— 无法进行人机对局。"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サーバーにGNU Goがインストールされていません — コンピュータ対局は利用できません。"
-          }
-        }
-      }
-    },
     "GNU Go level": {
       "extractionState": "manual",
       "localizations": {
@@ -5838,6 +5779,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "コンピュータとの対局"
+          }
+        }
+      }
+    },
+    "Games against GNU Go are unavailable on this server.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Games against GNU Go are unavailable on this server."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gry z komputerem są niedostępne na tym serwerze."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ігри проти GNU Go недоступні на цьому сервері."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Игры против GNU Go недоступны на этом сервере."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partien gegen GNU Go sind auf diesem Server nicht verfügbar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les parties contre GNU Go ne sont pas disponibles sur ce serveur."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le partite contro GNU Go non sono disponibili su questo server."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本服务器不提供与 GNU Go 的对局。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このサーバーでは GNU Go との対局を利用できません。"
           }
         }
       }

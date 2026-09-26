@@ -208,10 +208,13 @@ enum APIClient {
         try await post("api/auth/logout")
     }
 
-    static func me() async throws -> AuthUser? {
-        struct MeResponse: Decodable { let user: AuthUser? }
+    static func me() async throws -> (user: AuthUser?, features: ServerFeatures) {
+        struct MeResponse: Decodable {
+            let user: AuthUser?
+            let features: ServerFeatures?
+        }
         let response: MeResponse = try await get("api/auth/me")
-        return response.user
+        return (response.user, response.features ?? ServerFeatures())
     }
 
     static func changePassword(currentPassword: String, newPassword: String) async throws {

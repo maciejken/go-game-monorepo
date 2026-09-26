@@ -1,8 +1,9 @@
 import { createContext, useContext } from 'react';
-import type { AuthUser } from '../services/api';
+import type { AuthUser, ServerFeatures } from '../services/api';
 
 export interface AuthContextValue {
   user: AuthUser | null;
+  features: ServerFeatures;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;

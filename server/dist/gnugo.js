@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { gnugoEnabled } from './config.js';
 // Same skip-"I" column convention already used by the client and by GTP
 // itself, with row 1 at the bottom — so this is a direct port of the
 // coordinate math already in Game.tsx's describeEntry.
@@ -120,14 +121,29 @@ async function generateAiMoveNow(request, timeoutMs) {
 // queue (or a lock in shared storage) if this ever ran multiple instances.
 let queue = Promise.resolve();
 export function generateAiMove(request, timeoutMs = DEFAULT_TIMEOUT_MS) {
+    // A game against GNU Go that predates the switch being turned off stays
+    // in the list, but nothing here will spawn anything: its turn simply
+    // never comes. Refused rather than attempted, so the reason is the
+    // switch and not a missing binary.
+    if (!gnugoEnabled) {
+        return Promise.reject(new Error('GNU Go is switched off on this server'));
+    }
     const run = queue.then(() => generateAiMoveNow(request, timeoutMs));
     queue = run.catch(() => { });
     return run;
 }
-export async function isGnuGoAvailable() {
-    return new Promise((resolve) => {
+// Whether this server plays GNU Go games at all: the switch has to be on
+// and the binary has to be there. Probed once — a binary doesn't appear
+// halfway through a process's life, and /api/auth/me asks on every launch.
+let availability = null;
+export function isGnuGoAvailable() {
+    if (!gnugoEnabled) {
+        return Promise.resolve(false);
+    }
+    availability ?? (availability = new Promise((resolve) => {
         const child = spawn('gnugo', ['--version']);
         child.on('error', () => resolve(false));
         child.on('exit', (code) => resolve(code === 0));
-    });
+    }));
+    return availability;
 }

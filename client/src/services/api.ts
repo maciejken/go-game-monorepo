@@ -462,10 +462,21 @@ export async function logout(): Promise<void> {
   await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
 }
 
-export function getMe(): Promise<AuthUser | null> {
+// What the server this client is talking to can do. A server either plays
+// GNU Go games or it doesn't, and that doesn't change while it runs, so it
+// rides along with the launch call that asks who is signed in.
+export interface ServerFeatures {
+  gnugo: boolean;
+}
+
+// True for a server old enough not to say, which is how every server
+// behaved before there was anything to ask.
+export const DEFAULT_FEATURES: ServerFeatures = { gnugo: true };
+
+export function getMe(): Promise<{ user: AuthUser | null; features: ServerFeatures }> {
   return fetch(`${API_BASE}/auth/me`)
-    .then((res) => handle<{ user: AuthUser | null }>(res))
-    .then((data) => data.user);
+    .then((res) => handle<{ user: AuthUser | null; features?: ServerFeatures }>(res))
+    .then((data) => ({ user: data.user, features: data.features ?? DEFAULT_FEATURES }));
 }
 
 // Any logged-in user's public info by id, not just the caller's own —

@@ -75,7 +75,11 @@ struct NewGameView: View {
                         if session.currentUser != nil {
                             Text("Local").tag("local")
                             Text("Remote").tag("remote")
-                            Text("Vs. Computer").tag("gnugo")
+                            // Only where there is a GNU Go to play: a
+                            // server can have it switched off.
+                            if session.features.gnugo {
+                                Text("Vs. Computer").tag("gnugo")
+                            }
                         }
                         Text("Offline").tag("offline")
                         Text("Nearby").tag("nearby")
