@@ -72,27 +72,28 @@ struct ResetPasswordSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                // The account and its new password together, in that
+                // order and next to each other. iOS reads whatever text
+                // field sits directly above a password field as the
+                // account name: with the code there it saved the code as
+                // the username, and marking the fields didn't dissuade
+                // it. Position did.
                 Section {
                     TextField("Username", text: $username)
-                        // Without this iOS has no account to attach the
-                        // new password to, so it never offers to update
-                        // the one it already has.
                         .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField("Recovery code", text: $code)
-                        // Marked, or iOS takes the plain text field just
-                        // above a password field to be the account name
-                        // and saves the code as the username — which is
-                        // exactly what it did.
-                        .textContentType(.oneTimeCode)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .font(.body.monospaced())
                     SecureField("New password", text: $newPassword)
                         .textContentType(.newPassword)
                         .submitLabel(.go)
                         .onSubmit { Task { await submit() } }
+                }
+                Section {
+                    TextField("Recovery code", text: $code)
+                        .textContentType(.oneTimeCode)
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .font(.body.monospaced())
                 } footer: {
                     Text("The code you were given when the account was made. Using it sets a new password and gives you a new code.")
                 }
