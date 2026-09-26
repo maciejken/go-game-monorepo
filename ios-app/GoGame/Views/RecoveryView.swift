@@ -81,6 +81,11 @@ struct ResetPasswordSheet: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     TextField("Recovery code", text: $code)
+                        // Marked, or iOS takes the plain text field just
+                        // above a password field to be the account name
+                        // and saves the code as the username — which is
+                        // exactly what it did.
+                        .textContentType(.oneTimeCode)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .font(.body.monospaced())
