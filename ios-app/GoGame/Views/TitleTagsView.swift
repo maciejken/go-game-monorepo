@@ -88,10 +88,12 @@ struct TitleTagsSheetView: View {
     let gameId: String
     let title: String?
     let tags: [String]
+    // Which of them are on the game for both players.
+    let publicTags: [String]
     let starred: Bool
     let canEdit: Bool
     let onTitleChange: (String?) -> Void
-    let onTagsChange: ([String]) -> Void
+    let onTagsChange: (GameTags) -> Void
     let onStarredChange: (Bool) -> Void
     // Reported back so the sheet's detent can be exactly as tall as this
     // content, which changes as chips wrap onto more rows.
@@ -203,12 +205,25 @@ struct TitleTagsSheetView: View {
         .accessibilityLabel(starred ? "Remove from favourites" : "Add to favourites")
     }
 
+    private func isShared(_ tag: String) -> Bool {
+        publicTags.contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
+    }
+
     @ViewBuilder
     private func chip(_ tag: String) -> some View {
         HStack(spacing: 4) {
             Text(tag)
                 .font(.subheadline)
                 .lineLimit(1)
+            // The same glyph the suggestion row uses for a shared tag, so
+            // there is one thing to learn rather than two. The tint says
+            // it a second time for anyone scanning rather than reading,
+            // and the accessibility label says it in words.
+            if isShared(tag) {
+                Image(systemName: "person.2")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
             if canEdit {
                 Button {
                     Task { await remove(tag) }
@@ -225,7 +240,12 @@ struct TitleTagsSheetView: View {
         .padding(.leading, 12)
         .padding(.trailing, canEdit ? 8 : 12)
         .padding(.vertical, 6)
-        .background(Color.primary.opacity(0.08), in: Capsule())
+        .background(
+            isShared(tag) ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.08),
+            in: Capsule()
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(isShared(tag) ? Text("Shared tag \(tag)") : Text("Personal tag \(tag)"))
     }
 
     private func saveTitle() async {

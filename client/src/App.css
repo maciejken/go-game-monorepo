@@ -959,6 +959,18 @@ button.danger {
   flex-shrink: 0;
 }
 
+/* A tag that is on the game for both players, rather than one person's
+   own: tinted, and carrying the mark the suggestion list uses. */
+.tag-chip--shared {
+  background: var(--accent-bg, rgba(9, 105, 218, 0.12));
+  border-color: var(--accent-border, rgba(9, 105, 218, 0.4));
+}
+
+.tag-chip-shared {
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
 .capture-count {
   box-sizing: border-box;
   display: inline-flex;

@@ -60,11 +60,20 @@ struct GameState: Codable {
     // Short shared labels both players can edit, searchable from the game
     // list. Optional for the same reason as createdAt above.
     var tags: [String]?
+    // Which of those tags are on the game for both players rather than
+    // being one person's own. A subset of `tags`, sent separately so a
+    // tag stays a plain string everywhere else. Optional for a server
+    // that predates it.
+    var publicTags: [String]?
     // Whether this game is one of the viewer's favourites. Optional for the
     // same reason as the two fields above.
     var starred: Bool?
 
     var tagList: [String] { tags ?? [] }
+
+    func isPublicTag(_ tag: String) -> Bool {
+        (publicTags ?? []).contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
+    }
 
     // Clock fields — mirrors client/src/services/api.ts's ClockFields. A
     // null timeControl/mainTimeSeconds means the game is untimed, matching
@@ -78,6 +87,17 @@ struct GameState: Codable {
     let blackPeriodsLeft: Int?
     let whitePeriodsLeft: Int?
     let turnStartedAt: Int?
+}
+
+// A game's tags and which of them are shared, as the tag endpoints
+// answer. The shared ones are a subset of the first list.
+struct GameTags: Codable {
+    let tags: [String]
+    let publicTags: [String]?
+
+    func isPublic(_ tag: String) -> Bool {
+        (publicTags ?? []).contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
+    }
 }
 
 // Mirrors client/src/services/api.ts's MoveResponse.

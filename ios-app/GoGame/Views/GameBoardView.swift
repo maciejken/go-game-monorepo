@@ -335,10 +335,14 @@ struct GameBoardView: View {
                     gameId: gameId,
                     title: game.title,
                     tags: game.tagList,
+                    publicTags: game.publicTags ?? [],
                     starred: game.starred ?? false,
                     canEdit: game.myColor != nil,
                     onTitleChange: { title in self.game?.title = title },
-                    onTagsChange: { tags in self.game?.tags = tags },
+                    onTagsChange: { updated in
+                        self.game?.tags = updated.tags
+                        self.game?.publicTags = updated.publicTags
+                    },
                     onStarredChange: { starred in self.game?.starred = starred },
                     contentHeight: $tagsSheetHeight
                 )

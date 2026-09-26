@@ -52,6 +52,9 @@ export interface GameResponse {
   handicap: number;
   title: string | null;
   tags: string[];
+  // The subset of `tags` that is on the game for both players; the rest
+  // are the viewer's own. Optional for a server that predates it.
+  publicTags?: string[];
   starred: boolean;
   status: string;
   board: Board;
@@ -102,6 +105,7 @@ export interface GameSummary {
   komi: number;
   title: string | null;
   tags: string[];
+  publicTags?: string[];
   status: string;
   result: string | null;
   shortResult: string | null;
@@ -330,12 +334,16 @@ export function updateGameTitle(id: string, title: string): Promise<{ title: str
 // isPublic is the difference between Share and Add: a public tag is
 // visible to anyone who can see the game, a personal one only to whoever
 // added it.
-export function addGameTag(id: string, tag: string, isPublic: boolean): Promise<{ tags: string[] }> {
+export function addGameTag(
+  id: string,
+  tag: string,
+  isPublic: boolean,
+): Promise<{ tags: string[]; publicTags?: string[] }> {
   return fetch(`${API_BASE}/games/${id}/tags`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tag, isPublic }),
-  }).then((res) => handle<{ tags: string[] }>(res));
+  }).then((res) => handle<{ tags: string[]; publicTags?: string[] }>(res));
 }
 
 export interface TagSuggestion {
@@ -349,10 +357,10 @@ export function listTagSuggestions(): Promise<{ tags: TagSuggestion[] }> {
   return fetch(`${API_BASE}/tags`).then((res) => handle<{ tags: TagSuggestion[] }>(res));
 }
 
-export function removeGameTag(id: string, tag: string): Promise<{ tags: string[] }> {
+export function removeGameTag(id: string, tag: string): Promise<{ tags: string[]; publicTags?: string[] }> {
   return fetch(`${API_BASE}/games/${id}/tags/${encodeURIComponent(tag)}`, {
     method: 'DELETE',
-  }).then((res) => handle<{ tags: string[] }>(res));
+  }).then((res) => handle<{ tags: string[]; publicTags?: string[] }>(res));
 }
 
 // Asks the server to have GNU Go think again about the move it owes —

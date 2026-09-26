@@ -116,7 +116,12 @@ struct TagPicker: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(Color.primary.opacity(0.08), in: Capsule())
+        .background(
+            offersSharing && suggestion.isPublic
+                ? Color.accentColor.opacity(0.14)
+                : Color.primary.opacity(0.08),
+            in: Capsule()
+        )
         .accessibilityLabel(
             offersSharing && suggestion.isPublic
                 ? Text("Add shared tag \(suggestion.tag)")

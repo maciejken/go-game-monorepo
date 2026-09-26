@@ -81,6 +81,11 @@ if (resigned.body?.id) {
     Array.isArray(state.tags) && state.tags.includes('offline'),
     `resignation: tags ${JSON.stringify(state.tags)}, expected to include offline`,
   );
+  // A published game's tags are the publisher's own, not shared.
+  expect(
+    Array.isArray(state.publicTags) && state.publicTags.length === 0,
+    `resignation: publicTags ${JSON.stringify(state.publicTags)}, expected none`,
+  );
   // The log is what everything else is derived from, so it has to be there
   // move for move — review mode steps through exactly these.
   const history = (await call('GET', `/api/games/${resigned.body.id}/history`)).body;

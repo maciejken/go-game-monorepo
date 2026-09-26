@@ -445,6 +445,22 @@ function getGameTags(gameId, viewerId) {
     }
     return [...byKey.values()];
 }
+// Which of a game's tags are on it for both players, as opposed to being
+// one person's own. Returned alongside the tags rather than folded into
+// them: a tag is a string everywhere in both clients, and the clients
+// only need to know which of the strings they already have are shared.
+function getPublicGameTags(gameId) {
+    const rows = db
+        .prepare('SELECT tag, tag_key FROM game_tags WHERE game_id = ? AND is_public = 1 ORDER BY created_at ASC')
+        .all(gameId);
+    const byKey = new Map();
+    for (const row of rows) {
+        if (!byKey.has(row.tag_key)) {
+            byKey.set(row.tag_key, row.tag);
+        }
+    }
+    return [...byKey.values()];
+}
 // ownerId null means public: one row, no owner, visible to anyone who can
 // see the game.
 function addGameTag(gameId, tag, ownerId, now) {
@@ -1710,6 +1726,7 @@ app.get('/api/games', (req, res) => {
         komi: resolveKomi(row),
         title: row.title,
         tags: getGameTags(row.id, currentUser?.id ?? null),
+        publicTags: getPublicGameTags(row.id),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         blackUsername: getUsername(row.black_user_id),
@@ -2090,6 +2107,7 @@ app.get('/api/games/:id', (req, res) => {
         createdAt: game.created_at,
         title: game.title,
         tags: getGameTags(game.id, currentUser?.id ?? null),
+        publicTags: getPublicGameTags(game.id),
         starred: isStarredNow(game.id, currentUser?.id ?? null),
         board,
         currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
@@ -2186,7 +2204,7 @@ app.post('/api/games/:id/tags', (req, res) => {
     rememberUserTag(user.id, tag, isPublic, now);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();
-    res.json({ tags: getGameTags(game.id, user.id) });
+    res.json({ tags: getGameTags(game.id, user.id), publicTags: getPublicGameTags(game.id) });
 });
 // The tags this user has used before, most-used first, for the clients to
 // offer back. Their own vocabulary only: a tag being public makes it
@@ -2226,7 +2244,7 @@ app.delete('/api/games/:id/tags/:tag', (req, res) => {
     db.prepare('DELETE FROM game_tags WHERE game_id = ? AND tag_key = ? AND (is_public = 1 OR user_id = ?)').run(game.id, req.params.tag.trim().toLowerCase(), user.id);
     broadcastGameUpdate(game.id);
     broadcastGamesListUpdate();
-    res.json({ tags: getGameTags(game.id, user.id) });
+    res.json({ tags: getGameTags(game.id, user.id), publicTags: getPublicGameTags(game.id) });
 });
 // Anyone can star a game they're not playing in — it's how a game they're
 // just watching ends up in their "my games" list alongside ones they're

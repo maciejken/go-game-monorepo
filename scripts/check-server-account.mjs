@@ -109,6 +109,16 @@ expect(
   Array.isArray(sharedNow.body?.tags) && sharedNow.body.tags.includes('ours'),
   `shared game: shared tags are ${JSON.stringify(sharedNow.body?.tags)}, expected to keep "ours"`,
 );
+// And it is reported as shared, which is what the clients mark it by.
+expect(
+  Array.isArray(sharedNow.body?.publicTags) && sharedNow.body.publicTags.includes('ours'),
+  `shared game: publicTags ${JSON.stringify(sharedNow.body?.publicTags)}, expected to include "ours"`,
+);
+// The leaver's personal tag went with them, and was never shared.
+expect(
+  !sharedNow.body?.publicTags?.includes('mine') && !sharedNow.body?.tags?.includes('mine'),
+  'shared game: the deleted account\'s personal tag is still on it',
+);
 
 // Nobody can find or invite what is left.
 const search = await stayer('GET', `/api/users/search?q=${leaverName}`);

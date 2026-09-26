@@ -585,6 +585,23 @@ function getGameTags(gameId: string, viewerId: string | null): string[] {
   return [...byKey.values()];
 }
 
+// Which of a game's tags are on it for both players, as opposed to being
+// one person's own. Returned alongside the tags rather than folded into
+// them: a tag is a string everywhere in both clients, and the clients
+// only need to know which of the strings they already have are shared.
+function getPublicGameTags(gameId: string): string[] {
+  const rows = db
+    .prepare('SELECT tag, tag_key FROM game_tags WHERE game_id = ? AND is_public = 1 ORDER BY created_at ASC')
+    .all(gameId) as { tag: string; tag_key: string }[];
+  const byKey = new Map<string, string>();
+  for (const row of rows) {
+    if (!byKey.has(row.tag_key)) {
+      byKey.set(row.tag_key, row.tag);
+    }
+  }
+  return [...byKey.values()];
+}
+
 // ownerId null means public: one row, no owner, visible to anyone who can
 // see the game.
 function addGameTag(gameId: string, tag: string, ownerId: string | null, now: number): void {
@@ -2118,6 +2135,7 @@ app.get('/api/games', (req, res) => {
     komi: resolveKomi(row),
     title: row.title,
     tags: getGameTags(row.id, currentUser?.id ?? null),
+    publicTags: getPublicGameTags(row.id),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     blackUsername: getUsername(row.black_user_id),
@@ -2561,6 +2579,7 @@ app.get('/api/games/:id', (req, res) => {
     createdAt: game.created_at,
     title: game.title,
     tags: getGameTags(game.id, currentUser?.id ?? null),
+    publicTags: getPublicGameTags(game.id),
     starred: isStarredNow(game.id, currentUser?.id ?? null),
     board,
     currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
@@ -2669,7 +2688,7 @@ app.post('/api/games/:id/tags', (req, res) => {
   broadcastGameUpdate(game.id);
   broadcastGamesListUpdate();
 
-  res.json({ tags: getGameTags(game.id, user.id) });
+  res.json({ tags: getGameTags(game.id, user.id), publicTags: getPublicGameTags(game.id) });
 });
 
 // The tags this user has used before, most-used first, for the clients to
@@ -2721,7 +2740,7 @@ app.delete('/api/games/:id/tags/:tag', (req, res) => {
   broadcastGameUpdate(game.id);
   broadcastGamesListUpdate();
 
-  res.json({ tags: getGameTags(game.id, user.id) });
+  res.json({ tags: getGameTags(game.id, user.id), publicTags: getPublicGameTags(game.id) });
 });
 
 // Anyone can star a game they're not playing in — it's how a game they're

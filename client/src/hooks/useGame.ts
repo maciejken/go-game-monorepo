@@ -27,6 +27,8 @@ export function useGame(gameId: string) {
   const [komi, setKomi] = useState(6.5);
   const [title, setTitle] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
+  // The subset shown as shared; the rest are the viewer's own.
+  const [publicTags, setPublicTags] = useState<string[]>([]);
   const [starred, setStarred] = useState(false);
   const [createdAt, setCreatedAt] = useState<number | null>(null);
   const [captures, setCaptures] = useState<Captures>({ black: 0, white: 0 });
@@ -69,6 +71,7 @@ export function useGame(gameId: string) {
         setKomi(game.komi);
         setTitle(game.title);
         setTags(game.tags);
+        setPublicTags(game.publicTags ?? []);
         setStarred(game.starred);
         setCreatedAt(game.createdAt);
         setCaptures(game.captures);
@@ -242,6 +245,8 @@ export function useGame(gameId: string) {
     setTitle,
     tags,
     setTags,
+    publicTags,
+    setPublicTags,
     starred,
     setStarred,
     createdAt,

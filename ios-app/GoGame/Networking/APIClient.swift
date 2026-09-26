@@ -322,11 +322,9 @@ enum APIClient {
     // isPublic is the difference between Share and Add in the tags sheet:
     // a public tag is visible to anyone who can see the game, a personal
     // one only to whoever added it.
-    static func addTag(gameId: String, tag: String, isPublic: Bool) async throws -> [String] {
+    static func addTag(gameId: String, tag: String, isPublic: Bool) async throws -> GameTags {
         struct Body: Encodable { let tag: String; let isPublic: Bool }
-        struct Response: Decodable { let tags: [String] }
-        let response: Response = try await post("api/games/\(gameId)/tags", body: Body(tag: tag, isPublic: isPublic))
-        return response.tags
+        return try await post("api/games/\(gameId)/tags", body: Body(tag: tag, isPublic: isPublic))
     }
 
     // Every tag this user has used before, most-used first.
@@ -336,10 +334,9 @@ enum APIClient {
         return response.tags
     }
 
-    static func removeTag(gameId: String, tag: String) async throws -> [String] {
-        struct Response: Decodable { let tags: [String] }
+    static func removeTag(gameId: String, tag: String) async throws -> GameTags {
         let encoded = tag.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? tag
-        return try await deleteReturning("api/games/\(gameId)/tags/\(encoded)", as: Response.self).tags
+        return try await deleteReturning("api/games/\(gameId)/tags/\(encoded)", as: GameTags.self)
     }
 
     static func getSgf(id: String) async throws -> String {

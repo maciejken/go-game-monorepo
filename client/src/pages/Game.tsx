@@ -258,6 +258,8 @@ function GameView({ gameId }: GameViewProps) {
     setTitle,
     tags,
     setTags,
+    publicTags,
+    setPublicTags,
     starred,
     setStarred,
     createdAt,
@@ -397,7 +399,11 @@ function GameView({ gameId }: GameViewProps) {
           starred={starred}
           canEdit={myColor !== null}
           onTitleChange={setTitle}
-          onTagsChange={setTags}
+          publicTags={publicTags}
+          onTagsChange={(updated, updatedPublic) => {
+            setTags(updated);
+            setPublicTags(updatedPublic);
+          }}
           onStarredChange={setStarred}
         />
         <button type="button" className="modal-action" onClick={() => setTagsOpen(false)}>
@@ -1388,10 +1394,12 @@ interface TitleTagsEditorProps {
   gameId: string;
   title: string | null;
   tags: string[];
+  // Which of them are on the game for both players.
+  publicTags: string[];
   starred: boolean;
   canEdit: boolean;
   onTitleChange: (title: string | null) => void;
-  onTagsChange: (tags: string[]) => void;
+  onTagsChange: (tags: string[], publicTags: string[]) => void;
   onStarredChange: (starred: boolean) => void;
 }
 
@@ -1399,6 +1407,7 @@ function TitleTagsEditor({
   gameId,
   title,
   tags,
+  publicTags,
   starred,
   canEdit,
   onTitleChange,
@@ -1467,8 +1476,8 @@ function TitleTagsEditor({
     }
     setBusy(true);
     addGameTag(gameId, tag, isPublic)
-      .then(({ tags: updated }) => {
-        onTagsChange(updated);
+      .then(({ tags: updated, publicTags: updatedPublic }) => {
+        onTagsChange(updated, updatedPublic ?? []);
         setDraft('');
         setAddingTag(false);
         setError(null);
@@ -1481,8 +1490,8 @@ function TitleTagsEditor({
   const remove = (tag: string) => {
     setBusy(true);
     removeGameTag(gameId, tag)
-      .then(({ tags: updated }) => {
-        onTagsChange(updated);
+      .then(({ tags: updated, publicTags: updatedPublic }) => {
+        onTagsChange(updated, updatedPublic ?? []);
         setError(null);
       })
       .catch((err: Error) => setError(err.message))
@@ -1546,16 +1555,30 @@ function TitleTagsEditor({
       )}
       {tags.length > 0 ? (
         <ul className="tag-chips">
-          {tags.map((tag) => (
-            <li key={tag} className="tag-chip">
+          {tags.map((tag) => {
+            const shared = publicTags.some((other) => other.toLowerCase() === tag.toLowerCase());
+            return (
+            <li
+              key={tag}
+              className={`tag-chip${shared ? ' tag-chip--shared' : ''}`}
+              aria-label={shared ? t('Shared tag %@', tag) : t('Personal tag %@', tag)}
+            >
               {tag}
+              {/* The same mark the suggestion list uses for a shared tag,
+                  so there is one thing to learn rather than two. */}
+              {shared && (
+                <span className="tag-chip-shared" aria-hidden="true" title={t('Shared tag %@', tag)}>
+                  ⇄
+                </span>
+              )}
               {canEdit && (
                 <button type="button" aria-label={t('Remove tag %@', tag)} disabled={busy} onClick={() => remove(tag)}>
                   ×
                 </button>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       ) : (
         <p className="tag-empty">{t('No tags yet.')}</p>
