@@ -272,6 +272,7 @@ struct NewGameView: View {
                     mode = "offline"
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("New Game")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -11,6 +11,7 @@ struct ProfileView: View {
     @State private var acceptsInvitations = false
     @State private var acceptsInvitationsError: String?
     @State private var recoveryPassword = ""
+    @FocusState private var recoveryFieldFocused: Bool
     @State private var recoveryError: String?
     @State private var isRequestingRecoveryCode = false
     @State private var showDeleteAccount = false
@@ -103,6 +104,13 @@ struct ProfileView: View {
                         Section {
                             SecureField("Current password", text: $recoveryPassword)
                                 .textContentType(.password)
+                                .focused($recoveryFieldFocused)
+                                .toolbar {
+                                    ToolbarItemGroup(placement: .keyboard) {
+                                        Spacer()
+                                        Button("Done") { recoveryFieldFocused = false }
+                                    }
+                                }
                             if let recoveryError {
                                 Text(recoveryError)
                                     .font(.footnote)
@@ -140,6 +148,7 @@ struct ProfileView: View {
                 ProgressView()
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Profile")
         .task(id: userId) { await load() }
         // Said, then gone: a confirmation that stays until the screen is

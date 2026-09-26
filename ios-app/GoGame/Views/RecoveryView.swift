@@ -103,6 +103,7 @@ struct ResetPasswordSheet: View {
                         .foregroundStyle(.red)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Forgot password")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -129,6 +129,7 @@ struct QuickGamePresetView: View {
             }
 
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Quick game preset")
         .navigationBarTitleDisplayMode(.inline)
         .task {

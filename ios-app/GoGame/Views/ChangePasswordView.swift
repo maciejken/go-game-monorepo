@@ -49,6 +49,7 @@ struct ChangePasswordView: View {
                 Text("Signs you out everywhere else. This device stays signed in.")
             }
         }
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Change password")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
