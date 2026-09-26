@@ -134,19 +134,17 @@ struct TagPicker: View {
                         Button("Done") { fieldFocused = false }
                     }
                 }
+            // No Cancel here: the chip that opened this closes it again,
+            // and a third button crowds the row enough to wrap Share onto
+            // two lines and shove it out of line with Add.
             HStack(spacing: 8) {
-                Button("Cancel") {
-                    draft = ""
-                    isAddingTag = false
-                    fieldFocused = false
-                }
-                .buttonStyle(.bordered)
                 if offersSharing {
                     Button {
                         Task { _ = await add(trimmedDraft, isPublic: true) }
                     } label: {
                         Label("Share", systemImage: "square.and.arrow.up")
                             .labelStyle(.titleAndIcon)
+                            .lineLimit(1)
                     }
                     .buttonStyle(.bordered)
                     .disabled(isBusy || trimmedDraft.isEmpty)
@@ -160,6 +158,7 @@ struct TagPicker: View {
                     // couldn't press.
                     Label("Add", systemImage: "plus")
                         .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isBusy || trimmedDraft.isEmpty)
