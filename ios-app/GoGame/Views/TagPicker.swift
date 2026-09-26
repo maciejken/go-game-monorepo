@@ -82,10 +82,17 @@ struct TagPicker: View {
         }
     }
 
-    // Both labels get this, so neither glyph decides its button's height,
-    // and it is roomy enough that icon and word sit centred with air
-    // around them rather than filling the capsule to its edges.
-    private var tagButtonLabelHeight: CGFloat { 26 }
+    // Both symbols drawn in the same square, so neither decides how tall
+    // its button is. Left to themselves the share glyph is much the
+    // taller of the two, which made one button bigger than the other and
+    // their words sit on different lines; the plus, scaled up to match,
+    // also reads better against a word than the small one did.
+    private func icon(_ name: String) -> some View {
+        Image(systemName: name)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 15, height: 15)
+    }
 
     private func isMarked(_ tag: String) -> Bool {
         marked?.caseInsensitiveCompare(tag) == .orderedSame
@@ -129,16 +136,7 @@ struct TagPicker: View {
                 .submitLabel(.done)
                 .focused($fieldFocused)
                 .onSubmit { Task { _ = await add(trimmedDraft, isPublic: false) } }
-                // Somewhere to put the keyboard down that doesn't mean
-                // committing a tag: without this the field holds focus,
-                // the keyboard covers the screen, and leaving the page is
-                // a fight.
-                .toolbar {
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button("Done") { fieldFocused = false }
-                    }
-                }
+
             // No Cancel here: the chip that opened this closes it again,
             // and a third button crowds the row enough to wrap Share onto
             // two lines and shove it out of line with Add.
@@ -147,33 +145,31 @@ struct TagPicker: View {
                     Button {
                         Task { _ = await add(trimmedDraft, isPublic: true) }
                     } label: {
-                        Label("Share", systemImage: "square.and.arrow.up")
-                            .labelStyle(.titleAndIcon)
-                            .lineLimit(1)
-                            // Both labels are given the same box, or the
-                            // taller glyph (the arrow) makes its button
-                            // taller than the other and lifts its text
-                            // off the line the other one sits on.
-                            .frame(height: tagButtonLabelHeight)
+                        Label {
+                            Text("Share").lineLimit(1)
+                        } icon: {
+                            icon("square.and.arrow.up")
+                        }
+                        .labelStyle(.titleAndIcon)
                     }
                     .buttonStyle(.bordered)
-                    .controlSize(.large)
                     .disabled(isBusy || trimmedDraft.isEmpty)
                 }
                 Button {
                     Task { _ = await add(trimmedDraft, isPublic: false) }
                 } label: {
-                    // Spelled out, because a prominent button drops a
-                    // Label's icon once it is enabled and keeps it while
-                    // disabled — so the + appeared only on the button you
-                    // couldn't press.
-                    Label("Add", systemImage: "plus")
-                        .labelStyle(.titleAndIcon)
-                        .lineLimit(1)
-                        .frame(height: tagButtonLabelHeight)
+                    // Spelled out with titleAndIcon below, because a
+                    // prominent button drops a Label's icon once it is
+                    // enabled and keeps it while disabled — so the +
+                    // appeared only on the button you couldn't press.
+                    Label {
+                        Text("Add").lineLimit(1)
+                    } icon: {
+                        icon("plus")
+                    }
+                    .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
                 .disabled(isBusy || trimmedDraft.isEmpty)
             }
         }

@@ -11,12 +11,10 @@ struct ProfileView: View {
     @State private var acceptsInvitations = false
     @State private var acceptsInvitationsError: String?
     @State private var recoveryPassword = ""
-    @FocusState private var recoveryFieldFocused: Bool
     @State private var recoveryError: String?
     @State private var isRequestingRecoveryCode = false
     @State private var showDeleteAccount = false
     @State private var deletePassword = ""
-    @FocusState private var deleteFieldFocused: Bool
     @State private var deleteError: String?
     @State private var isDeletingAccount = false
 
@@ -105,13 +103,7 @@ struct ProfileView: View {
                         Section {
                             SecureField("Current password", text: $recoveryPassword)
                                 .textContentType(.password)
-                                .focused($recoveryFieldFocused)
-                                .toolbar {
-                                    ToolbarItemGroup(placement: .keyboard) {
-                                        Spacer()
-                                        Button("Done") { recoveryFieldFocused = false }
-                                    }
-                                }
+
                             if let recoveryError {
                                 Text(recoveryError)
                                     .font(.footnote)
@@ -150,6 +142,7 @@ struct ProfileView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        .keyboardDoneButton()
         .navigationTitle("Profile")
         .task(id: userId) { await load() }
         // Said, then gone: a confirmation that stays until the screen is
@@ -185,13 +178,7 @@ struct ProfileView: View {
             SecureField("Current password", text: $deletePassword)
                 .textContentType(.password)
                 .textFieldStyle(.roundedBorder)
-                .focused($deleteFieldFocused)
-                .toolbar {
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button("Done") { deleteFieldFocused = false }
-                    }
-                }
+
             if let deleteError {
                 Text(deleteError)
                     .font(.footnote)
@@ -208,6 +195,7 @@ struct ProfileView: View {
             Spacer(minLength: 0)
         }
         .padding()
+        .keyboardDoneButton()
     }
 
     private func requestRecoveryCode() async {

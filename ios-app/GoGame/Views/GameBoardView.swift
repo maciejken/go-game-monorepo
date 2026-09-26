@@ -529,6 +529,7 @@ struct GameBoardView: View {
         // ...and so does dragging the board, the other way a keyboard goes
         // away by itself on iOS.
         .scrollDismissesKeyboard(.interactively)
+        .keyboardDoneButton()
         .safeAreaInset(edge: .bottom) {
             // Nothing at all while a coordinate is being typed: the
             // keyboard would cover this row anyway, and giving its height
@@ -1540,6 +1541,15 @@ struct GameBoardView: View {
                             .stroke(Color.red, lineWidth: 1.5)
                     }
                 }
+                // Out of sight while it is being typed into, and still
+                // the first responder. What is being typed is said by the
+                // line above and drawn on the board as a crosshair, and
+                // both of those are worth more than the box itself —
+                // which would otherwise sit between the board and the
+                // keyboard taking up the room the board wants.
+                .opacity(coordinateFocused ? 0 : 1)
+                .frame(height: coordinateFocused ? 0 : nil)
+                .accessibilityHidden(coordinateFocused)
         }
         .padding(.horizontal)
         .onChange(of: coordinateFocused) { _, focused in coordinateEditing = focused }

@@ -143,6 +143,7 @@ struct TitleTagsSheetView: View {
             }
         }
         .padding()
+        .keyboardDoneButton()
         .onAppear { titleDraft = title ?? "" }
         .background {
             GeometryReader { proxy in
@@ -163,12 +164,6 @@ struct TitleTagsSheetView: View {
                     .submitLabel(.done)
                     .focused($titleFieldFocused)
                     .onSubmit { Task { await saveTitle() } }
-                    .toolbar {
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Done") { titleFieldFocused = false }
-                        }
-                    }
                 Button("Save") { Task { await saveTitle() } }
                     .disabled(isBusy)
             }

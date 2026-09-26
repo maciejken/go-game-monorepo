@@ -87,6 +87,7 @@ struct AuthView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .keyboardDoneButton()
             .navigationTitle(offersOfflinePlay ? "Igo5" : "Account")
             .sheet(isPresented: $showReset) {
                 ResetPasswordSheet(initialUsername: username) { nextCode, name, newPassword in

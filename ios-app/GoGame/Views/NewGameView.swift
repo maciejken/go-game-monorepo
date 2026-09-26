@@ -273,6 +273,7 @@ struct NewGameView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .keyboardDoneButton()
             .navigationTitle("New Game")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

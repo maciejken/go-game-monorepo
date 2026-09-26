@@ -50,6 +50,7 @@ struct ChangePasswordView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        .keyboardDoneButton()
         .navigationTitle("Change password")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
