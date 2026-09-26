@@ -93,11 +93,20 @@ struct AuthView: View {
                 ResetPasswordSheet(initialUsername: username) { nextCode, name, newPassword in
                     // Signed in on the spot: the password was just set, so
                     // asking for it again is a form to fight with autofill
-                    // over. The new code is shown over whatever comes next.
+                    // over. This happens before the sheet closes, so the
+                    // fields it came from are still on screen.
                     self.username = name
                     self.password = newPassword
                     await session.login(username: name, password: newPassword)
-                    session.recoveryCodeToShow = nextCode
+                    // The code waits its turn. Putting a sheet up in the
+                    // same instant takes the screen at exactly the moment
+                    // iOS would offer to save the password, and the offer
+                    // does not come back — which is why this stopped
+                    // working when the two were reordered.
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.5))
+                        session.recoveryCodeToShow = nextCode
+                    }
                 }
             }
         }
