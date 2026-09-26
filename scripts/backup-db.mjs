@@ -4,8 +4,9 @@
 //
 //   DB_PATH=/home/pi/projects/go-server/data/go.db node scripts/backup-db.mjs
 //
-// BACKUP_DIR chooses where snapshots go (default ~/go-backups), KEEP how
-// many to leave behind (default 14).
+// Snapshots land in a backups/ directory beside the database itself, so
+// they travel with it and are obvious to whoever finds the data directory.
+// BACKUP_DIR overrides that, KEEP says how many to leave behind (14).
 //
 // Copying go.db with cp is not the same thing: in WAL mode the newest
 // committed data lives in go.db-wal, so a plain copy of the one file is a
@@ -18,12 +19,11 @@
 // To restore: stop the server, put the snapshot where DB_PATH points
 // (deleting any -wal and -shm beside it), start the server.
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import Database from 'better-sqlite3';
 
 const dbPath = process.env.DB_PATH || './data/go.db';
-const backupDir = process.env.BACKUP_DIR || path.join(os.homedir(), 'go-backups');
+const backupDir = process.env.BACKUP_DIR || path.join(path.dirname(path.resolve(dbPath)), 'backups');
 const keep = Number(process.env.KEEP ?? 14);
 
 if (!fs.existsSync(dbPath)) {
