@@ -92,6 +92,17 @@ struct ProfileView: View {
                             }
                         }
                         Section("Change password") {
+                            // Not editable, and here for iOS rather than
+                            // for the reader: a strong password is only
+                            // offered when the system can see which
+                            // account the new one belongs to, and three
+                            // password fields on their own say nothing
+                            // about that. It also updates the right saved
+                            // entry afterwards instead of guessing.
+                            TextField("Username", text: .constant(profile.username))
+                                .textContentType(.username)
+                                .disabled(true)
+                                .foregroundStyle(.secondary)
                             SecureField("Current password", text: $currentPassword)
                                 .textContentType(.password)
                             SecureField("New password", text: $newPassword)
