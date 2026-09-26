@@ -11,6 +11,7 @@
     "lint": "npm run lint --workspace=server && npm run lint --workspace=client && npm run lint --workspace=shared",
     "start": "npm start --workspace=server",
     "db:backup": "node scripts/backup-db.mjs",
+    "db:stats": "node scripts/db-stats.mjs",
     "locales": "node scripts/build-locales.mjs",
     "locales:check": "node scripts/build-locales.mjs --check",
     "fixtures": "node scripts/generate-rule-fixtures.mjs",

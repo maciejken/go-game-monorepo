@@ -16,10 +16,18 @@
 // whole database while writers carry on, and hands back a single file with
 // nothing to replay.
 //
-// To restore: stop the server, put the snapshot where DB_PATH points
-// (deleting any -wal and -shm beside it), start the server.
+// Snapshots are gzipped, because a Go database is mostly stored board
+// positions and those are JSON full of nulls — they compress by an order
+// of magnitude, which is the difference between keeping a fortnight of
+// them on an SD card and not.
+//
+// To restore: stop the server, then
+//   gunzip -c data/backups/go-<stamp>.db.gz > data/go.db
+// deleting any go.db-wal and go.db-shm beside it, and start the server.
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
+import { pipeline } from 'stream/promises';
 import Database from 'better-sqlite3';
 
 const dbPath = process.env.DB_PATH || './data/go.db';
@@ -63,19 +71,31 @@ if (integrity !== 'ok') {
   process.exit(1);
 }
 
-const size = (fs.statSync(destination).size / 1024).toFixed(0);
-console.log(`${destination} — ${size} kB, ${users} users, ${games} games, ${events} events, integrity ok`);
+const plainSize = fs.statSync(destination).size;
+// Streamed rather than read whole: this runs on a machine with less
+// memory than some of these databases deserve.
+await pipeline(
+  fs.createReadStream(destination),
+  zlib.createGzip({ level: 9 }),
+  fs.createWriteStream(`${destination}.gz`),
+);
+fs.rmSync(destination);
+
+const packedSize = fs.statSync(`${destination}.gz`).size;
+const mb = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+console.log(
+  `${destination}.gz — ${mb(packedSize)} (from ${mb(plainSize)}), ` +
+    `${users} users, ${games} games, ${events} events, integrity ok`,
+);
 
 // Oldest first, so everything past the newest `keep` goes.
 if (Number.isInteger(keep) && keep > 0) {
   const snapshots = fs
     .readdirSync(backupDir)
-    .filter((file) => /^go-\d{8}T\d{6}\.db$/.test(file))
+    .filter((file) => /^go-\d{8}T\d{6}\.db\.gz$/.test(file))
     .sort();
   for (const old of snapshots.slice(0, Math.max(0, snapshots.length - keep))) {
-    const stale = path.join(backupDir, old);
-    fs.rmSync(stale);
-    removeSidecars(stale);
+    fs.rmSync(path.join(backupDir, old));
     console.log(`removed ${old}`);
   }
 }
