@@ -2951,65 +2951,6 @@
         }
       }
     },
-    "Change it again": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Change it again"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zmień ponownie"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Змінити ще раз"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Изменить ещё раз"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erneut ändern"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le changer à nouveau"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cambiala di nuovo"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "再改一次"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "もう一度変更"
-          }
-        }
-      }
-    },
     "Change password": {
       "extractionState": "manual",
       "localizations": {
@@ -13921,6 +13862,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "サインインすると、他の人と対局でき、対局をサーバーに保存できます。"
+          }
+        }
+      }
+    },
+    "Signs you out everywhere else. This device stays signed in.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signs you out everywhere else. This device stays signed in."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wyloguje Cię na wszystkich innych urządzeniach. To urządzenie pozostanie zalogowane."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Виходить із системи на всіх інших пристроях. Цей пристрій залишиться в системі."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выполняет выход на всех других устройствах. Это устройство останется в системе."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meldet dich überall sonst ab. Dieses Gerät bleibt angemeldet."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vous déconnecte partout ailleurs. Cet appareil reste connecté."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ti disconnette da tutti gli altri dispositivi. Questo resta connesso."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会在其他所有设备上退出登录。本机保持登录。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他のすべての端末からサインアウトします。この端末はサインインしたままです。"
           }
         }
       }

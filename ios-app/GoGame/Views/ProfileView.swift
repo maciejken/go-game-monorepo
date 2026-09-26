@@ -7,12 +7,7 @@ struct ProfileView: View {
     @Environment(SessionStore.self) private var session
     @State private var profile: UserProfile?
     @State private var errorMessage: String?
-    @State private var currentPassword = ""
-    @State private var newPassword = ""
-    @State private var confirmPassword = ""
-    @State private var passwordError: String?
     @State private var passwordChanged = false
-    @State private var isChangingPassword = false
     @State private var acceptsInvitations = false
     @State private var acceptsInvitationsError: String?
     @State private var recoveryPassword = ""
@@ -91,55 +86,18 @@ struct ProfileView: View {
                                 Text("Quick game preset")
                             }
                         }
-                        // The fields go away once the password has been
-                        // changed, and not only because empty boxes are a
-                        // poor way to say "done": iOS offers to update a
-                        // saved password when it sees the form it came
-                        // from leave the screen. A form that submits and
-                        // then sits there clearing itself never gives it
-                        // that moment, which is why this worked in the
-                        // reset sheet — which dismisses — and almost
-                        // never here.
-                        Section("Change password") {
+                        Section {
+                            NavigationLink {
+                                ChangePasswordView(username: profile.username) {
+                                    passwordChanged = true
+                                }
+                            } label: {
+                                Text("Change password")
+                            }
+                        } footer: {
                             if passwordChanged {
                                 Text("Password changed.")
-                                    .font(.footnote)
                                     .foregroundStyle(.green)
-                                Button("Change it again") { passwordChanged = false }
-                            } else {
-                                // Unmarked on purpose. Marked .password,
-                                // this is a credential field like any
-                                // other, and iOS offered to generate a new
-                                // password into it — the one field where a
-                                // new password is exactly wrong.
-                                SecureField("Current password", text: $currentPassword)
-                                // The account the new password is for, not
-                                // editable and here for iOS rather than
-                                // for the reader: a strong password is
-                                // only offered when the system can see
-                                // whose it is, and it goes immediately
-                                // above the field it belongs with, because
-                                // position is what the pairing follows.
-                                TextField("Username", text: .constant(profile.username))
-                                    .textContentType(.username)
-                                    .disabled(true)
-                                    .foregroundStyle(.secondary)
-                                SecureField("New password", text: $newPassword)
-                                    .textContentType(.newPassword)
-                                SecureField("Confirm new password", text: $confirmPassword)
-                                    .textContentType(.newPassword)
-                                if let passwordError {
-                                    Text(passwordError)
-                                        .font(.footnote)
-                                        .foregroundStyle(.red)
-                                }
-                                Button("Change password") {
-                                    Task { await submitPasswordChange() }
-                                }
-                                .disabled(
-                                    isChangingPassword || currentPassword.isEmpty || newPassword.isEmpty
-                                        || confirmPassword.isEmpty
-                                )
                             }
                         }
                         Section {
@@ -268,26 +226,6 @@ struct ProfileView: View {
             // "Error — cancelled" alert on the way out.
             guard !APIClient.isCancellation(error) else { return }
             errorMessage = error.localizedDescription
-        }
-    }
-
-    private func submitPasswordChange() async {
-        passwordError = nil
-        passwordChanged = false
-        guard newPassword == confirmPassword else {
-            passwordError = "New passwords do not match"
-            return
-        }
-        isChangingPassword = true
-        defer { isChangingPassword = false }
-        do {
-            try await APIClient.changePassword(currentPassword: currentPassword, newPassword: newPassword)
-            passwordChanged = true
-            currentPassword = ""
-            newPassword = ""
-            confirmPassword = ""
-        } catch {
-            passwordError = error.localizedDescription
         }
     }
 
