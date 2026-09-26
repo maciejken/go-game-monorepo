@@ -636,7 +636,7 @@ function GameView({ gameId }: GameViewProps) {
     createdAt === null
       ? null
       : t(
-          'Game started on %@',
+          'Started on %@',
           new Date(createdAt).toLocaleString(undefined, {
             dateStyle: 'medium',
             timeStyle: 'short',

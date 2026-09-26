@@ -1254,7 +1254,7 @@ struct GameBoardView: View {
         guard let createdAt = game.createdAt else { return nil }
         let started = Date(timeIntervalSince1970: Double(createdAt) / 1000)
         let date = started.formatted(date: .abbreviated, time: .shortened)
-        return String(localized: "Game started on %@", defaultValue: "Game started on \(date)")
+        return String(localized: "Started on %@", defaultValue: "Started on \(date)")
     }
 
     // Every row in this sheet has a fixed height, so adding them up sizes it
