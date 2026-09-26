@@ -109,7 +109,9 @@ export function hashBoard(board) {
 // Places `color` at `point` and removes any now-liberty-less enemy groups.
 // Must run before the suicide check, since capturing first can open up
 // liberties for the just-placed stone.
-function applyMove(board, point, color) {
+// Exported so a game can be replayed from its log — the server rebuilds
+// every position it has been in that way rather than storing each one.
+export function applyMove(board, point, color) {
     const next = board.map((row) => row.slice());
     next[point.y][point.x] = color;
     const opponent = oppositeColor(color);

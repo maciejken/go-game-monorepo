@@ -11,6 +11,10 @@ export declare function isPointOnBoard(board: Board, point: Point): boolean;
 export declare function isPointEmpty(board: Board, point: Point): boolean;
 export declare function getGroup(board: Board, point: Point): Point[];
 export declare function hashBoard(board: Board): bigint;
+export declare function applyMove(board: Board, point: Point, color: Color): {
+    board: Board;
+    capturedPoints: Point[];
+};
 export interface PositionRecord {
     hash: string;
     nextColor: Color;

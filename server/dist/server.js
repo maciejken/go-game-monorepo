@@ -7,7 +7,7 @@ import { randomUUID } from 'crypto';
 import { createServer } from 'http';
 import { createServer as createHttpsServer } from 'https';
 import fs from 'fs';
-import { applyDeadStones, BOARD_SIZES, deductClock, hasTimedOut, resolveTimeControl, createEmptyBoard, getHandicapPoints, getCurrentColor, getKomi, hashBoard, scoreBoard, validateMove, } from 'shared';
+import { applyDeadStones, applyMove, BOARD_SIZES, deductClock, hasTimedOut, resolveTimeControl, createEmptyBoard, getHandicapPoints, getCurrentColor, getKomi, hashBoard, scoreBoard, validateMove, } from 'shared';
 import { dbPath, port, httpsPort, keyPath, certPath } from './config.js';
 import { clearSessionCookie, createSession, destroySession, destroyOtherSessions, generateRecoveryCode, getSessionToken, getSessionUser, hashPassword, hashRecoveryCode, requireAuth, setSessionCookie, verifyPassword, verifyRecoveryCode, } from './auth.js';
 import { seedDefaultUser, seedAiUser, getAiUserId } from './seed.js';
@@ -515,6 +515,16 @@ function getGameHistory(gameId, size, handicap) {
     WHERE game_id = ?
     ORDER BY move_number ASC
   `).all(gameId);
+    // A game whose snapshots have been pruned (see scripts/prune-snapshots)
+    // still has its log, and the log is what the positions were made from.
+    // Reading the rows stays the fast path for a game still being played,
+    // which keeps every one of them.
+    const stored = db
+        .prepare("SELECT COUNT(*) AS count FROM events WHERE game_id = ? AND event_type IN ('MOVE', 'HANDICAP')")
+        .get(gameId);
+    if (rows.length < stored.count) {
+        return replayPositions(gameId, size, handicap).positions;
+    }
     const history = [];
     // Handicap games already have a move_number = 0 snapshot; plain games
     // start from an empty board that was never itself written to a row.
@@ -633,21 +643,61 @@ function hasUndoableEvent(gameId) {
 // game has logged, paired with the board as it stood right after. Passes
 // and resigns don't have their own snapshot, so their board is carried
 // forward from the last actual placement.
+// Every position a game has been in, rebuilt from its log. The log is the
+// source of truth — a stored board is only ever a copy of what replaying
+// it produces — so this is what the history and the superko check are
+// derived from once a game's snapshots have been pruned.
+//
+// Boards are keyed by the move number they follow: a pass or a
+// resignation leaves the position alone, so those numbers map to the same
+// board as the move before them.
+function replayPositions(gameId, size, handicap) {
+    const events = db
+        .prepare('SELECT move_number, event_type, payload FROM events WHERE game_id = ? ORDER BY move_number ASC')
+        .all(gameId);
+    let board = createEmptyBoard(size);
+    const boards = new Map();
+    const positions = [];
+    // A plain game's first position is the empty board, which was never
+    // written to a row; a handicap game's is the placement, logged as
+    // move 0.
+    if (events.length === 0 || events[0].move_number !== 0) {
+        positions.push({
+            board,
+            hash: hashBoard(board).toString(),
+            nextColor: getCurrentColor(turnMoveNumber(1, handicap)),
+        });
+    }
+    for (const event of events) {
+        const payload = JSON.parse(event.payload);
+        if (event.event_type === 'HANDICAP') {
+            board = createEmptyBoard(size);
+            for (const [x, y] of payload.points ?? []) {
+                board[y][x] = 'black';
+            }
+        }
+        else if (event.event_type === 'MOVE' && payload.x !== undefined && payload.y !== undefined && payload.color) {
+            board = applyMove(board, { x: payload.x, y: payload.y }, payload.color).board;
+        }
+        boards.set(event.move_number, board);
+        if (event.event_type === 'HANDICAP' || event.event_type === 'MOVE') {
+            positions.push({
+                board,
+                hash: hashBoard(board).toString(),
+                nextColor: getCurrentColor(turnMoveNumber(event.move_number + 1, handicap)),
+            });
+        }
+    }
+    return { boards, positions };
+}
 function getMoveHistory(gameId, size) {
     const events = db.prepare(`
     SELECT move_number, event_type, payload FROM events
     WHERE game_id = ?
     ORDER BY move_number ASC
   `).all(gameId);
-    const snapshotRows = db.prepare(`
-    SELECT move_number, state FROM snapshots
-    WHERE game_id = ?
-    ORDER BY move_number ASC
-  `).all(gameId);
-    const boardByMove = new Map();
-    for (const row of snapshotRows) {
-        boardByMove.set(row.move_number, JSON.parse(row.state));
-    }
+    const game = db.prepare('SELECT handicap FROM games WHERE id = ?').get(gameId);
+    const { boards: boardByMove } = replayPositions(gameId, size, game?.handicap ?? 0);
     const history = [];
     let lastBoard = createEmptyBoard(size);
     // Handicap games log their setup as move 0; plain games start from an

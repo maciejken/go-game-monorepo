@@ -12,7 +12,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-DB_PATH="$WORK/flow.db" PORT="$PORT" npx tsx server/src/server.ts > "$WORK/server.log" 2>&1 &
+DB_PATH="$WORK/flow.db"
+export DB_PATH
+PORT="$PORT" npx tsx server/src/server.ts > "$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 
 for _ in $(seq 1 40); do
@@ -23,3 +25,5 @@ done
 node scripts/check-server-flow.mjs "http://localhost:$PORT"
 node scripts/check-server-import.mjs "http://localhost:$PORT"
 node scripts/check-server-account.mjs "http://localhost:$PORT"
+# Takes the database file too: pruning stored boards is what it checks.
+node scripts/check-server-replay.mjs "http://localhost:$PORT" "$DB_PATH"
