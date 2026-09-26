@@ -91,45 +91,56 @@ struct ProfileView: View {
                                 Text("Quick game preset")
                             }
                         }
+                        // The fields go away once the password has been
+                        // changed, and not only because empty boxes are a
+                        // poor way to say "done": iOS offers to update a
+                        // saved password when it sees the form it came
+                        // from leave the screen. A form that submits and
+                        // then sits there clearing itself never gives it
+                        // that moment, which is why this worked in the
+                        // reset sheet — which dismisses — and almost
+                        // never here.
                         Section("Change password") {
-                            // Unmarked on purpose. Marked .password, this
-                            // is a credential field like any other, and
-                            // iOS offered to generate a new password into
-                            // it — the one field where a new password is
-                            // exactly wrong.
-                            SecureField("Current password", text: $currentPassword)
-                            // The account the new password is for, not
-                            // editable and here for iOS rather than for
-                            // the reader: a strong password is only
-                            // offered when the system can see whose it
-                            // is, and it goes immediately above the field
-                            // it belongs with, because position is what
-                            // the pairing actually follows.
-                            TextField("Username", text: .constant(profile.username))
-                                .textContentType(.username)
-                                .disabled(true)
-                                .foregroundStyle(.secondary)
-                            SecureField("New password", text: $newPassword)
-                                .textContentType(.newPassword)
-                            SecureField("Confirm new password", text: $confirmPassword)
-                                .textContentType(.newPassword)
-                            if let passwordError {
-                                Text(passwordError)
-                                    .font(.footnote)
-                                    .foregroundStyle(.red)
-                            }
                             if passwordChanged {
                                 Text("Password changed.")
                                     .font(.footnote)
                                     .foregroundStyle(.green)
+                                Button("Change it again") { passwordChanged = false }
+                            } else {
+                                // Unmarked on purpose. Marked .password,
+                                // this is a credential field like any
+                                // other, and iOS offered to generate a new
+                                // password into it — the one field where a
+                                // new password is exactly wrong.
+                                SecureField("Current password", text: $currentPassword)
+                                // The account the new password is for, not
+                                // editable and here for iOS rather than
+                                // for the reader: a strong password is
+                                // only offered when the system can see
+                                // whose it is, and it goes immediately
+                                // above the field it belongs with, because
+                                // position is what the pairing follows.
+                                TextField("Username", text: .constant(profile.username))
+                                    .textContentType(.username)
+                                    .disabled(true)
+                                    .foregroundStyle(.secondary)
+                                SecureField("New password", text: $newPassword)
+                                    .textContentType(.newPassword)
+                                SecureField("Confirm new password", text: $confirmPassword)
+                                    .textContentType(.newPassword)
+                                if let passwordError {
+                                    Text(passwordError)
+                                        .font(.footnote)
+                                        .foregroundStyle(.red)
+                                }
+                                Button("Change password") {
+                                    Task { await submitPasswordChange() }
+                                }
+                                .disabled(
+                                    isChangingPassword || currentPassword.isEmpty || newPassword.isEmpty
+                                        || confirmPassword.isEmpty
+                                )
                             }
-                            Button("Change password") {
-                                Task { await submitPasswordChange() }
-                            }
-                            .disabled(
-                                isChangingPassword || currentPassword.isEmpty || newPassword.isEmpty
-                                    || confirmPassword.isEmpty
-                            )
                         }
                         Section {
                             SecureField("Current password", text: $recoveryPassword)
