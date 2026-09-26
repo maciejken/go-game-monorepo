@@ -7,6 +7,7 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:igo5.online</string>
+		<string>webcredentials:igo5.online</string>
 	</array>
 </dict>
 </plist>

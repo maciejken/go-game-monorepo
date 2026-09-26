@@ -17,9 +17,16 @@ struct AuthView: View {
             Form {
                 Section {
                     TextField("Username", text: $username)
+                        .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                    // .password rather than .newPassword: the same two
+                    // fields log in and register, and logging in is what
+                    // they are mostly used for. Marked at all is the
+                    // point — unmarked, iOS guesses, and guesses wrong
+                    // about whether a password it has is still current.
                     SecureField("Password", text: $password)
+                        .textContentType(.password)
                 }
 
                 if let errorMessage = session.errorMessage {
@@ -72,10 +79,14 @@ struct AuthView: View {
             }
             .navigationTitle(offersOfflinePlay ? "Igo5" : "Account")
             .sheet(isPresented: $showReset) {
-                ResetPasswordSheet(initialUsername: username) { nextCode in
-                    // Straight into the app's own "here is your code"
-                    // sheet, and the new password is theirs to log in with.
+                ResetPasswordSheet(initialUsername: username) { nextCode, name, newPassword in
+                    // Signed in on the spot: the password was just set, so
+                    // asking for it again is a form to fight with autofill
+                    // over. The new code is shown over whatever comes next.
                     session.recoveryCodeToShow = nextCode
+                    self.username = name
+                    self.password = newPassword
+                    Task { await session.login(username: name, password: newPassword) }
                 }
             }
         }

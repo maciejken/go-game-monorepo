@@ -115,6 +115,13 @@ app.get('/.well-known/apple-app-site-association', (_req, res) => {
                 },
             ],
         },
+        // Says the app and this site share an account. Without it iOS keeps
+        // two unrelated saved passwords — the website's and a guess about
+        // the app's — and never offers to update one when the other changes,
+        // which is exactly what happens after a password reset.
+        webcredentials: {
+            apps: ['H36M3YGDVV.com.maciejkedra.igo5'],
+        },
     });
 });
 app.use(express.static(path.resolve(__dirname, '../../client/dist')));

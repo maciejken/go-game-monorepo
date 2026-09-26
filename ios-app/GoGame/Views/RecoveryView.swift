@@ -33,9 +33,15 @@ struct RecoveryCodeSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                Button("Done") { dismiss() }
-                    .buttonStyle(.borderedProminent)
-                    .frame(maxWidth: .infinity)
+                Button {
+                    dismiss()
+                } label: {
+                    // Inside the label, like Copy's: on the button itself
+                    // it stretches the frame and leaves the button its
+                    // own small size in the middle of it.
+                    Text("Done").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
             }
             Spacer(minLength: 0)
         }
@@ -48,7 +54,10 @@ struct RecoveryCodeSheet: View {
 // one just used is spent.
 struct ResetPasswordSheet: View {
     var initialUsername: String = ""
-    let onReset: (String) -> Void
+    // Hands back the next code and the credentials that now work, so the
+    // screen behind can sign in with them rather than leaving someone at
+    // a login form their saved password no longer opens.
+    let onReset: (_ nextCode: String, _ username: String, _ password: String) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var username = ""
@@ -62,6 +71,10 @@ struct ResetPasswordSheet: View {
             Form {
                 Section {
                     TextField("Username", text: $username)
+                        // Without this iOS has no account to attach the
+                        // new password to, so it never offers to update
+                        // the one it already has.
+                        .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     TextField("Recovery code", text: $code)
@@ -105,7 +118,7 @@ struct ResetPasswordSheet: View {
                 newPassword: newPassword
             )
             dismiss()
-            onReset(nextCode)
+            onReset(nextCode, username, newPassword)
         } catch {
             errorMessage = error.localizedDescription
         }
