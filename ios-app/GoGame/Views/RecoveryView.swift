@@ -56,8 +56,11 @@ struct ResetPasswordSheet: View {
     var initialUsername: String = ""
     // Hands back the next code and the credentials that now work, so the
     // screen behind can sign in with them rather than leaving someone at
-    // a login form their saved password no longer opens.
-    let onReset: (_ nextCode: String, _ username: String, _ password: String) -> Void
+    // a login form their saved password no longer opens. Awaited before
+    // this sheet goes away: iOS offers to save a password when it sees a
+    // sign-in succeed while the fields it came from are still on screen,
+    // so dismissing first means it never sees one.
+    let onReset: (_ nextCode: String, _ username: String, _ password: String) async -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var username = ""
@@ -83,6 +86,8 @@ struct ResetPasswordSheet: View {
                         .font(.body.monospaced())
                     SecureField("New password", text: $newPassword)
                         .textContentType(.newPassword)
+                        .submitLabel(.go)
+                        .onSubmit { Task { await submit() } }
                 } footer: {
                     Text("The code you were given when the account was made. Using it sets a new password and gives you a new code.")
                 }
@@ -117,8 +122,8 @@ struct ResetPasswordSheet: View {
                 recoveryCode: code,
                 newPassword: newPassword
             )
+            await onReset(nextCode, username, newPassword)
             dismiss()
-            onReset(nextCode, username, newPassword)
         } catch {
             errorMessage = error.localizedDescription
         }

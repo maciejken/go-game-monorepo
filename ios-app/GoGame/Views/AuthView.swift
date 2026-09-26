@@ -27,6 +27,15 @@ struct AuthView: View {
                     // about whether a password it has is still current.
                     SecureField("Password", text: $password)
                         .textContentType(.password)
+                        .submitLabel(.go)
+                        .onSubmit {
+                            guard !isSubmitting, !username.isEmpty, !password.isEmpty else { return }
+                            Task {
+                                isSubmitting = true
+                                await session.login(username: username, password: password)
+                                isSubmitting = false
+                            }
+                        }
                 }
 
                 if let errorMessage = session.errorMessage {
@@ -83,10 +92,10 @@ struct AuthView: View {
                     // Signed in on the spot: the password was just set, so
                     // asking for it again is a form to fight with autofill
                     // over. The new code is shown over whatever comes next.
-                    session.recoveryCodeToShow = nextCode
                     self.username = name
                     self.password = newPassword
-                    Task { await session.login(username: name, password: newPassword) }
+                    await session.login(username: name, password: newPassword)
+                    session.recoveryCodeToShow = nextCode
                 }
             }
         }
