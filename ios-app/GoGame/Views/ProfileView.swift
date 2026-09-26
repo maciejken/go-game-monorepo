@@ -92,19 +92,23 @@ struct ProfileView: View {
                             }
                         }
                         Section("Change password") {
-                            // Not editable, and here for iOS rather than
-                            // for the reader: a strong password is only
-                            // offered when the system can see which
-                            // account the new one belongs to, and three
-                            // password fields on their own say nothing
-                            // about that. It also updates the right saved
-                            // entry afterwards instead of guessing.
+                            // Unmarked on purpose. Marked .password, this
+                            // is a credential field like any other, and
+                            // iOS offered to generate a new password into
+                            // it — the one field where a new password is
+                            // exactly wrong.
+                            SecureField("Current password", text: $currentPassword)
+                            // The account the new password is for, not
+                            // editable and here for iOS rather than for
+                            // the reader: a strong password is only
+                            // offered when the system can see whose it
+                            // is, and it goes immediately above the field
+                            // it belongs with, because position is what
+                            // the pairing actually follows.
                             TextField("Username", text: .constant(profile.username))
                                 .textContentType(.username)
                                 .disabled(true)
                                 .foregroundStyle(.secondary)
-                            SecureField("Current password", text: $currentPassword)
-                                .textContentType(.password)
                             SecureField("New password", text: $newPassword)
                                 .textContentType(.newPassword)
                             SecureField("Confirm new password", text: $confirmPassword)
