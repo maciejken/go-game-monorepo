@@ -11,7 +11,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleDisplayName</key>
-	<string>Igo5</string>
+	<string>$(DISPLAY_NAME)</string>
 	<key>CFBundleName</key>
 	<string>Igo5</string>
 	<key>CFBundlePackageType</key>

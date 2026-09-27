@@ -118,9 +118,16 @@ app.use('/.well-known/acme-challenge', express.static('/etc/certbot-webroot/.wel
 // installed via manual (not automatic) code signing in project.pbxproj.
 // Confirm with `codesign -d --entitlements :- <built .app>` on the
 // actually-installed build if links or passwords ever stop working.
-app.get('/.well-known/apple-app-site-association', (_req, res) => {
+app.get('/.well-known/apple-app-site-association', (req, res) => {
+    // Two builds, two app IDs: the production app and a test one pointed
+    // at the test backend. Each host names only its own, because a host
+    // that named both would let a link open whichever app happened to
+    // claim it — the file is per-domain, and this server answers on more
+    // than one.
+    const isTestHost = (req.hostname ?? '').startsWith('test.');
+    const file = isTestHost ? 'apple-app-site-association.test' : 'apple-app-site-association';
     res.type('application/json');
-    res.sendFile(path.resolve(__dirname, '../public/apple-app-site-association'));
+    res.sendFile(path.resolve(__dirname, '../public', file));
 });
 app.use(express.static(path.resolve(__dirname, '../../client/dist')));
 app.get('/', (req, res) => {
