@@ -32,3 +32,11 @@ export const apnsKeyId = process.env.APNS_KEY_ID;
 export const apnsTeamId = process.env.APNS_TEAM_ID;
 export const apnsBundleId = process.env.APNS_BUNDLE_ID;
 export const apnsHost = process.env.APNS_HOST;
+
+// Which of the two apple-app-site-association files this server publishes
+// — 'test' names the test app, anything else names the production one.
+// Unset, the choice falls to the Host header, which is right while one
+// machine answers on both igo5.online and test.igo5.online. A server
+// behind a proxy can't rely on that header surviving the hop, so it says
+// outright which app it is associated with.
+export const aasaApp = process.env.AASA_APP;

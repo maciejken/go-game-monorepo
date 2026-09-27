@@ -31,7 +31,7 @@ import {
   type TimeControlName,
 } from 'shared';
 
-import { dbPath, port, httpsPort, keyPath, certPath, trustProxy } from './config.js';
+import { dbPath, port, httpsPort, keyPath, certPath, trustProxy, aasaApp } from './config.js';
 import {
   clearSessionCookie,
   createSession,
@@ -178,8 +178,16 @@ app.get('/.well-known/apple-app-site-association', (req, res) => {
   // that named both would let a link open whichever app happened to
   // claim it — the file is per-domain, and this server answers on more
   // than one.
+  //
+  // Which one is normally read off the host, but AASA_APP overrides it.
+  // A server reached through a proxy sees whatever Host that proxy
+  // forwards, and a rewritten one would quietly serve the wrong app ID —
+  // a failure that then takes a day to undo, because iOS reads this file
+  // through Apple's CDN. A machine that only ever serves one of the two
+  // says so instead of inferring it.
   const isTestHost = (req.hostname ?? '').startsWith('test.');
-  const file = isTestHost ? 'apple-app-site-association.test' : 'apple-app-site-association';
+  const wantsTestApp = aasaApp ? aasaApp === 'test' : isTestHost;
+  const file = wantsTestApp ? 'apple-app-site-association.test' : 'apple-app-site-association';
   res.type('application/json');
   res.sendFile(path.resolve(__dirname, '../public', file));
 });
