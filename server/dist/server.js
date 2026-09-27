@@ -8,7 +8,7 @@ import { createServer } from 'http';
 import { createServer as createHttpsServer } from 'https';
 import fs from 'fs';
 import { applyDeadStones, applyMove, BOARD_SIZES, deductClock, hasTimedOut, resolveTimeControl, createEmptyBoard, getHandicapPoints, getCurrentColor, getKomi, hashBoard, scoreBoard, validateMove, } from 'shared';
-import { dbPath, port, httpsPort, keyPath, certPath } from './config.js';
+import { dbPath, port, httpsPort, keyPath, certPath, trustProxy } from './config.js';
 import { clearSessionCookie, createSession, destroySession, destroyOtherSessions, generateRecoveryCode, getSessionToken, getSessionUser, hashPassword, hashRecoveryCode, requireAuth, setSessionCookie, verifyPassword, verifyRecoveryCode, } from './auth.js';
 import { seedDefaultUser, seedAiUser, getAiUserId } from './seed.js';
 import { attachWebSocketServer, broadcastGameUpdate, broadcastGamesListUpdate } from './ws.js';
@@ -25,6 +25,15 @@ app.use(express.json());
 // port nothing is serving. Local dev without certs keeps working over
 // plain HTTP.
 const httpsAvailable = Boolean(httpsPort && keyPath && certPath && fs.existsSync(keyPath) && fs.existsSync(certPath));
+// One hop: whatever proxy is in front. Anything further out could be
+// spoofed by a client sending its own X-Forwarded-For.
+if (trustProxy) {
+    app.set('trust proxy', 1);
+}
+// TLS is in play either because this process serves it or because
+// something in front does. Both cases want the same redirect and the same
+// HSTS header; what differs is only who holds the certificate.
+const servesOverTLS = httpsAvailable || trustProxy;
 // The session cookie is Secure, so a login over plain HTTP silently fails
 // to stick — and the password got there in clear anyway. Anything that
 // arrives on the HTTP listener goes to HTTPS instead, except the two
@@ -32,7 +41,7 @@ const httpsAvailable = Boolean(httpsPort && keyPath && certPath && fs.existsSync
 // the certificate in the first place, and iOS wants the app-site
 // association served without a redirect.
 app.use((req, res, next) => {
-    if (!httpsAvailable || req.secure || req.path.startsWith('/.well-known/')) {
+    if (!servesOverTLS || req.secure || req.path.startsWith('/.well-known/')) {
         next();
         return;
     }
@@ -77,7 +86,7 @@ app.use((_req, res, next) => {
 // browser to refuse plain HTTP for six months is not something to do from
 // a dev machine with no certificate.
 app.use((req, res, next) => {
-    if (httpsAvailable && req.secure) {
+    if (servesOverTLS && req.secure) {
         res.setHeader('Strict-Transport-Security', 'max-age=15552000');
     }
     next();
@@ -1140,13 +1149,13 @@ app.post('/api/auth/recovery-code', (req, res) => {
     res.json({ recoveryCode });
 });
 // Both limiters key on req.ip, which is the socket's own address because
-// Express's "trust proxy" is off. That is correct while this process is
-// the edge server (it terminates TLS itself, and answers certbot's
-// challenge directly). Putting nginx or a tunnel in front without also
-// setting "trust proxy" would make every request look like it came from
-// the proxy, so one attacker's attempts would throttle everybody — and
-// turning it on without a proxy would let anyone spoof X-Forwarded-For
-// and evade the limit entirely. Change both together or neither.
+// Express's "trust proxy" follows TRUST_PROXY (see config.ts), which is
+// off where this process is the edge server — as on the Pi, which
+// terminates TLS itself and answers certbot's challenge directly — and on
+// where a proxy, tunnel or CDN sits in front. Getting it wrong either way
+// breaks this limiter: off behind a proxy, every request looks like it
+// came from the proxy and one attacker throttles everybody; on without
+// one, anyone can spoof X-Forwarded-For and evade the limit entirely.
 //
 // Standard login-throttling values (express-rate-limit's own canonical
 // example, matching common OWASP-style guidance): 5 attempts per 15

@@ -27,6 +27,8 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>APIHost</key>
+	<string>$(API_HOST)</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Igo5 uses the local network to find and play games on nearby devices, with no server involved.</string>
 	<key>NSBonjourServices</key>

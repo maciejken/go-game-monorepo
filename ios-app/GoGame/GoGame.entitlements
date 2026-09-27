@@ -16,6 +16,12 @@
 	<array>
 		<string>applinks:igo5.online</string>
 		<string>webcredentials:igo5.online</string>
+		<!-- The test backend (the Pi). Listed in every build rather than
+		     split across two entitlement files: both domains serve the
+		     same association file naming this same app, and a domain the
+		     build never talks to costs nothing. -->
+		<string>applinks:test.igo5.online</string>
+		<string>webcredentials:test.igo5.online</string>
 	</array>
 </dict>
 </plist>
