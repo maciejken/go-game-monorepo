@@ -215,6 +215,11 @@ struct GameListView: View {
             .onChange(of: isActiveTab) { _, active in
                 if active {
                     consumeDeepLink()
+                    // MainTabView switches to this tab when an action
+                    // arrives, so the action often lands while the tab is
+                    // still the other one — without this it would sit
+                    // unconsumed for good.
+                    consumeQuickAction()
                 }
             }
             // No live socket here on purpose: this list used to hold one on
@@ -423,7 +428,10 @@ struct GameListView: View {
     // stack pop has no equivalent callback for.
     private func consumeQuickAction() {
         guard let action = deepLinkRouter.pendingAction else { return }
-        guard isHome, isActiveTab else { return }
+        // Unlike a game link, neither action cares which way the list is
+        // filtered — only that this tab is the one on screen to show the
+        // sheet or the new game on.
+        guard isActiveTab else { return }
         deepLinkRouter.pendingAction = nil
         switch action {
         case .newGame:

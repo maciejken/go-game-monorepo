@@ -26,6 +26,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             }
         }
     }
+    // SceneDelegate needs this object, and cannot find it the obvious
+    // way: UIApplication.shared.delegate is not this instance. SwiftUI's
+    // @UIApplicationDelegateAdaptor forwards the delegate callbacks here
+    // while something of its own answers as the application's delegate,
+    // so the usual `as? AppDelegate` cast quietly yields nil — which is
+    // what made a quick action arrive and go nowhere.
+    static private(set) weak var shared: AppDelegate?
+
     private var pendingGameId: String?
     private var pendingAction: DeepLinkRouter.QuickAction?
     private var pendingURL: URL?
@@ -34,6 +42,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        Self.shared = self
         UNUserNotificationCenter.current().delegate = self
         // Built here rather than declared in Info.plist so the titles come
         // from the string catalogue like every other piece of text in the

@@ -11,9 +11,12 @@ import UIKit
 // the path explicit, and routing the same URL twice is harmless: it sets
 // the same target to the same value.
 final class SceneDelegate: NSObject, UIWindowSceneDelegate {
-    private var appDelegate: AppDelegate? {
-        UIApplication.shared.delegate as? AppDelegate
-    }
+    // AppDelegate.shared, not UIApplication.shared.delegate: SwiftUI's
+    // @UIApplicationDelegateAdaptor forwards the delegate callbacks to
+    // our object while something of its own answers as the application's
+    // delegate, so casting that to AppDelegate yields nil — which had
+    // every quick action arriving here and going nowhere.
+    private var appDelegate: AppDelegate? { AppDelegate.shared }
 
     // Cold launch: whatever started the app is in here, and all of it
     // arrives long before any view can act on it.

@@ -32,6 +32,23 @@
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
+		<!-- Named here rather than left to AppDelegate's
+		     configurationForConnecting: a SwiftUI app supplies its own
+		     scene configuration, and the delegate method is not
+		     reliably consulted — which is why a home-screen quick
+		     action reached nothing and merely opened the app. -->
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
 	</dict>
 	<key>APIHost</key>
 	<string>$(API_HOST)</string>
