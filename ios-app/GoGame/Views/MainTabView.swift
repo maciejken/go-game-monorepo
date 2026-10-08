@@ -80,6 +80,18 @@ struct MainTabView: View {
                 selectedTab = .home
             }
         }
+        // Same job for a quick action: GameListView acts on it, but only
+        // while it is the tab on screen.
+        .onChange(of: deepLinkRouter.pendingAction) { _, newValue in
+            if newValue != nil {
+                selectedTab = .home
+            }
+        }
+        .task {
+            if deepLinkRouter.pendingAction != nil {
+                selectedTab = .home
+            }
+        }
     }
 
     // The one-open-short-game limits, GNU Go's availability and whether

@@ -207,6 +207,11 @@ struct GameListView: View {
             // up. .onChange below covers a link arriving after that.
             .task { consumeDeepLink() }
             .onChange(of: deepLinkRouter.targetGameId) { _, _ in consumeDeepLink() }
+            // Both home-screen quick actions land here, because both of
+            // them end on this tab anyway — one opens the form, the other
+            // the game it creates.
+            .task { consumeQuickAction() }
+            .onChange(of: deepLinkRouter.pendingAction) { _, _ in consumeQuickAction() }
             .onChange(of: isActiveTab) { _, active in
                 if active {
                     consumeDeepLink()
@@ -416,6 +421,21 @@ struct GameListView: View {
     // actual pop; the delay stands in for the "wait until the transition
     // has actually finished" a sheet's onDismiss gives for free but a plain
     // stack pop has no equivalent callback for.
+    private func consumeQuickAction() {
+        guard let action = deepLinkRouter.pendingAction else { return }
+        guard isHome, isActiveTab else { return }
+        deepLinkRouter.pendingAction = nil
+        switch action {
+        case .newGame:
+            showNewGame = true
+        case .quickGame:
+            // The same call the lightning button makes, errors and all:
+            // a preset that won't load is as likely from here as from a
+            // press, and says so the same way.
+            Task { await startQuickGame() }
+        }
+    }
+
     private func consumeDeepLink() {
         guard let id = deepLinkRouter.targetGameId else { return }
         // MainTabView switches to Home for a game link, so only that tab's

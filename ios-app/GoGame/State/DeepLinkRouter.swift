@@ -10,8 +10,17 @@ import Foundation
 // consume it.
 @Observable
 final class DeepLinkRouter {
+    // A home-screen quick action (long press on the app icon). It arrives
+    // through the same waiting room as a link, and for the same reason: on
+    // a cold launch it is delivered before any view exists to act on it.
+    enum QuickAction: String {
+        case newGame = "com.maciejkedra.igo5.newGame"
+        case quickGame = "com.maciejkedra.igo5.quickGame"
+    }
+
     var targetGameId: String?
     var targetProfileId: String?
+    var pendingAction: QuickAction?
 
     // https://igo5.online alone (the games list) needs no further routing —
     // that's already the app's default screen. Only /games/<id> and

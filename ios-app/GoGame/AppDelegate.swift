@@ -16,16 +16,81 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 deepLinkRouter?.targetGameId = gameId
                 pendingGameId = nil
             }
+            if let pendingAction {
+                deepLinkRouter?.pendingAction = pendingAction
+                self.pendingAction = nil
+            }
+            if let pendingURL {
+                deepLinkRouter?.handle(pendingURL)
+                self.pendingURL = nil
+            }
         }
     }
     private var pendingGameId: String?
+    private var pendingAction: DeepLinkRouter.QuickAction?
+    private var pendingURL: URL?
 
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        // Built here rather than declared in Info.plist so the titles come
+        // from the string catalogue like every other piece of text in the
+        // app — static shortcut items are only translatable through
+        // InfoPlist.strings, which nothing else here uses. The cost is
+        // that they appear after the first launch rather than straight
+        // after installing.
+        application.shortcutItems = [
+            UIApplicationShortcutItem(
+                type: DeepLinkRouter.QuickAction.newGame.rawValue,
+                localizedTitle: String(localized: "New game"),
+                localizedSubtitle: nil,
+                icon: UIApplicationShortcutIcon(systemImageName: "plus")
+            ),
+            UIApplicationShortcutItem(
+                type: DeepLinkRouter.QuickAction.quickGame.rawValue,
+                localizedTitle: String(localized: "New quick game"),
+                localizedSubtitle: nil,
+                icon: UIApplicationShortcutIcon(systemImageName: "bolt.fill")
+            ),
+        ]
         return true
+    }
+
+    // Scenes are what deliver a quick action, and a SwiftUI app has no
+    // scene delegate of its own to receive one — hence this, which exists
+    // only to hand the action back to this object.
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        configuration.delegateClass = SceneDelegate.self
+        return configuration
+    }
+
+    // A URL from SceneDelegate — an opened link, or the page a Universal
+    // Link was following. Buffered like everything else that can arrive
+    // before there is a router to put it in.
+    func handle(_ url: URL) {
+        if let deepLinkRouter {
+            deepLinkRouter.handle(url)
+        } else {
+            pendingURL = url
+        }
+    }
+
+    // Same buffering as a notification tap: on a cold launch this runs
+    // long before RootView has handed us the router.
+    func handle(_ shortcutItem: UIApplicationShortcutItem) {
+        guard let action = DeepLinkRouter.QuickAction(rawValue: shortcutItem.type) else { return }
+        if let deepLinkRouter {
+            deepLinkRouter.pendingAction = action
+        } else {
+            pendingAction = action
+        }
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
