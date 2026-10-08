@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Nothing here is used to track anyone across other companies' apps
+	     or sites: there is no analytics, no advertising, and no
+	     third-party SDK of any kind in this app. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<!-- What this app collects is declared in App Store Connect rather
+	     than here — for a first-party app those answers are the ones
+	     Apple publishes, and two copies of the same list is one to get
+	     out of step. This file exists for the section below, which has
+	     no equivalent there. -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- UserDefaults, used once: remembering who was signed in
+			     so the app can offer the username back after a logout
+			     (State/SessionStore.swift). CA92.1 is the reason for
+			     reading and writing only this app's own data, which is
+			     all a single app's UserDefaults can reach — there is no
+			     app group here. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

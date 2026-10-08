@@ -192,6 +192,20 @@ app.get('/.well-known/apple-app-site-association', (req, res) => {
   res.sendFile(path.resolve(__dirname, '../public', file));
 });
 
+// The two pages the App Store requires a link to, and the only pages here
+// that aren't part of the client app. Plain files rather than React routes
+// because App Review and anyone's browser must get them without running
+// any JavaScript — and because they have to keep working whatever happens
+// to the client build. Declared above the catch-all that hands every other
+// path to React Router.
+app.get('/privacy', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../public/privacy.html'));
+});
+
+app.get('/support', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../public/support.html'));
+});
+
 app.use(express.static(path.resolve(__dirname, '../../client/dist')));
 
 app.get('/', (req, res) => {

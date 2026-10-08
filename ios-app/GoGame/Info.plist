@@ -22,6 +22,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- The only encryption this app uses is HTTPS, through the system's
+	     own networking — no custom cryptography, and nothing bundled.
+	     That is exempt from the US export rules, and saying so here
+	     answers the question once rather than on every upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
