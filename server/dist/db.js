@@ -137,6 +137,19 @@ db.exec(`
     user_id TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
+
+  -- Who refuses invitations from whom. One-directional: blocking somebody
+  -- says nothing about what they may receive from you. It is the per-person
+  -- version of users.accepts_invitations, and is enforced in the same two
+  -- places — the username search and the invite guard — so that to the
+  -- blocked person it is indistinguishable from someone who has turned
+  -- invitations off for everyone.
+  CREATE TABLE IF NOT EXISTS blocked_users (
+    blocker_id TEXT NOT NULL,
+    blocked_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (blocker_id, blocked_id)
+  );
 `);
 // The preset table shipped before it carried tags.
 const quickGamePresetColumns = new Set(db.prepare('PRAGMA table_info(quick_game_presets)').all().map((column) => column.name));

@@ -282,6 +282,23 @@ enum APIClient {
         try await get("api/users/\(id)")
     }
 
+    // Who this user refuses invitations from. Usernames rather than ids:
+    // that is what both ends of this feature have to hand — the invite
+    // sheet knows an opponent's name, and the list shows names back.
+    static func blockedUsers() async throws -> [String] {
+        try await get("api/blocks")
+    }
+
+    static func block(username: String) async throws {
+        struct Body: Encodable { let username: String }
+        try await post("api/blocks", body: Body(username: username))
+    }
+
+    static func unblock(username: String) async throws {
+        // Usernames are [a-z0-9_], so nothing in one needs escaping.
+        try await delete("api/blocks/\(username)")
+    }
+
     // Mirrors client/src/services/api.ts's listGames: the server includes
     // one extra row beyond `limit` when there's more to load, which this
     // trims off into a plain `hasMore` so the caller never has to think

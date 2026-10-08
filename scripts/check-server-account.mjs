@@ -68,6 +68,8 @@ await leaver('POST', `/api/games/${shared.id}/moves`, { x: 3, y: 3, color: 'blac
 await leaver('POST', `/api/games/${shared.id}/tags`, { tag: 'mine', isPublic: false });
 await leaver('POST', `/api/games/${shared.id}/tags`, { tag: 'ours', isPublic: true });
 await leaver('PUT', '/api/quick-game-preset', { mode: 'local', size: 9, handicap: 0, komi: 6.5 });
+// Somebody else's list has this account on it, and should not keep it.
+await stayer('POST', '/api/blocks', { username: leaverName });
 
 // The wrong password doesn't end an account.
 const refused = await leaver('DELETE', '/api/auth/me', { password: 'not-the-password' });
@@ -136,6 +138,26 @@ const retakenGames = (await reuse('GET', '/api/games?scope=mine')).body;
 expect(
   Array.isArray(retakenGames) && retakenGames.length === 0,
   `re-registering the name: inherited ${retakenGames?.length} game(s)`,
+);
+// Nor anybody's block on the person who had the name before. This holds
+// for two independent reasons — the rows go with the account, and the new
+// owner has a different id anyway — so it passes even if the cleanup in
+// DELETE /api/auth/me is removed. It is here for the promise, not as a
+// guard on that statement.
+const stayerBlocks = (await stayer('GET', '/api/blocks')).body;
+expect(
+  Array.isArray(stayerBlocks) && !stayerBlocks.includes(leaverName),
+  `a deleted account is still on someone's blocked list: ${JSON.stringify(stayerBlocks)}`,
+);
+const retakenInvite = await reuse('POST', '/api/games', {
+  size: 9,
+  mode: 'remote',
+  color: 'black',
+  opponentUsername: stayerName,
+});
+expect(
+  retakenInvite.status === 201,
+  `re-registering the name: inherited the block too (${retakenInvite.status} ${retakenInvite.body?.error})`,
 );
 
 // --- Losing the password, and getting back in with the code -------------

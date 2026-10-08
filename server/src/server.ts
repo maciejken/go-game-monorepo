@@ -31,7 +31,7 @@ import {
   type TimeControlName,
 } from 'shared';
 
-import { dbPath, port, httpsPort, keyPath, certPath, trustProxy, aasaApp } from './config.js';
+import { dbPath, port, httpsPort, keyPath, certPath, trustProxy, aasaApp, registerLimit } from './config.js';
 import {
   clearSessionCookie,
   createSession,
@@ -280,6 +280,16 @@ function setAiCurrentLevel(gameId: string, level: number): void {
 // explicit per-game komi setting existed.
 function resolveKomi(game: GameRow): number {
   return game.komi ?? getKomi(game.handicap);
+}
+
+// Whether `blockerId` refuses invitations from `blockedId`. Asked in the
+// username search and the invite guard, alongside accepts_invitations —
+// the two together decide whether one person may invite another.
+function hasBlocked(blockerId: string, blockedId: string): boolean {
+  const row = db
+    .prepare('SELECT 1 FROM blocked_users WHERE blocker_id = ? AND blocked_id = ?')
+    .get(blockerId, blockedId);
+  return row !== undefined;
 }
 
 function getUsername(userId: string | null): string | null {
@@ -1389,7 +1399,7 @@ const MAX_PASSWORD_LENGTH = 128;
 // might legitimately sign up a few accounts in a sitting.
 const registerRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 10,
+  limit: registerLimit,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many accounts created — try again later.' },
@@ -1702,6 +1712,9 @@ app.delete('/api/auth/me', (req, res) => {
     db.prepare('DELETE FROM quick_game_presets WHERE user_id = ?').run(user.id);
     db.prepare('DELETE FROM stars WHERE user_id = ?').run(user.id);
     db.prepare('DELETE FROM vision_tokens WHERE created_by = ?').run(user.id);
+    // Both directions: the list they kept, and everyone else's entry for
+    // them. Whoever takes this username next starts unblocked by all.
+    db.prepare('DELETE FROM blocked_users WHERE blocker_id = ? OR blocked_id = ?').run(user.id, user.id);
     // Their personal tags on games that remain. A shared tag stays: it was
     // put on the game for both players, and the other one still has it.
     db.prepare('DELETE FROM game_tags WHERE user_id = ? AND is_public = 0').run(user.id);
@@ -1761,14 +1774,18 @@ app.get('/api/users/search', (req, res) => {
   // still finds themself — they're just invisible to everyone else. The
   // AI needs no such exception: its row defaults to accepts_invitations =
   // 1 and nothing ever changes it.
+  //
+  // Someone who has blocked this searcher drops out the same way, which is
+  // the point: a block should look like a global opt-out from the outside.
   if (query.length >= 3) {
     const rows = db
       .prepare(
         `SELECT id, username FROM users
          WHERE username LIKE ? ESCAPE '\\' AND deleted_at IS NULL AND (accepts_invitations = 1 OR id = ?)
+           AND id NOT IN (SELECT blocker_id FROM blocked_users WHERE blocked_id = ?)
          ORDER BY username LIMIT 10`,
       )
-      .all(pattern, user.id) as { id: string; username: string }[];
+      .all(pattern, user.id, user.id) as { id: string; username: string }[];
     res.json(rows.map((row) => ({ username: row.username, isAi: row.id === aiId })));
     return;
   }
@@ -1783,10 +1800,11 @@ app.get('/api/users/search', (req, res) => {
          AND g.updated_at >= ?
          AND u.username LIKE ? ESCAPE '\\'
          AND u.accepts_invitations = 1
+         AND u.id NOT IN (SELECT blocker_id FROM blocked_users WHERE blocked_id = ?)
        ORDER BY u.username
        LIMIT 10`,
     )
-    .all(user.id, user.id, user.id, Date.now() - RECENT_OPPONENT_WINDOW_MS, pattern) as {
+    .all(user.id, user.id, user.id, Date.now() - RECENT_OPPONENT_WINDOW_MS, pattern, user.id) as {
     id: string;
     username: string;
   }[];
@@ -1839,10 +1857,94 @@ app.get('/api/users/:id', (req, res) => {
     // Which tag marks favourites is the viewer's own business, so it only
     // goes out on their own profile.
     favouriteTag: row.id === user.id ? row.favourite_tag : null,
+    // Whether the viewer blocks this person, so their profile can offer
+    // the right one of Block/Unblock. Never the other direction: being
+    // told you are blocked is exactly what blocking hides.
+    blocked: row.id === user.id ? false : hasBlocked(user.id, row.id),
     gamesPlayed: stats.played,
     gamesWon: stats.won,
     gamesLost: stats.lost,
   });
+});
+
+// Who this user refuses invitations from. Only ever their own list: there
+// is no way to ask who blocks you, which is what keeps a block
+// indistinguishable from a global opt-out.
+app.get('/api/blocks', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  const rows = db
+    .prepare(
+      `SELECT u.username FROM blocked_users b
+       JOIN users u ON u.id = b.blocked_id
+       WHERE b.blocker_id = ? AND u.deleted_at IS NULL
+       ORDER BY u.username`,
+    )
+    .all(user.id) as { username: string }[];
+  res.json(rows.map((row) => row.username));
+});
+
+app.post('/api/blocks', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const target = db.prepare('SELECT id FROM users WHERE username = ? AND deleted_at IS NULL').get(username) as
+    | { id: string }
+    | undefined;
+  if (!target) {
+    fail(res, 404, 'User not found');
+    return;
+  }
+  if (target.id === user.id) {
+    fail(res, 400, 'You cannot block yourself');
+    return;
+  }
+
+  db.prepare('INSERT OR IGNORE INTO blocked_users (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)').run(
+    user.id,
+    target.id,
+    Date.now(),
+  );
+
+  // An invitation already waiting between the two goes with it, in either
+  // direction. Had the block been in place it could never have been sent,
+  // and that is the state being restored — so it goes quietly, without the
+  // "declined your invitation" push that rejecting one sends. Games
+  // already under way are left alone: this stops new invitations, it
+  // doesn't erase what was played.
+  const pending = db
+    .prepare(
+      `SELECT id FROM games WHERE invite_status = 'pending'
+         AND ((black_user_id = ? AND white_user_id = ?) OR (black_user_id = ? AND white_user_id = ?))`,
+    )
+    .all(user.id, target.id, target.id, user.id) as { id: string }[];
+  for (const row of pending) {
+    deleteGameRecord(row.id);
+    broadcastGameUpdate(row.id);
+  }
+  if (pending.length > 0) {
+    broadcastGamesListUpdate();
+  }
+
+  res.status(204).end();
+});
+
+app.delete('/api/blocks/:username', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  // By username rather than id because that is what the list hands back,
+  // and usernames are [a-z0-9_] so they need no encoding in a path.
+  db.prepare(
+    `DELETE FROM blocked_users
+     WHERE blocker_id = ? AND blocked_id = (SELECT id FROM users WHERE username = ?)`,
+  ).run(user.id, req.params.username);
+  res.status(204).end();
 });
 
 // Registers (or re-registers) an iOS device's APNs token against the
@@ -2239,7 +2341,10 @@ app.post('/api/games', async (req, res) => {
       fail(res, 400, 'Invite a different user, not yourself');
       return;
     }
-    if (!opponent || opponent.accepts_invitations !== 1) {
+    // Blocked is folded into the same answer as opted-out and nonexistent,
+    // for the same reason they already share one: anything that singled
+    // blocking out would tell the blocked person they had been blocked.
+    if (!opponent || opponent.accepts_invitations !== 1 || hasBlocked(opponent.id, user.id)) {
       fail(res, 400, "Selected player isn't currently accepting invitations");
       return;
     }

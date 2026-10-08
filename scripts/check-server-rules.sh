@@ -14,6 +14,11 @@ trap cleanup EXIT
 
 DB_PATH="$WORK/flow.db"
 export DB_PATH
+# The checkers between them register a dozen accounts from one address,
+# which is more than the real limit allows in an hour — and the suite has
+# to survive being run twice in a row.
+REGISTER_RATE_LIMIT=1000
+export REGISTER_RATE_LIMIT
 PORT="$PORT" npx tsx server/src/server.ts > "$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 
@@ -25,5 +30,6 @@ done
 node scripts/check-server-flow.mjs "http://localhost:$PORT"
 node scripts/check-server-import.mjs "http://localhost:$PORT"
 node scripts/check-server-account.mjs "http://localhost:$PORT"
+node scripts/check-server-blocks.mjs "http://localhost:$PORT"
 # Takes the database file too: pruning stored boards is what it checks.
 node scripts/check-server-replay.mjs "http://localhost:$PORT" "$DB_PATH"

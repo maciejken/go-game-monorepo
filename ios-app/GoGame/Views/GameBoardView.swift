@@ -633,7 +633,8 @@ struct GameBoardView: View {
     }
 
     private func inviteResponseSheetContent(_ game: GameState) -> some View {
-        let opponentName = (game.myColor == .black ? game.whiteUsername : game.blackUsername) ?? "Someone"
+        let opponentUsername = game.myColor == .black ? game.whiteUsername : game.blackUsername
+        let opponentName = opponentUsername ?? "Someone"
         return VStack(spacing: 12) {
             Text("Game Invitation")
                 .font(.headline)
@@ -683,6 +684,21 @@ struct GameBoardView: View {
                 }
             }
             .disabled(isBusy)
+            // Quieter than the other two on purpose: rejecting is the
+            // ordinary answer to an unwanted game, and blocking is for
+            // when you don't want to be asked again. It needs no reject
+            // of its own — the invitation goes with the block.
+            if let opponentUsername {
+                Button(role: .destructive) {
+                    Task { await blockInviter(opponentUsername) }
+                } label: {
+                    Text(String(localized: "Block %@", defaultValue: "Block \(opponentUsername)"))
+                        .font(.subheadline)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.red)
+                .disabled(isBusy)
+            }
         }
         .padding()
     }
@@ -2211,6 +2227,27 @@ struct GameBoardView: View {
                 quickNoteTitle: quickNoteTitle
             )
         } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // Blocking from the invitation itself. The server drops any pending
+    // invite between the two as part of blocking, so this needs no reject
+    // alongside it — and deliberately sends none, because a reject tells
+    // the inviter they were turned down, which is the one thing a block
+    // should not do.
+    private func blockInviter(_ username: String) async {
+        guard !isBusy else { return }
+        isBusy = true
+        // Same reasoning as rejecting: the game is about to stop existing,
+        // and the server's broadcast can beat the response back here.
+        isDeleted = true
+        defer { isBusy = false }
+        do {
+            try await APIClient.block(username: username)
+            dismiss()
+        } catch {
+            isDeleted = false
             errorMessage = error.localizedDescription
         }
     }

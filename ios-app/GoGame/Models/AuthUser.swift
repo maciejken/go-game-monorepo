@@ -21,6 +21,10 @@ struct UserProfile: Codable, Identifiable {
     let gamesPlayed: Int
     let gamesWon: Int
     let gamesLost: Int
+    // Whether *you* block this person. Never the other way round: a block
+    // is meant to be invisible to whoever it is aimed at, so the server
+    // will not answer that question.
+    let blocked: Bool
 }
 
 // What the server this app is talking to can do. Asked once at launch,

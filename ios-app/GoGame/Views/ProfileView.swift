@@ -13,6 +13,8 @@ struct ProfileView: View {
     @State private var recoveryPassword = ""
     @State private var recoveryError: String?
     @State private var isRequestingRecoveryCode = false
+    @State private var isUpdatingBlock = false
+    @State private var blockError: String?
     @State private var showDeleteAccount = false
     @State private var deletePassword = ""
     @State private var deleteError: String?
@@ -34,6 +36,40 @@ struct ProfileView: View {
                         LabeledContent("Games played", value: "\(profile.gamesPlayed)")
                         LabeledContent("Won", value: "\(profile.gamesWon)")
                         LabeledContent("Lost", value: "\(profile.gamesLost)")
+                    }
+                    // Somebody else's profile: the one thing you can do to
+                    // them. Phrased as a plain toggle of a state you can
+                    // see, so it is obvious which way round it currently
+                    // is before you press anything.
+                    if !isOwnProfile {
+                        Section {
+                            // Spelled out as two buttons rather than one
+                            // with a conditional title: a literal is what
+                            // both SwiftUI's localization and the locale
+                            // checker (scripts/build-locales.mjs) look for.
+                            if profile.blocked {
+                                Button("Unblock") {
+                                    Task { await setBlocked(false, username: profile.username) }
+                                }
+                                .disabled(isUpdatingBlock)
+                            } else {
+                                Button("Block", role: .destructive) {
+                                    Task { await setBlocked(true, username: profile.username) }
+                                }
+                                .disabled(isUpdatingBlock)
+                            }
+                            if let blockError {
+                                Text(blockError)
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                            }
+                        } footer: {
+                            if profile.blocked {
+                                Text("They can't invite you to games. They aren't told.")
+                            } else {
+                                Text("Blocking stops them inviting you to games. They aren't told.")
+                            }
+                        }
                     }
                     if isOwnProfile {
                         // Optimistic — flips immediately, reverts with an
@@ -74,7 +110,8 @@ struct ProfileView: View {
                                     favouriteTag: chosen,
                                     gamesPlayed: profile.gamesPlayed,
                                     gamesWon: profile.gamesWon,
-                                    gamesLost: profile.gamesLost
+                                    gamesLost: profile.gamesLost,
+                                    blocked: profile.blocked
                                 )
                                 session.favouriteTagChanged(to: chosen)
                             }
@@ -85,6 +122,13 @@ struct ProfileView: View {
                             } label: {
                                 Text("Quick game preset")
                             }
+                        }
+                        Section {
+                            BlockedUsersPicker()
+                        } header: {
+                            Text("Blocked players")
+                        } footer: {
+                            Text("They can't invite you, and don't know it. Tap a name to let them again.")
                         }
                         Section {
                             NavigationLink {
@@ -238,6 +282,26 @@ struct ProfileView: View {
             // "Error — cancelled" alert on the way out.
             guard !APIClient.isCancellation(error) else { return }
             errorMessage = error.localizedDescription
+        }
+    }
+
+    // Re-reads the profile afterwards rather than patching the flag in
+    // place: blocking can delete a pending invitation between the two, so
+    // more than this one boolean may have changed.
+    private func setBlocked(_ blocked: Bool, username: String) async {
+        guard !isUpdatingBlock else { return }
+        isUpdatingBlock = true
+        blockError = nil
+        defer { isUpdatingBlock = false }
+        do {
+            if blocked {
+                try await APIClient.block(username: username)
+            } else {
+                try await APIClient.unblock(username: username)
+            }
+            await load()
+        } catch {
+            blockError = error.localizedDescription
         }
     }
 

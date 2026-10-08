@@ -29,6 +29,11 @@ export const apnsKeyId = process.env.APNS_KEY_ID;
 export const apnsTeamId = process.env.APNS_TEAM_ID;
 export const apnsBundleId = process.env.APNS_BUNDLE_ID;
 export const apnsHost = process.env.APNS_HOST;
+// How many accounts one address may create per hour. The default is the
+// number a household might plausibly need; it exists as a setting because
+// the rule checkers register a dozen accounts per run and have to be
+// runnable twice in an hour (scripts/check-server-rules.sh raises it).
+export const registerLimit = Number(process.env.REGISTER_RATE_LIMIT) || 10;
 // Which of the two apple-app-site-association files this server publishes
 // — 'test' names the test app, anything else names the production one.
 // Unset, the choice falls to the Host header, which is right while one
