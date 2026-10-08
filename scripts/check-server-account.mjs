@@ -68,6 +68,34 @@ await leaver('POST', `/api/games/${shared.id}/moves`, { x: 3, y: 3, color: 'blac
 await leaver('POST', `/api/games/${shared.id}/tags`, { tag: 'mine', isPublic: false });
 await leaver('POST', `/api/games/${shared.id}/tags`, { tag: 'ours', isPublic: true });
 await leaver('PUT', '/api/quick-game-preset', { mode: 'local', size: 9, handicap: 0, komi: 6.5 });
+
+// --- A preset only ever offers a game this server can start -------------
+
+// This server runs without GNU Go (nothing sets GNUGO_ENABLED), so the
+// preset a brand-new account gets must not name it: the clients show that
+// mode as the chosen one, and creating the game would then be refused.
+const gnugoOff = (await stayer('GET', '/api/auth/me')).body?.features?.gnugo === false;
+expect(gnugoOff, 'these checks assume a server without GNU Go, and this one has it');
+const freshPreset = await stayer('GET', '/api/quick-game-preset');
+expect(
+  freshPreset.body?.mode !== 'gnugo',
+  `a server without GNU Go hands a new account mode "${freshPreset.body?.mode}"`,
+);
+// And one asked for anyway comes back as what was actually stored.
+const askedForGnugo = await stayer('PUT', '/api/quick-game-preset', {
+  mode: 'gnugo',
+  size: 9,
+  handicap: 0,
+  komi: 6.5,
+  gnugoLevel: 5,
+});
+expect(askedForGnugo.status === 200, `saving a gnugo preset: got ${askedForGnugo.status}`);
+expect(
+  askedForGnugo.body?.mode !== 'gnugo',
+  `a server without GNU Go stored mode "${askedForGnugo.body?.mode}"`,
+);
+const reread = await stayer('GET', '/api/quick-game-preset');
+expect(reread.body?.mode !== 'gnugo', `and reads it back as "${reread.body?.mode}"`);
 // Somebody else's list has this account on it, and should not keep it.
 await stayer('POST', '/api/blocks', { username: leaverName });
 

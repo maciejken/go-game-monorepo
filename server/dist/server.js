@@ -137,6 +137,18 @@ app.get('/.well-known/apple-app-site-association', (req, res) => {
     res.type('application/json');
     res.sendFile(path.resolve(__dirname, '../public', file));
 });
+// The two pages the App Store requires a link to, and the only pages here
+// that aren't part of the client app. Plain files rather than React routes
+// because App Review and anyone's browser must get them without running
+// any JavaScript — and because they have to keep working whatever happens
+// to the client build. Declared above the catch-all that hands every other
+// path to React Router.
+app.get('/privacy', (req, res) => {
+    res.sendFile(path.resolve(__dirname, '../public/privacy.html'));
+});
+app.get('/support', (req, res) => {
+    res.sendFile(path.resolve(__dirname, '../public/support.html'));
+});
 app.use(express.static(path.resolve(__dirname, '../../client/dist')));
 app.get('/', (req, res) => {
     res.json({ message: 'Go server is running!' });
@@ -1710,7 +1722,7 @@ function sanitizePresetTags(rawTags) {
     }
     return tags;
 }
-app.get('/api/quick-game-preset', (req, res) => {
+app.get('/api/quick-game-preset', async (req, res) => {
     const user = requireAuth(req, res);
     if (!user) {
         return;
@@ -1718,18 +1730,34 @@ app.get('/api/quick-game-preset', (req, res) => {
     const row = db
         .prepare('SELECT * FROM quick_game_presets WHERE user_id = ?')
         .get(user.id);
-    res.json(quickGamePresetResponse(row ?? DEFAULT_QUICK_GAME_PRESET));
+    if (row) {
+        res.json(quickGamePresetResponse(row));
+        return;
+    }
+    // The default is only a default where it can actually be played. A
+    // server with GNU Go switched off would otherwise hand every new user a
+    // preset for a game it refuses to create, which the clients then show
+    // as the chosen mode.
+    const fallback = (await isGnuGoAvailable())
+        ? DEFAULT_QUICK_GAME_PRESET
+        : { ...DEFAULT_QUICK_GAME_PRESET, mode: 'local' };
+    res.json(quickGamePresetResponse(fallback));
 });
 // Validated the same way POST /api/games validates its body, so a preset
 // can't smuggle in a board size or komi that endpoint would reject — out
 // of range values fall back rather than failing, since a preset is a set
 // of preferences, not a command.
-app.put('/api/quick-game-preset', (req, res) => {
+app.put('/api/quick-game-preset', async (req, res) => {
     const user = requireAuth(req, res);
     if (!user) {
         return;
     }
-    const mode = req.body?.mode === 'local' || req.body?.mode === 'remote' ? req.body.mode : 'gnugo';
+    const requestedMode = req.body?.mode === 'local' || req.body?.mode === 'remote' ? req.body.mode : 'gnugo';
+    // Saved as a local game instead of refused, in keeping with the rest of
+    // this handler: a preset is a set of preferences, not a command. The
+    // response says what was stored, so a client that asked for the
+    // impossible sees the correction.
+    const mode = requestedMode === 'gnugo' && !(await isGnuGoAvailable()) ? 'local' : requestedMode;
     const requestedSize = Number(req.body?.size);
     const size = ALLOWED_BOARD_SIZES.includes(requestedSize) ? requestedSize : 9;
     const maxHandicap = size === 19 ? 9 : 5;

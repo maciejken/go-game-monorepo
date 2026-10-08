@@ -2134,7 +2134,7 @@ function sanitizePresetTags(rawTags: unknown): string[] {
   return tags;
 }
 
-app.get('/api/quick-game-preset', (req, res) => {
+app.get('/api/quick-game-preset', async (req, res) => {
   const user = requireAuth(req, res);
   if (!user) {
     return;
@@ -2142,20 +2142,36 @@ app.get('/api/quick-game-preset', (req, res) => {
   const row = db
     .prepare('SELECT * FROM quick_game_presets WHERE user_id = ?')
     .get(user.id) as QuickGamePresetRow | undefined;
-  res.json(quickGamePresetResponse(row ?? DEFAULT_QUICK_GAME_PRESET));
+  if (row) {
+    res.json(quickGamePresetResponse(row));
+    return;
+  }
+  // The default is only a default where it can actually be played. A
+  // server with GNU Go switched off would otherwise hand every new user a
+  // preset for a game it refuses to create, which the clients then show
+  // as the chosen mode.
+  const fallback = (await isGnuGoAvailable())
+    ? DEFAULT_QUICK_GAME_PRESET
+    : { ...DEFAULT_QUICK_GAME_PRESET, mode: 'local' };
+  res.json(quickGamePresetResponse(fallback));
 });
 
 // Validated the same way POST /api/games validates its body, so a preset
 // can't smuggle in a board size or komi that endpoint would reject — out
 // of range values fall back rather than failing, since a preset is a set
 // of preferences, not a command.
-app.put('/api/quick-game-preset', (req, res) => {
+app.put('/api/quick-game-preset', async (req, res) => {
   const user = requireAuth(req, res);
   if (!user) {
     return;
   }
 
-  const mode = req.body?.mode === 'local' || req.body?.mode === 'remote' ? req.body.mode : 'gnugo';
+  const requestedMode = req.body?.mode === 'local' || req.body?.mode === 'remote' ? req.body.mode : 'gnugo';
+  // Saved as a local game instead of refused, in keeping with the rest of
+  // this handler: a preset is a set of preferences, not a command. The
+  // response says what was stored, so a client that asked for the
+  // impossible sees the correction.
+  const mode = requestedMode === 'gnugo' && !(await isGnuGoAvailable()) ? 'local' : requestedMode;
   const requestedSize = Number(req.body?.size);
   const size = ALLOWED_BOARD_SIZES.includes(requestedSize) ? requestedSize : 9;
   const maxHandicap = size === 19 ? 9 : 5;

@@ -22,9 +22,14 @@ struct QuickGamePreset: Codable, Equatable {
     var shakeToPlay: Bool
 
     // Only used until the first fetch lands; the server has its own copy
-    // of these defaults for a user who has never saved one.
+    // of these defaults for a user who has never saved one — including
+    // whether that default is a game against GNU Go, which only a server
+    // that plays them will say. Local here because it is the one mode
+    // every server can start: showing a mode that might not exist, even
+    // for the moment before the fetch answers, is how "Vs. Computer"
+    // ended up selectable on a server without it.
     static let fallback = QuickGamePreset(
-        mode: "gnugo",
+        mode: "local",
         size: 9,
         handicap: 0,
         komi: 6.5,
