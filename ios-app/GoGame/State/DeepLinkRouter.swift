@@ -14,6 +14,7 @@ final class DeepLinkRouter {
     // through the same waiting room as a link, and for the same reason: on
     // a cold launch it is delivered before any view exists to act on it.
     enum QuickAction: String {
+        case favourites = "com.maciejkedra.igo5.favourites"
         case newGame = "com.maciejkedra.igo5.newGame"
         case quickGame = "com.maciejkedra.igo5.quickGame"
     }

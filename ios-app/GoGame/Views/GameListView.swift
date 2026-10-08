@@ -434,6 +434,15 @@ struct GameListView: View {
         guard isActiveTab else { return }
         deepLinkRouter.pendingAction = nil
         switch action {
+        case .favourites:
+            // The same refusal the star button makes: with no favourite
+            // tag there is nothing to filter by, and an empty list would
+            // look like a bug rather than a setting that isn't set.
+            if favouriteTag == nil {
+                showFavouritesHelp = true
+            } else {
+                scope = "starred"
+            }
         case .newGame:
             showNewGame = true
         case .quickGame:

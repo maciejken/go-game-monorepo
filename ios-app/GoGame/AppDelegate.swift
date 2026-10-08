@@ -52,6 +52,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // after installing.
         application.shortcutItems = [
             UIApplicationShortcutItem(
+                type: DeepLinkRouter.QuickAction.favourites.rawValue,
+                localizedTitle: String(localized: "Favourites"),
+                localizedSubtitle: nil,
+                icon: UIApplicationShortcutIcon(systemImageName: "star.fill")
+            ),
+            UIApplicationShortcutItem(
                 type: DeepLinkRouter.QuickAction.newGame.rawValue,
                 localizedTitle: String(localized: "New game"),
                 localizedSubtitle: nil,
