@@ -100,6 +100,13 @@ struct ProfileView: View {
                                     .foregroundStyle(.red)
                             }
                         }
+                        Section {
+                            BlockedUsersPicker()
+                        } header: {
+                            Text("Blocked players")
+                        } footer: {
+                            Text("They can't invite you, and don't know it. Tap a name to let them again.")
+                        }
                         Section("Favourite tag") {
                             FavouriteTagPicker(initial: profile.favouriteTag) { chosen in
                                 self.profile = UserProfile(
@@ -122,13 +129,6 @@ struct ProfileView: View {
                             } label: {
                                 Text("Quick game preset")
                             }
-                        }
-                        Section {
-                            BlockedUsersPicker()
-                        } header: {
-                            Text("Blocked players")
-                        } footer: {
-                            Text("They can't invite you, and don't know it. Tap a name to let them again.")
                         }
                         Section {
                             NavigationLink {
