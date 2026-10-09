@@ -44,6 +44,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) -> Bool {
         Self.shared = self
         UNUserNotificationCenter.current().delegate = self
+        // Listed bottom-first: iOS draws the menu from the icon outwards,
+        // so with the icon in the lower half of the screen the last item
+        // here is the one nearest the thumb, at the top of the menu.
+        //
         // Built here rather than declared in Info.plist so the titles come
         // from the string catalogue like every other piece of text in the
         // app — static shortcut items are only translatable through
@@ -52,10 +56,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // after installing.
         application.shortcutItems = [
             UIApplicationShortcutItem(
-                type: DeepLinkRouter.QuickAction.favourites.rawValue,
-                localizedTitle: String(localized: "Favourites"),
+                type: DeepLinkRouter.QuickAction.quickGame.rawValue,
+                localizedTitle: String(localized: "New quick game"),
                 localizedSubtitle: nil,
-                icon: UIApplicationShortcutIcon(systemImageName: "star.fill")
+                icon: UIApplicationShortcutIcon(systemImageName: "bolt.fill")
             ),
             UIApplicationShortcutItem(
                 type: DeepLinkRouter.QuickAction.newGame.rawValue,
@@ -64,10 +68,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 icon: UIApplicationShortcutIcon(systemImageName: "plus")
             ),
             UIApplicationShortcutItem(
-                type: DeepLinkRouter.QuickAction.quickGame.rawValue,
-                localizedTitle: String(localized: "New quick game"),
+                type: DeepLinkRouter.QuickAction.favourites.rawValue,
+                localizedTitle: String(localized: "Favourites"),
                 localizedSubtitle: nil,
-                icon: UIApplicationShortcutIcon(systemImageName: "bolt.fill")
+                icon: UIApplicationShortcutIcon(systemImageName: "star.fill")
             ),
         ]
         return true
