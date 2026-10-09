@@ -107,22 +107,6 @@ struct ProfileView: View {
                         } footer: {
                             Text("They can't invite you, and don't know it. Tap a name to let them again.")
                         }
-                        Section("Favourite tag") {
-                            FavouriteTagPicker(initial: profile.favouriteTag) { chosen in
-                                self.profile = UserProfile(
-                                    id: profile.id,
-                                    username: profile.username,
-                                    createdAt: profile.createdAt,
-                                    acceptsInvitations: profile.acceptsInvitations,
-                                    favouriteTag: chosen,
-                                    gamesPlayed: profile.gamesPlayed,
-                                    gamesWon: profile.gamesWon,
-                                    gamesLost: profile.gamesLost,
-                                    blocked: profile.blocked
-                                )
-                                session.favouriteTagChanged(to: chosen)
-                            }
-                        }
                         Section {
                             NavigationLink {
                                 QuickGamePresetView()
@@ -308,56 +292,5 @@ struct ProfileView: View {
     private func joinedDateText(_ epochMs: Int) -> String {
         Date(timeIntervalSince1970: Double(epochMs) / 1000)
             .formatted(date: .long, time: .omitted)
-    }
-}
-
-// The same chips-and-field shape as a game's Title & tags sheet, minus
-// Share: a favourites marker is personal by definition, so there is only
-// one thing the button could do. Everything below the explanation is the
-// same TagPicker the new-game form and a game's own Title & tags sheet
-// use — this screen had its own copy of it, which is how it ended up
-// with a button the other two had already had fixed.
-private struct FavouriteTagPicker: View {
-    let initial: String?
-    let onChange: (String) async -> Void
-
-    @State private var current: String?
-    @State private var errorMessage: String?
-    @State private var isBusy = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Favourites are one of your own tags. Choose which tag marks them, then tag any game with it.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            // Nothing is excluded from the list: the one already chosen
-            // is in it, wearing a star instead of a plus.
-            TagPicker(selected: [], marked: current, isBusy: isBusy) { tag, _ in
-                await choose(tag)
-            }
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
-        }
-        .onAppear { current = initial }
-    }
-
-    private func choose(_ tag: String) async -> Bool {
-        let chosen = tag.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !chosen.isEmpty, !isBusy else { return false }
-        isBusy = true
-        defer { isBusy = false }
-        do {
-            try await APIClient.setFavouriteTag(chosen)
-            current = chosen.lowercased()
-            errorMessage = nil
-            await onChange(chosen.lowercased())
-            return true
-        } catch {
-            errorMessage = error.localizedDescription
-            return false
-        }
     }
 }

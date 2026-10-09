@@ -201,11 +201,10 @@ enum APIClient {
         struct Response: Decodable {
             let id: String
             let username: String
-            let favouriteTag: String?
             let recoveryCode: String?
         }
         let response: Response = try await post("api/auth/register", body: Body(username: username, password: password))
-        let user = AuthUser(id: response.id, username: response.username, favouriteTag: response.favouriteTag)
+        let user = AuthUser(id: response.id, username: response.username)
         return (user, response.recoveryCode)
     }
 
@@ -268,12 +267,6 @@ enum APIClient {
     static func setAcceptsInvitations(_ acceptsInvitations: Bool) async throws {
         struct Body: Encodable { let acceptsInvitations: Bool }
         try await patch("api/auth/me", body: Body(acceptsInvitations: acceptsInvitations))
-    }
-
-    // Which of this user's own tags marks a favourite; nil clears it.
-    static func setFavouriteTag(_ favouriteTag: String?) async throws {
-        struct Body: Encodable { let favouriteTag: String? }
-        try await patch("api/auth/me", body: Body(favouriteTag: favouriteTag))
     }
 
     // Any logged-in user's public info by id, not just the caller's own —

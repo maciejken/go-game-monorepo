@@ -86,9 +86,6 @@ function Home() {
   const [opponentError, setOpponentError] = useState<string | null>(null);
   const [newGameOpen, setNewGameOpen] = useState(false);
   const [scope, setScope] = useState<GameListScope>('mine');
-  // Shown when the star is pressed before a favourites tag exists: there
-  // is nothing to filter by yet, and the profile is where that is fixed.
-  const [favouritesHelpOpen, setFavouritesHelpOpen] = useState(false);
   const [search, setSearch] = useState('');
   // The debounced, long-enough-to-use version of `search` — what actually
   // gets sent. Kept separate so typing doesn't refetch on every keystroke
@@ -330,13 +327,7 @@ function Home() {
               className={`star-button${scope === 'starred' ? ' star-button--active' : ''}`}
               aria-pressed={scope === 'starred'}
               aria-label={t('Show favourites only')}
-              onClick={() => {
-                if (!user.favouriteTag) {
-                  setFavouritesHelpOpen(true);
-                  return;
-                }
-                setScope((s) => (s === 'mine' ? 'starred' : 'mine'));
-              }}
+              onClick={() => setScope((s) => (s === 'mine' ? 'starred' : 'mine'))}
             >
               <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                 <path
@@ -369,22 +360,6 @@ function Home() {
         </p>
       )}
       {error && <p className="error">{error}</p>}
-      {favouritesHelpOpen && user && (
-        <div className="modal-overlay" onClick={() => setFavouritesHelpOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{t('Favourites')}</h3>
-            <p>{t('Favourites are one of your own tags. Choose which tag marks them, then tag any game with it.')}</p>
-            <div className="modal-actions">
-              <Link className="modal-action" to={`/profile/${user.id}`}>
-                {t('Choose in your profile')}
-              </Link>
-              <button type="button" className="modal-action" onClick={() => setFavouritesHelpOpen(false)}>
-                {t('Close')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {newGameOpen && (
         <div className="modal-overlay" onClick={() => setNewGameOpen(false)}>
           <form className="modal new-game-modal" onClick={(e) => e.stopPropagation()} onSubmit={startNewGame}>

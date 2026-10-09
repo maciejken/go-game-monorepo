@@ -5,10 +5,7 @@ import {
   deleteAccount,
   newRecoveryCode,
   getUser,
-  listTagSuggestions,
   setAcceptsInvitations,
-  setFavouriteTag,
-  type TagSuggestion,
   type UserProfile,
 } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -269,10 +266,6 @@ function ProfileView({ id }: { id: string | undefined }) {
       )}
       {profile && user?.id === profile.id && (
         <>
-          <FavouriteTagPicker
-            initialValue={profile.favouriteTag}
-            onChange={(favouriteTag) => setProfile((current) => (current ? { ...current, favouriteTag } : current))}
-          />
           <AcceptInvitationsToggle initialValue={profile.acceptsInvitations} />
           <ChangePasswordForm />
           <RecoveryCodeForm />
@@ -284,122 +277,5 @@ function ProfileView({ id }: { id: string | undefined }) {
   );
 }
 
-// The same chips-and-field shape as a game's Title & tags editor, minus
-// Share: a favourites marker is personal by definition, so there is only
-// one thing the button could do.
-function FavouriteTagPicker({
-  initialValue,
-  onChange,
-}: {
-  initialValue: string | null;
-  onChange: (favouriteTag: string | null) => void;
-}) {
-  const [current, setCurrent] = useState(initialValue);
-  const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
-  const [draft, setDraft] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // The field stays out of the way until asked for, by the + at the end of
-  // the list — same as a game's Title & tags editor.
-  const [addingTag, setAddingTag] = useState(false);
-
-  useEffect(() => {
-    listTagSuggestions()
-      .then(({ tags }) => setSuggestions(tags))
-      .catch(() => {});
-  }, []);
-
-  const choose = (tag: string) => {
-    const next = tag.trim();
-    if (!next || busy) {
-      return;
-    }
-    setBusy(true);
-    setFavouriteTag(next)
-      .then(() => {
-        setCurrent(next.toLowerCase());
-        setDraft('');
-        setAddingTag(false);
-        onChange(next.toLowerCase());
-        setError(null);
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setBusy(false));
-  };
-
-  return (
-    <section className="favourite-tag">
-      <h3>{t('Favourite tag')}</h3>
-      <p className="tag-empty">
-        {t('Favourites are one of your own tags. Choose which tag marks them, then tag any game with it.')}
-      </p>
-      <ul className="tag-suggestions">
-        {suggestions.map((suggestion) => {
-          const isCurrent = suggestion.tag.toLowerCase() === current;
-          return (
-            <li key={suggestion.tag}>
-              <button
-                type="button"
-                className={
-                  `tag-chip tag-chip--suggestion${isCurrent ? ' tag-chip--current' : ''}` +
-                  `${suggestion.isPublic ? ' tag-chip--shared' : ''}`
-                }
-                disabled={busy}
-                aria-pressed={isCurrent}
-                aria-label={
-                  suggestion.isPublic
-                    ? t('Shared tag %@', suggestion.tag)
-                    : t('Personal tag %@', suggestion.tag)
-                }
-                onClick={() => choose(suggestion.tag)}
-              >
-                {suggestion.tag}
-                {/* The same mark a shared tag carries everywhere else. */}
-                {suggestion.isPublic && (
-                  <span className="tag-chip-shared" aria-hidden="true">
-                    👥
-                  </span>
-                )}
-                <span aria-hidden="true">{isCurrent ? '★' : '+'}</span>
-              </button>
-            </li>
-          );
-        })}
-        <li>
-          <button
-            type="button"
-            className="tag-chip tag-chip--new"
-            disabled={busy}
-            onClick={() => setAddingTag(true)}
-          >
-            + {t('New tag')}
-          </button>
-        </li>
-      </ul>
-      {addingTag && (
-      <form
-        className="tag-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          choose(draft);
-        }}
-      >
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={t('Add a tag')}
-          aria-label={t('Add a tag')}
-          maxLength={24}
-        />
-        <button type="submit" className="modal-action" disabled={busy || !draft.trim()}>
-          + {t('Add')}
-        </button>
-      </form>
-      )}
-      {error && <p className="error">{error}</p>}
-    </section>
-  );
-}
 
 export default Profile;

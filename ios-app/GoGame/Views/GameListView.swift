@@ -19,9 +19,6 @@ struct GameListView: View {
     // "mine" or "starred" — set by the star beside the title rather than
     // by which tab you are on, since Favourites no longer has one.
     @State private var scope: String = "mine"
-    // Shown when the star is pressed before a favourites tag exists.
-    @State private var showFavouritesHelp = false
-    @State private var showProfile = false
     @Environment(DeepLinkRouter.self) private var deepLinkRouter
     @Environment(SessionStore.self) private var session
     // Holding Home's new-game button starts a game from the shake-to-play
@@ -44,7 +41,6 @@ struct GameListView: View {
     @State private var isStartingQuickGame = false
 
     private var isHome: Bool { scope == "mine" }
-    private var favouriteTag: String? { session.currentUser?.favouriteTag }
 
     private static let pageSize = 20
     // Matches the server's own floor for ?q=.
@@ -233,20 +229,10 @@ struct GameListView: View {
             // the socket's reconnect churn or its navigation hazard.
             .navigationTitle("Your Games")
             .toolbar {
-                // Favourites are one of the user's own tags, which live on
-                // the server — there is nothing to filter by without an
-                // account.
+                // Stars live on the server, so there is nothing to
+                // filter by without an account.
                 if session.currentUser != nil {
                     ToolbarItem(placement: .topBarTrailing) { favouritesFilterButton }
-                }
-            }
-            .sheet(isPresented: $showFavouritesHelp) {
-                favouritesHelpSheet
-                    .presentationDetents([.height(260)])
-            }
-            .navigationDestination(isPresented: $showProfile) {
-                if let myId = session.currentUser?.id {
-                    ProfileView(userId: myId)
                 }
             }
             .navigationDestination(item: $selectedGameId) { gameId in
@@ -282,32 +268,12 @@ struct GameListView: View {
     // showing, not what it could show.
     private var favouritesFilterButton: some View {
         Button {
-            guard favouriteTag != nil else {
-                showFavouritesHelp = true
-                return
-            }
             scope = isHome ? "starred" : "mine"
         } label: {
             Image(systemName: isHome ? "star" : "star.fill")
                 .foregroundStyle(isHome ? Color.secondary : Color.yellow)
         }
         .accessibilityLabel("Show favourites only")
-    }
-
-    private var favouritesHelpSheet: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "star")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            Text("Favourites are one of your own tags. Choose which tag marks them, then tag any game with it.")
-                .multilineTextAlignment(.center)
-            Button("Choose in your profile") {
-                showFavouritesHelp = false
-                showProfile = true
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding()
     }
 
     // Pushes onto this tab's own stack rather than routing through the
@@ -382,7 +348,7 @@ struct GameListView: View {
 
     // Offline games live on the device, so they are not a page the server
     // can send: they are merged in here, newest first, and left out of the
-    // favourites filter (a favourite is a tag, and tags are a server idea).
+    // favourites filter, since a star is a row on the server.
     private func merged(serverGames: [GameSummary]) -> [GameSummary] {
         guard isHome else { return serverGames }
         let offline = OfflineGameStore.shared.all()
@@ -435,14 +401,7 @@ struct GameListView: View {
         deepLinkRouter.pendingAction = nil
         switch action {
         case .favourites:
-            // The same refusal the star button makes: with no favourite
-            // tag there is nothing to filter by, and an empty list would
-            // look like a bug rather than a setting that isn't set.
-            if favouriteTag == nil {
-                showFavouritesHelp = true
-            } else {
-                scope = "starred"
-            }
+            scope = "starred"
         case .newGame:
             showNewGame = true
         case .quickGame:

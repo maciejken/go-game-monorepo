@@ -28,9 +28,6 @@ export interface ClockFields {
 export interface AuthUser {
   id: string;
   username: string;
-  // Which of this user's own tags marks a favourite, or null while they
-  // haven't chosen one.
-  favouriteTag: string | null;
 }
 
 export interface UserProfile {
@@ -38,9 +35,6 @@ export interface UserProfile {
   username: string;
   createdAt: number;
   acceptsInvitations: boolean;
-  // Only ever set on your own profile — which tag marks your favourites
-  // is nobody else's business.
-  favouriteTag: string | null;
   gamesPlayed: number;
   gamesWon: number;
   gamesLost: number;
@@ -545,10 +539,6 @@ export async function setAcceptsInvitations(acceptsInvitations: boolean): Promis
   await patchSetting({ acceptsInvitations });
 }
 
-// null clears it, leaving the user with no favourites marker again.
-export async function setFavouriteTag(favouriteTag: string | null): Promise<void> {
-  await patchSetting({ favouriteTag });
-}
 
 async function patchSetting(body: Record<string, unknown>): Promise<void> {
   const res = await fetch(`${API_BASE}/auth/me`, {

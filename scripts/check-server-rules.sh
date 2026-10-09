@@ -27,9 +27,11 @@ for _ in $(seq 1 40); do
   sleep 0.25
 done
 
+node scripts/check-db-migration.mjs
 node scripts/check-server-flow.mjs "http://localhost:$PORT"
 node scripts/check-server-import.mjs "http://localhost:$PORT"
 node scripts/check-server-account.mjs "http://localhost:$PORT"
 node scripts/check-server-blocks.mjs "http://localhost:$PORT"
+node scripts/check-server-stars.mjs "http://localhost:$PORT"
 # Takes the database file too: pruning stored boards is what it checks.
 node scripts/check-server-replay.mjs "http://localhost:$PORT" "$DB_PATH"

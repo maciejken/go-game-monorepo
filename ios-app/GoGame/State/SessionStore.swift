@@ -106,14 +106,6 @@ final class SessionStore {
         }
     }
 
-    // The favourite tag lives on the user, and the games list reads it
-    // from here. Changed in the profile, it is one field — not a reason
-    // to ask the server who is signed in all over again.
-    func favouriteTagChanged(to tag: String?) {
-        guard let user = currentUser else { return }
-        currentUser = AuthUser(id: user.id, username: user.username, favouriteTag: tag)
-        rememberedUser = currentUser
-    }
 
     func playOffline() {
         isPlayingOffline = true

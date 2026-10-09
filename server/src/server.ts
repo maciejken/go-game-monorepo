@@ -461,42 +461,13 @@ function notifyOfInvite(inviterId: string, invitedId: string, gameId: string, ti
   pushToUser(invitedId, `${inviterName} invited you to a game${title ? ` — ${title}` : ''}.`, gameId);
 }
 
-// The tag this user nominated as their favourites marker, or null while
-// they haven't nominated one — in which case nothing is starred and the
-// clients offer to set one.
-function favouriteTagKey(userId: string | null): string | null {
-  if (!userId) {
-    return null;
-  }
-  const row = db.prepare('SELECT favourite_tag FROM users WHERE id = ?').get(userId) as
-    | { favourite_tag: string | null }
-    | undefined;
-  return row?.favourite_tag ?? null;
-}
-
-// Starred means "carries my favourite tag" — the star and the tag are the
-// same thing now, so what the game sheet sets is exactly what the list
-// filters on.
-//
-// The tag key is a parameter rather than a lookup inside, because the
-// games list asks this about every row and the answer is the same every
-// time; callers with one game to check can use isStarredNow instead.
-function isStarredWithTag(gameId: string, userId: string, tagKey: string | null): boolean {
-  if (!tagKey) {
-    return false;
-  }
-  return (
-    db
-      .prepare('SELECT 1 FROM game_tags WHERE game_id = ? AND tag_key = ? AND user_id = ?')
-      .get(gameId, tagKey, userId) !== undefined
-  );
-}
-
-function isStarredNow(gameId: string, userId: string | null): boolean {
+// A game this user starred: their own shortlist, which is also how a game
+// they are only watching gets into their list at all.
+function isStarred(gameId: string, userId: string | null): boolean {
   if (!userId) {
     return false;
   }
-  return isStarredWithTag(gameId, userId, favouriteTagKey(userId));
+  return db.prepare('SELECT 1 FROM stars WHERE user_id = ? AND game_id = ?').get(userId, gameId) !== undefined;
 }
 
 function getClockState(game: GameRow, color: Color): ClockState {
@@ -1606,28 +1577,6 @@ app.patch('/api/auth/me', (req, res) => {
   if (!user) {
     return;
   }
-  // Either setting can be sent on its own.
-  if ('favouriteTag' in (req.body ?? {})) {
-    const raw = req.body.favouriteTag;
-    if (raw === null) {
-      db.prepare('UPDATE users SET favourite_tag = NULL WHERE id = ?').run(user.id);
-    } else {
-      const tag = sanitizeTag(raw);
-      if (!tag) {
-        fail(res, 400, 'A tag must be 1-%@ characters of letters, numbers, spaces, - or _', [MAX_TAG_LENGTH]);
-        return;
-      }
-      // Stored as the key everything else matches on, so nominating a tag
-      // already in use picks up the games it is already on.
-      db.prepare('UPDATE users SET favourite_tag = ? WHERE id = ?').run(tag.toLowerCase(), user.id);
-      rememberUserTag(user.id, tag, false, Date.now());
-    }
-    if (!('acceptsInvitations' in req.body)) {
-      broadcastGamesListUpdate();
-      res.status(204).end();
-      return;
-    }
-  }
 
   const acceptsInvitations = req.body?.acceptsInvitations;
   if (typeof acceptsInvitations !== 'boolean') {
@@ -1848,14 +1797,13 @@ app.get('/api/users/:id', (req, res) => {
     return;
   }
   const row = db
-    .prepare('SELECT id, username, created_at, accepts_invitations, favourite_tag FROM users WHERE id = ?')
+    .prepare('SELECT id, username, created_at, accepts_invitations FROM users WHERE id = ?')
     .get(req.params.id) as
     | {
         id: string;
         username: string;
         created_at: number;
         accepts_invitations: number;
-        favourite_tag: string | null;
       }
     | undefined;
   if (!row) {
@@ -1868,9 +1816,6 @@ app.get('/api/users/:id', (req, res) => {
     username: row.username,
     createdAt: row.created_at,
     acceptsInvitations: row.accepts_invitations === 1,
-    // Which tag marks favourites is the viewer's own business, so it only
-    // goes out on their own profile.
-    favouriteTag: row.id === user.id ? row.favourite_tag : null,
     // Whether the viewer blocks this person, so their profile can offer
     // the right one of Block/Unblock. Never the other direction: being
     // told you are blocked is exactly what blocking hides.
@@ -2240,23 +2185,19 @@ app.get('/api/games', (req, res) => {
   const scope =
     currentUser && (requestedScope === 'mine' || requestedScope === 'starred') ? requestedScope : 'all';
 
-  // Looked up once, not once per row: every row asks the same question of
-  // the same user.
-  const viewerFavouriteTag = favouriteTagKey(currentUser?.id ?? null);
-
   const ids = db.prepare('SELECT id FROM games ORDER BY updated_at DESC').all() as { id: string }[];
   let rows = ids.map((row) => withTimeoutCheck(getGameRow(row.id)!));
 
   if (scope === 'mine' && currentUser) {
     rows = rows.filter(
       (row) =>
-        isParticipant(row, currentUser.id) || isStarredWithTag(row.id, currentUser.id, viewerFavouriteTag),
+        isParticipant(row, currentUser.id) || isStarred(row.id, currentUser.id),
     );
   } else if (scope === 'starred' && currentUser) {
     // Only the games this user actually starred — a subset of "mine",
     // which also includes every game they play in. Backs the iOS app's
     // Favourites tab.
-    rows = rows.filter((row) => isStarredWithTag(row.id, currentUser.id, viewerFavouriteTag));
+    rows = rows.filter((row) => isStarred(row.id, currentUser.id));
   }
 
   // Free-text search over the title, both player names and the game's tags.
@@ -2304,7 +2245,7 @@ app.get('/api/games', (req, res) => {
     isAiOpponent: isAiOpponentGame(row),
     gnugoLevel: row.gnugo_level,
     timeControl: row.time_control,
-    starred: currentUser ? isStarredWithTag(row.id, currentUser.id, viewerFavouriteTag) : false,
+    starred: isStarred(row.id, currentUser?.id ?? null),
   })));
 });
 
@@ -2741,7 +2682,7 @@ app.get('/api/games/:id', (req, res) => {
     title: game.title,
     tags: getGameTags(game.id, currentUser?.id ?? null),
     publicTags: getPublicGameTags(game.id),
-    starred: isStarredNow(game.id, currentUser?.id ?? null),
+    starred: isStarred(game.id, currentUser?.id ?? null),
     board,
     currentColor: getCurrentColor(turnMoveNumber(moveNumber, game.handicap)),
     captures: getCumulativeCaptures(game.id),
@@ -2919,21 +2860,11 @@ app.post('/api/games/:id/star', (req, res) => {
     return;
   }
 
-  const tagKey = favouriteTagKey(user.id);
-  if (!tagKey) {
-    fail(res, 400, 'Choose which tag marks your favourites first');
-    return;
-  }
-  // The vocabulary keeps the casing the tag was named with ("Ulubione"),
-  // while favourite_tag holds the key everything matches on.
-  const display = (
-    db.prepare('SELECT tag FROM user_tags WHERE user_id = ? AND tag_key = ?').get(user.id, tagKey) as
-      | { tag: string }
-      | undefined
-  )?.tag ?? tagKey;
-  const now = Date.now();
-  addGameTag(game.id, display, user.id, now);
-  rememberUserTag(user.id, display, false, now);
+  db.prepare('INSERT OR IGNORE INTO stars (user_id, game_id, created_at) VALUES (?, ?, ?)').run(
+    user.id,
+    game.id,
+    Date.now(),
+  );
   broadcastGameUpdate(game.id);
   broadcastGamesListUpdate();
 
@@ -2952,15 +2883,8 @@ app.delete('/api/games/:id/star', (req, res) => {
     return;
   }
 
-  const tagKey = favouriteTagKey(user.id);
-  if (tagKey) {
-    db.prepare('DELETE FROM game_tags WHERE game_id = ? AND tag_key = ? AND user_id = ?').run(
-      game.id,
-      tagKey,
-      user.id,
-    );
-    broadcastGameUpdate(game.id);
-  }
+  db.prepare('DELETE FROM stars WHERE user_id = ? AND game_id = ?').run(user.id, game.id);
+  broadcastGameUpdate(game.id);
   broadcastGamesListUpdate();
 
   res.json({ starred: false });
@@ -3037,9 +2961,6 @@ function deleteGameRecord(gameId: string): void {
   db.prepare('DELETE FROM snapshots WHERE game_id = ?').run(gameId);
 
   db.prepare('DELETE FROM game_tags WHERE game_id = ?').run(gameId);
-  // stars is no longer read — favourites are a tag now — but it is kept
-  // until that migration has proven itself, and a kept table shouldn't
-  // accumulate rows pointing at games that no longer exist.
   db.prepare('DELETE FROM stars WHERE game_id = ?').run(gameId);
   // A token for a game that no longer exists can't authorize anything, but
   // there is no reason to keep the row around either.

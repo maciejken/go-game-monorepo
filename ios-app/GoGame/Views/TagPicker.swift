@@ -14,10 +14,6 @@ struct TagPicker: View {
     // actually happen: a game that hasn't been created yet has nobody to
     // share with, and its tags are the creator's own.
     var offersSharing = false
-    // A tag to show as already chosen — a star instead of a plus. The
-    // favourites picker nominates one tag rather than collecting several,
-    // and that is the whole of the difference.
-    var marked: String?
     var isBusy = false
     // Returns whether the tag was taken, which is what decides if the
     // field clears itself or stays put with what was typed.
@@ -94,10 +90,6 @@ struct TagPicker: View {
             .frame(width: 15, height: 15)
     }
 
-    private func isMarked(_ tag: String) -> Bool {
-        marked?.caseInsensitiveCompare(tag) == .orderedSame
-    }
-
     private func suggestionChip(_ suggestion: TagSuggestion) -> some View {
         HStack(spacing: 4) {
             Text(suggestion.tag)
@@ -112,9 +104,9 @@ struct TagPicker: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            Image(systemName: isMarked(suggestion.tag) ? "star.fill" : "plus")
+            Image(systemName: "plus")
                 .font(.caption)
-                .foregroundStyle(isMarked(suggestion.tag) ? Color.yellow : Color.secondary)
+                .foregroundStyle(Color.secondary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
