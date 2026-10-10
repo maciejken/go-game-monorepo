@@ -85,6 +85,10 @@ export interface GameStateResponse extends GameResponse, ClockFields {
   isAiOpponent: boolean;
   gnugoLevel: number | null;
   aiCurrentLevel: number | null;
+  // GNU Go ran out of time on this position and the server stopped
+  // waiting. Optional: a server that predates the field simply never
+  // says so, and a stalled game looks like a thinking one, as before.
+  aiStalled?: boolean;
   lastMove: Point | null;
   lastEvent: LastEvent | null;
   canUndo: boolean;

@@ -1561,3 +1561,36 @@ button.danger {
      name beside it. */
   margin-left: 12px;
 }
+
+/* Shown above the board when GNU Go timed out on a position, with the
+   nudge that is otherwise only in the menu. Mirrors the iOS notice:
+   enough colour to be noticed over a board, not enough to read as an
+   error — nothing is broken, the engine just gave up on one position. */
+.ai-stalled {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 auto 12px;
+  max-width: 480px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--accent-bg);
+}
+
+.ai-stalled p {
+  margin: 0;
+  font-size: 15px;
+}
+
+.ai-stalled button {
+  appearance: none;
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  color: var(--accent);
+  font: inherit;
+  padding: 6px 14px;
+  cursor: pointer;
+}

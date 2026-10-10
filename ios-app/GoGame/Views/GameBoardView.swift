@@ -400,6 +400,10 @@ struct GameBoardView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+                // Above the board, for the same reason as the line above
+                // it: a game that cannot proceed should say so before you
+                // study the position wondering whose move it is.
+                aiStalledNotice(game)
                 BoardGridView(
                     board: displayedBoard(game),
                     size: game.size,
@@ -1450,6 +1454,27 @@ struct GameBoardView: View {
     // Gates the "Recompute GNU Go's move" menu item — only meaningful while
     // actually waiting on GNU Go, i.e. an AI opponent whose turn it
     // currently is (myColor excludes .both, since a local game has no AI).
+    // Waiting and stalled look identical on a board — a turn that never
+    // comes — so the one case the player can do something about says so,
+    // with the nudge that is otherwise buried in the toolbar menu.
+    @ViewBuilder
+    private func aiStalledNotice(_ game: GameState) -> some View {
+        if game.aiStalled == true, isAiTurn(game) {
+            VStack(spacing: 8) {
+                Text("GNU Go didn't answer in time.")
+                    .font(.subheadline)
+                Button("Try again") {
+                    Task { await recomputeAiMove() }
+                }
+                .buttonStyle(.bordered)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(Color.yellow.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal)
+        }
+    }
+
     private func isAiTurn(_ game: GameState) -> Bool {
         guard game.isAiOpponent, game.status == "in_progress", let myColor = game.myColor, myColor != .both else {
             return false

@@ -50,6 +50,11 @@ struct GameState: Codable {
     // local or AI game, request-then-confirm between two real players).
     let pendingReopenBy: StoneColor?
     let isAiOpponent: Bool
+    // GNU Go ran out of time on this position and the server has stopped
+    // waiting for it. Optional so the app still decodes against a server
+    // that predates the field, where a stalled game simply looks like a
+    // thinking one, as it always did.
+    let aiStalled: Bool?
     // nil for a human game; the level GNU Go was created to play at
     // otherwise. Shown under GNU Go's name in the result sheet.
     let gnugoLevel: Int?

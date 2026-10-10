@@ -210,6 +210,7 @@ struct LocalTransport: GameTransport {
             },
             pendingReopenBy: nil,
             isAiOpponent: false,
+            aiStalled: nil,
             gnugoLevel: nil,
             komi: record.komi,
             createdAt: record.createdAt,

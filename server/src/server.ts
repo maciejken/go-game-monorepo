@@ -1275,7 +1275,23 @@ function applyResignToGame(game: GameRow, color: Color): string {
 // code change if you want to dial strength back up (more hang risk) or
 // down further (less).
 const GNUGO_LEVEL = Number(process.env.GNUGO_LEVEL) || 5;
-const GNUGO_RETRY_TIMEOUT_MS = 5000;
+
+// Games whose last AI move timed out. Deliberately in memory rather than
+// a column: it describes an attempt, not the game, and a restart is one
+// of the things that fixes it — the player's next nudge tries again from
+// a clean slate either way.
+const stalledAiGames = new Set<string>();
+
+function markAiStalled(gameId: string): void {
+  stalledAiGames.add(gameId);
+  broadcastGameUpdate(gameId);
+}
+
+function clearAiStalled(gameId: string): void {
+  if (stalledAiGames.delete(gameId)) {
+    broadcastGameUpdate(gameId);
+  }
+}
 
 // Called (fire-and-forget) after any action that might hand the turn to
 // the AI — a human move/pass, or game creation when the AI plays first.
@@ -1309,36 +1325,24 @@ async function maybeTriggerAiMove(gameId: string): Promise<void> {
   // specify one.
   const configuredLevel = game.gnugo_level ?? GNUGO_LEVEL;
 
-  // Never a random move: on a timeout, step the level down by one (not
-  // straight to the floor) and try again with a shorter budget — still a
-  // genuine GNU Go move, just one step faster and weaker each time, which
-  // is also progressively less likely to hit the same reading blowup
-  // again. ai_current_level is updated (and broadcast) before every
-  // attempt, so a human watching the board sees the backoff happen live
-  // rather than a silent difficulty change. If level 1 itself fails, the
-  // game is left waiting rather than forcing a move through — the human
-  // can still Undo and play something else in the meantime.
-  let level = configuredLevel;
+  // One attempt, and never a random move. Stepping the level down and
+  // trying again used to happen here, which on a slow machine turned one
+  // long think into several and changed the opponent's strength without
+  // saying so. A position GNU Go cannot read inside a minute is now the
+  // player's to know about: the game is marked as stalled and left
+  // waiting, and they can ask for another go — or undo and play
+  // something else, which they could always do.
+  const level = configuredLevel;
   let aiResult: AiMoveResult;
-  for (;;) {
-    setAiCurrentLevel(game.id, level);
-    try {
-      aiResult =
-        level === configuredLevel
-          ? await generateAiMove({ ...baseRequest, level })
-          : await generateAiMove({ ...baseRequest, level }, GNUGO_RETRY_TIMEOUT_MS);
-      break;
-    } catch (err) {
-      if (level <= 1) {
-        console.error(`GNU Go (level ${level}) failed to respond (${(err as Error).message}) — giving up for now.`);
-        return;
-      }
-      console.error(
-        `GNU Go (level ${level}) failed to respond (${(err as Error).message}) — retrying at level ${level - 1}.`,
-      );
-      level -= 1;
-    }
+  setAiCurrentLevel(game.id, level);
+  try {
+    aiResult = await generateAiMove({ ...baseRequest, level });
+  } catch (err) {
+    console.error(`GNU Go (level ${level}) failed to respond (${(err as Error).message}).`);
+    markAiStalled(game.id);
+    return;
   }
+  clearAiStalled(game.id);
 
   // Re-check: state may have moved on (e.g. an undo), or the AI's own clock
   // may have run out, while GNU Go was thinking.
@@ -2709,6 +2713,9 @@ app.get('/api/games/:id', (req, res) => {
     isAiOpponent: isAiOpponentGame(game),
     gnugoLevel: game.gnugo_level,
     aiCurrentLevel: game.ai_current_level,
+    // GNU Go didn't answer in time for this game. Shown to the player so
+    // a waiting board isn't mistaken for a thinking one.
+    aiStalled: stalledAiGames.has(game.id),
     timeControl: game.time_control,
     mainTimeSeconds: game.main_time_seconds,
     byoyomiSeconds: game.byoyomi_seconds,
@@ -3513,6 +3520,9 @@ app.post('/api/games/:id/recompute-ai-move', (req, res) => {
     return;
   }
 
+  // Thinking again, as far as the player is concerned — so the board
+  // stops saying it gave up before the attempt has even been made.
+  clearAiStalled(game.id);
   maybeTriggerAiMove(game.id);
   res.status(202).json({ status: 'recomputing' });
 });

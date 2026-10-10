@@ -96,7 +96,12 @@ export interface AiMoveRequest {
 
 export type AiMoveResult = { type: 'move'; point: Point } | { type: 'pass' } | { type: 'resign' };
 
-const DEFAULT_TIMEOUT_MS = 600000;
+// A minute. An opening move is under a second; a midgame life-and-death
+// reading at the top levels can genuinely take tens of seconds, and this
+// is meant to bound those rather than cut them off. It used to be ten
+// minutes, which is both longer than anyone waits and a long time to hold
+// a core on a shared machine.
+const DEFAULT_TIMEOUT_MS = 60000;
 
 // Stateless by design: a fresh gnugo process per request, replaying the
 // whole game into it via GTP `play` before asking it to move. Slightly more
@@ -108,11 +113,16 @@ const DEFAULT_TIMEOUT_MS = 600000;
 // observed behavior, effectively never return) — the timeout forces the
 // process to die either way, and since sendCommand also listens for process
 // exit, that reliably turns into a rejected promise instead of a permanent
-// hang. The caller (server.ts) is expected to retry at one level lower on
-// failure, since a lower level is both faster and far less likely to hit
-// that same reading blowup again.
+// hang. A timeout is the end of it: the caller tells the player rather
+// than quietly trying again at a lower level.
+//
+// Run through `nice`, which execs gnugo in place — so this is still
+// gnugo's own pid, and killing it on timeout still works — at the lowest
+// priority the scheduler offers. On a shared machine that is the whole
+// difference between a thinking engine and a bad neighbour: it only gets
+// the CPU nobody else wants.
 async function generateAiMoveNow(request: AiMoveRequest, timeoutMs: number): Promise<AiMoveResult> {
-  const child = spawn('gnugo', ['--mode', 'gtp', '--quiet', '--level', String(request.level)]);
+  const child = spawn('nice', ['-n', '19', 'gnugo', '--mode', 'gtp', '--quiet', '--level', String(request.level)]);
   const timeout = setTimeout(() => child.kill(), timeoutMs);
 
   try {

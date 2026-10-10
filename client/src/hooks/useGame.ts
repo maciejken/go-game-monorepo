@@ -43,6 +43,7 @@ export function useGame(gameId: string) {
   const [isAiOpponent, setIsAiOpponent] = useState(false);
   const [gnugoLevel, setGnugoLevel] = useState<number | null>(null);
   const [aiCurrentLevel, setAiCurrentLevel] = useState<number | null>(null);
+  const [aiStalled, setAiStalled] = useState(false);
   const [timeControl, setTimeControl] = useState<StoredTimeControl>(null);
   const [mainTimeSeconds, setMainTimeSeconds] = useState<number | null>(null);
   const [byoyomiSeconds, setByoyomiSeconds] = useState<number | null>(null);
@@ -86,6 +87,7 @@ export function useGame(gameId: string) {
         setIsAiOpponent(game.isAiOpponent);
         setGnugoLevel(game.gnugoLevel);
         setAiCurrentLevel(game.aiCurrentLevel);
+        setAiStalled(game.aiStalled === true);
         setTimeControl(game.timeControl);
         setMainTimeSeconds(game.mainTimeSeconds);
         setByoyomiSeconds(game.byoyomiSeconds);
@@ -262,6 +264,7 @@ export function useGame(gameId: string) {
     isAiOpponent,
     gnugoLevel,
     aiCurrentLevel,
+    aiStalled,
     timeControl,
     mainTimeSeconds,
     byoyomiSeconds,

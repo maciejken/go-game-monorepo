@@ -273,6 +273,7 @@ function GameView({ gameId }: GameViewProps) {
     endReason,
     pendingReopenBy,
     isAiOpponent,
+    aiStalled,
     gnugoLevel,
     aiCurrentLevel,
     timeControl,
@@ -1031,6 +1032,18 @@ function GameView({ gameId }: GameViewProps) {
       <div className="sr-only" aria-live="polite">
         {liveAnnouncement}
       </div>
+      {/* Waiting and stalled look identical on a board — a turn that never
+          comes — so the one case the player can do something about says
+          so, with the nudge otherwise buried in the menu. Mirrors
+          GameBoardView.swift's aiStalledNotice. */}
+      {aiStalled && isAiTurn && (
+        <div className="ai-stalled">
+          <p>{t("GNU Go didn't answer in time.")}</p>
+          <button type="button" onClick={handleRecomputeAiMove}>
+            {t('Try again')}
+          </button>
+        </div>
+      )}
       <div className="go-board-wrap">
         <div
           className={`go-board-frame${showCoords ? '' : ' go-board-frame--no-coords'}`}
