@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon --exec tsx src/server.ts",
+    "dev": "DB_PATH=./data/go.db PORT=3000 tsx watch src/server.ts",
     "pre:build": "rm -rf dist",
     "build": "tsc",
     "lint": "eslint src/",
@@ -29,7 +29,6 @@
     "@types/node": "^25.6.2",
     "@types/ws": "^8.18.1",
     "eslint": "^10.6.0",
-    "nodemon": "^3.1.14",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.62.0"

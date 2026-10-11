@@ -1,9 +1,0 @@
-{
-  "watch": ["src"],
-  "ext": "ts,json",
-  "ignore": ["node_modules"],
-  "env": {
-    "DB_PATH": "./data/go.db",
-    "PORT": "3000"
-  }
-}
