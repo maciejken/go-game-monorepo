@@ -8,6 +8,8 @@ ecosystem.config.js
 .env
 .env.*
 
+vision-service
+
 # Xcode per-user/build cruft
 ios-app/**/xcuserdata/
 ios-app/**/*.xcuserstate
