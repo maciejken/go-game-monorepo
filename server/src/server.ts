@@ -2940,6 +2940,100 @@ app.delete('/api/games/:id/star', (req, res) => {
   res.json({ starred: false });
 });
 
+// Scored games the caller has played under their current quick game
+// preset, oldest first, with the margin seen from their own side.
+//
+// Only games that ended in a count: a resignation or a timeout has no
+// number attached, and putting "you won" and "you won by 2.5" at the same
+// height would make the chart say something it doesn't know. And only games whose
+// setup matches the preset exactly, because komi, handicap, board size
+// and opponent strength each move the margin on their own — a series that
+// mixes them measures the settings, not the player.
+app.get('/api/progress', async (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
+  // Falls back exactly as GET /api/quick-game-preset does, so the series
+  // is filtered by the preset the preset screen actually shows — not by a
+  // GNU Go default on a server that doesn't play it.
+  const saved = db.prepare('SELECT * FROM quick_game_presets WHERE user_id = ?').get(user.id) as
+    | QuickGamePresetRow
+    | undefined;
+  const preset =
+    saved ??
+    ((await isGnuGoAvailable()) ? DEFAULT_QUICK_GAME_PRESET : { ...DEFAULT_QUICK_GAME_PRESET, mode: 'local' });
+
+  const candidates = db
+    .prepare(
+      `SELECT * FROM games
+        WHERE (black_user_id = ? OR white_user_id = ?)
+          AND status = 'finished' AND end_reason = 'scoring'
+          AND size = ? AND handicap = ?
+          AND komi IS ? AND time_control IS ?
+        ORDER BY updated_at`,
+    )
+    .all(user.id, user.id, preset.size, preset.handicap, preset.komi, preset.time_control) as GameRow[];
+
+  const series = candidates
+    .filter((game) => {
+      // Mode isn't a column — it is who the two players are.
+      const againstAi = isAiOpponentGame(game);
+      const alone = game.black_user_id === game.white_user_id;
+      if (preset.mode === 'gnugo') {
+        return againstAi && (preset.gnugo_level === null || game.gnugo_level === preset.gnugo_level);
+      }
+      if (preset.mode === 'local') {
+        return alone;
+      }
+      // Remote: a named opponent in the preset means that person only.
+      if (againstAi || alone) {
+        return false;
+      }
+      if (!preset.opponent_username) {
+        return true;
+      }
+      const opponentId = game.black_user_id === user.id ? game.white_user_id : game.black_user_id;
+      return getUsername(opponentId) === preset.opponent_username;
+    })
+    .map((game) => {
+      const match = /^(Black|White) wins by ([\d.]+)/.exec(game.result ?? '');
+      if (!match) {
+        return null;
+      }
+      const blackWon = match[1] === 'Black';
+      const margin = Number(match[2]);
+      const alone = game.black_user_id === game.white_user_id;
+      // From the caller's own side, so a positive margin is always a win
+      // for them. A game they played both sides of is read from black's.
+      const mine = game.white_user_id === user.id && game.black_user_id !== user.id ? !blackWon : blackWon;
+      return {
+        gameId: game.id,
+        title: game.title,
+        finishedAt: game.updated_at,
+        margin: mine ? margin : -margin,
+        // A game played alone has no opponent — naming the caller as
+        // their own would just be their username on every row.
+        opponent: alone ? null : getUsername(game.black_user_id === user.id ? game.white_user_id : game.black_user_id),
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+  res.json({
+    preset: {
+      mode: preset.mode,
+      size: preset.size,
+      handicap: preset.handicap,
+      komi: preset.komi,
+      timeControl: preset.time_control,
+      gnugoLevel: preset.gnugo_level,
+      opponentUsername: preset.opponent_username,
+    },
+    games: series,
+  });
+});
+
 // What each GNU Go move cost, for the per-game performance report. 404
 // rather than an empty list when the server isn't measuring, so a client
 // can tell "nothing collected" from "not collecting".

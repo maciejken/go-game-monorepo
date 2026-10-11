@@ -530,6 +530,12 @@ enum APIClient {
         }
     }
 
+    // Scored games under the current quick game preset, oldest first —
+    // the preset filtering happens server-side, where the games are.
+    static func progress() async throws -> ProgressSeries {
+        try await get("api/progress")
+    }
+
     // The shake-to-play configuration, shared across this user's devices.
     static func getQuickGamePreset() async throws -> QuickGamePreset {
         try await get("api/quick-game-preset")

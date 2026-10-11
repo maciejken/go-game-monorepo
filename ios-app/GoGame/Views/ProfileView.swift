@@ -113,6 +113,14 @@ struct ProfileView: View {
                             } label: {
                                 Text("Quick game preset")
                             }
+                            // Sits with the preset because it is a chart
+                            // of games played under it — change one and
+                            // the other shows a different set.
+                            NavigationLink {
+                                ProgressChartView()
+                            } label: {
+                                Text("Progress")
+                            }
                         }
                         Section {
                             NavigationLink {
