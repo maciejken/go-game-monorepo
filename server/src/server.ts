@@ -1,5 +1,5 @@
 import express from 'express';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import db from './db.js';
 import path from 'path';
@@ -198,13 +198,21 @@ app.get('/.well-known/apple-app-site-association', (req, res) => {
 // any JavaScript — and because they have to keep working whatever happens
 // to the client build. Declared above the catch-all that hands every other
 // path to React Router.
-app.get('/privacy', (req, res) => {
-  res.sendFile(path.resolve(__dirname, '../public/privacy.html'));
-});
+// English or Polish, guessed from Accept-Language and overridable with
+// ?lang= — which the pages link to each other with, because a guess has
+// to have a way out. Vary says so to Cloudflare, which would otherwise
+// hand one visitor's language to the next.
+function sendStaticPage(name: string) {
+  return (req: Request, res: Response) => {
+    const asked = typeof req.query.lang === 'string' ? req.query.lang : null;
+    const prefersPolish = asked ? asked === 'pl' : /(^|[,\s])pl\b/i.test(req.headers['accept-language'] ?? '');
+    res.setHeader('Vary', 'Accept-Language');
+    res.sendFile(path.resolve(__dirname, '../public', prefersPolish ? `${name}.pl.html` : `${name}.html`));
+  };
+}
 
-app.get('/support', (req, res) => {
-  res.sendFile(path.resolve(__dirname, '../public/support.html'));
-});
+app.get('/privacy', sendStaticPage('privacy'));
+app.get('/support', sendStaticPage('support'));
 
 app.use(express.static(path.resolve(__dirname, '../../client/dist')));
 
