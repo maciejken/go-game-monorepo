@@ -553,6 +553,18 @@ function Home() {
           {hasMore && <li ref={sentinelRef} aria-hidden="true" />}
         </ul>
       )}
+      {/* The one place the site says whose it is. On Home because that is
+          what igo5.online opens to, signed in or not — the profile page
+          would be tidier but half the visitors never see it. */}
+      <footer className="site-footer">
+        <a href="https://github.com/maciejken/go-game-monorepo" target="_blank" rel="noreferrer noopener">
+          {t('Source on GitHub')}
+        </a>
+        {' · '}
+        <a href="/privacy">{t('Privacy')}</a>
+        {' · '}
+        <a href="/support">{t('Support')}</a>
+      </footer>
     </div>
   );
 }

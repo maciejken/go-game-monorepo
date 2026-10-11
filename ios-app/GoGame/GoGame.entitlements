@@ -5,21 +5,7 @@
 	<key>aps-environment</key>
 	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
-	<!-- applinks opens igo5.online links in the app; webcredentials tells
-	     iOS the app and the site share an account, so a password saved
-	     for one is offered for the other. Both are verified against
-	     https://igo5.online/.well-known/apple-app-site-association, which
-	     iOS reads through Apple's CDN — so a change to that file takes up
-	     to a day to reach a device. Appending ?mode=developer to a domain
-	     bypasses the CDN while testing (it also needs Settings >
-	     Developer > Associated Domains Development), and must not ship. -->
 	<array>
-		<string>applinks:igo5.online</string>
-		<string>webcredentials:igo5.online</string>
-		<!-- The test backend (the Pi). Listed in every build rather than
-		     split across two entitlement files: both domains serve the
-		     same association file naming this same app, and a domain the
-		     build never talks to costs nothing. -->
 		<string>applinks:test.igo5.online</string>
 		<string>webcredentials:test.igo5.online</string>
 	</array>

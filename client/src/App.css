@@ -1594,3 +1594,16 @@ button.danger {
   padding: 6px 14px;
   cursor: pointer;
 }
+
+/* Whose site this is, at the end of the games list. Quiet on purpose:
+   it is for the person who goes looking, not an advertisement. */
+.site-footer {
+  margin: 32px 0 8px;
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.65;
+}
+
+.site-footer a {
+  color: inherit;
+}

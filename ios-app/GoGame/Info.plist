@@ -2,16 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>APIHost</key>
+	<string>$(API_HOST)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>$(DISPLAY_NAME)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
-	<key>CFBundleDisplayName</key>
-	<string>$(DISPLAY_NAME)</string>
 	<key>CFBundleName</key>
 	<string>Igo5</string>
 	<key>CFBundlePackageType</key>
@@ -20,23 +22,21 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<!-- The only encryption this app uses is HTTPS, through the system's
-	     own networking — no custom cryptography, and nothing bundled.
-	     That is exempt from the US export rules, and saying so here
-	     answers the question once rather than on every upload. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_igo5-game._tcp</string>
+		<string>_igo5-game._udp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Igo5 uses the local network to find and play games on nearby devices, with no server involved.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
-		<!-- Named here rather than left to AppDelegate's
-		     configurationForConnecting: a SwiftUI app supplies its own
-		     scene configuration, and the delegate method is not
-		     reliably consulted — which is why a home-screen quick
-		     action reached nothing and merely opened the app. -->
 		<key>UISceneConfigurations</key>
 		<dict>
 			<key>UIWindowSceneSessionRoleApplication</key>
@@ -50,15 +50,6 @@
 			</array>
 		</dict>
 	</dict>
-	<key>APIHost</key>
-	<string>$(API_HOST)</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Igo5 uses the local network to find and play games on nearby devices, with no server involved.</string>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_igo5-game._tcp</string>
-		<string>_igo5-game._udp</string>
-	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

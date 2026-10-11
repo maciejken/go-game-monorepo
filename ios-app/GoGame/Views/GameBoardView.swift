@@ -653,9 +653,7 @@ struct GameBoardView: View {
                     Button {
                         Task { await respondToInvite(accept: true) }
                     } label: {
-                        Text("Accept")
-                            .foregroundStyle(Color(uiColor: .systemBackground))
-                            .frame(maxWidth: .infinity)
+                        ProminentActionLabel(title: "Accept")
                     }
                     .buttonStyle(.glassProminent)
                     .tint(.primary)
@@ -738,11 +736,7 @@ struct GameBoardView: View {
                     Button {
                         showDeleteConfirmation = false
                     } label: {
-                        // glassProminent doesn't auto-invert its label color
-                        // for a light (white, in dark mode) tint.
-                        Text("Cancel")
-                            .foregroundStyle(Color(uiColor: .systemBackground))
-                            .frame(maxWidth: .infinity)
+                        ProminentActionLabel(title: "Cancel")
                     }
                     .buttonStyle(.glassProminent)
                     .tint(.primary)
@@ -785,12 +779,7 @@ struct GameBoardView: View {
                         showActionsSheet = false
                         Task { await pass() }
                     } label: {
-                        // glassProminent doesn't auto-invert its label color
-                        // for a light (white, in dark mode) tint — it stayed
-                        // white-on-white without this explicit override.
-                        Text("Pass")
-                            .foregroundStyle(Color(uiColor: .systemBackground))
-                            .frame(maxWidth: .infinity)
+                        ProminentActionLabel(title: "Pass")
                     }
                     .buttonStyle(.glassProminent)
                     .tint(.primary) // keeps the black-in-light/white-in-dark contrast the pre-26 fallback uses
@@ -2326,6 +2315,24 @@ struct GameBoardView: View {
 // swapped, plus a thin border so it stays visible against the sheet's own
 // (matching) background color. A slightly-rounded rectangle rather than
 // .bordered/.borderedProminent's pill shape, per request.
+// The label of a .glassProminent button tinted .primary. That style does
+// not invert its label colour for such a tint, so it has to be set by
+// hand — and setting it to systemBackground unconditionally is what made
+// a disabled Pass invisible in the light theme: the glass lightens when
+// disabled while the text stayed white. Reading isEnabled here keeps the
+// pair matched, and keeps the knowledge in one place rather than beside
+// every .disabled() that governs it.
+private struct ProminentActionLabel: View {
+    @Environment(\.isEnabled) private var isEnabled
+    let title: LocalizedStringKey
+
+    var body: some View {
+        Text(title)
+            .foregroundStyle(isEnabled ? Color(uiColor: .systemBackground) : Color.secondary)
+            .frame(maxWidth: .infinity)
+    }
+}
+
 private struct ActionButtonStyle: ButtonStyle {
     var inverted: Bool
     @Environment(\.isEnabled) private var isEnabled

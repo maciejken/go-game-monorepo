@@ -227,7 +227,10 @@ struct GameListView: View {
             // only refreshed a list nobody was looking away from anyway —
             // .task on appear plus pull-to-refresh cover that case without
             // the socket's reconnect churn or its navigation hazard.
-            .navigationTitle("Your Games")
+            // The title says which list this is, because the star alone is
+            // easy to miss — and an empty favourites list under "Your
+            // Games" reads as "you have no games".
+            .navigationTitle(isHome ? Text("Your Games") : Text("Favourites"))
             .toolbar {
                 // Stars live on the server, so there is nothing to
                 // filter by without an account.
