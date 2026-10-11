@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import { readFileSync } from 'fs';
 import { gnugoEnabled } from './config.js';
 import type { Color, Point } from 'shared';
 
@@ -96,6 +97,54 @@ export interface AiMoveRequest {
 
 export type AiMoveResult = { type: 'move'; point: Point } | { type: 'pass' } | { type: 'resign' };
 
+// Where a move's time went. Measured always — a handful of Date.now()
+// calls costs nothing — and kept or discarded by the caller, which is
+// what GNUGO_DEBUG_PERFORMANCE decides.
+export interface AiMoveTimings {
+  // Waiting behind another game's move: one queue serves the whole server.
+  queueWaitMs: number;
+  // Starting the process and telling it the board, rules and komi.
+  setupMs: number;
+  // Replaying the game into it. Grows with every move already played,
+  // because each call starts from an empty board.
+  replayMs: number;
+  // Thinking.
+  genmoveMs: number;
+  totalMs: number;
+  // utime+stime of the engine process, read from /proc just before it is
+  // asked to quit — so null anywhere that isn't Linux. Under `nice` this
+  // is the honest measure of what a move cost the machine; wall time
+  // mostly measures how busy the machine already was.
+  cpuMs: number | null;
+  movesReplayed: number;
+}
+
+export interface AiMoveOutcome {
+  result: AiMoveResult;
+  timings: AiMoveTimings;
+}
+
+// Linux only, and quiet about it elsewhere. The fields after comm (which
+// may itself contain spaces and brackets, hence lastIndexOf) are utime
+// and stime in clock ticks — 100 per second on every Linux this runs on.
+function readCpuMs(pid: number | undefined): number | null {
+  if (pid === undefined) {
+    return null;
+  }
+  try {
+    const fields = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const after = fields.slice(fields.lastIndexOf(')') + 2).split(' ');
+    const utime = Number(after[11]);
+    const stime = Number(after[12]);
+    if (!Number.isFinite(utime) || !Number.isFinite(stime)) {
+      return null;
+    }
+    return Math.round(((utime + stime) / 100) * 1000);
+  } catch {
+    return null;
+  }
+}
+
 // A minute. An opening move is under a second; a midgame life-and-death
 // reading at the top levels can genuinely take tens of seconds, and this
 // is meant to bound those rather than cut them off. It used to be ten
@@ -121,7 +170,12 @@ const DEFAULT_TIMEOUT_MS = 60000;
 // priority the scheduler offers. On a shared machine that is the whole
 // difference between a thinking engine and a bad neighbour: it only gets
 // the CPU nobody else wants.
-async function generateAiMoveNow(request: AiMoveRequest, timeoutMs: number): Promise<AiMoveResult> {
+async function generateAiMoveNow(
+  request: AiMoveRequest,
+  timeoutMs: number,
+  queueWaitMs: number,
+): Promise<AiMoveOutcome> {
+  const startedAt = Date.now();
   const child = spawn('nice', ['-n', '19', 'gnugo', '--mode', 'gtp', '--quiet', '--level', String(request.level)]);
   const timeout = setTimeout(() => child.kill(), timeoutMs);
 
@@ -129,22 +183,39 @@ async function generateAiMoveNow(request: AiMoveRequest, timeoutMs: number): Pro
     await sendCommand(child, `boardsize ${request.size}`);
     await sendCommand(child, 'clear_board');
     await sendCommand(child, `komi ${request.komi}`);
+    const setupDone = Date.now();
 
     for (const move of request.moves) {
       const vertex = move.point ? pointToVertex(move.point, request.size) : 'pass';
       await sendCommand(child, `play ${move.color} ${vertex}`);
     }
+    const replayDone = Date.now();
 
     const result = await sendCommand(child, `genmove ${request.colorToMove}`);
+    const genmoveDone = Date.now();
+    // Read while it is still alive: the kill below takes the numbers with
+    // the process.
+    const cpuMs = readCpuMs(child.pid);
+
+    const timings: AiMoveTimings = {
+      queueWaitMs,
+      setupMs: setupDone - startedAt,
+      replayMs: replayDone - setupDone,
+      genmoveMs: genmoveDone - replayDone,
+      totalMs: genmoveDone - startedAt,
+      cpuMs,
+      movesReplayed: request.moves.length,
+    };
+
     const upper = result.toUpperCase();
     if (upper === 'PASS') {
-      return { type: 'pass' };
+      return { result: { type: 'pass' }, timings };
     }
     if (upper === 'RESIGN') {
-      return { type: 'resign' };
+      return { result: { type: 'resign' }, timings };
     }
     const point = vertexToPoint(result, request.size);
-    return point ? { type: 'move', point } : { type: 'pass' };
+    return { result: point ? { type: 'move', point } : { type: 'pass' }, timings };
   } finally {
     clearTimeout(timeout);
     if (child.exitCode === null && child.signalCode === null) {
@@ -164,7 +235,7 @@ async function generateAiMoveNow(request: AiMoveRequest, timeoutMs: number): Pro
 // queue (or a lock in shared storage) if this ever ran multiple instances.
 let queue: Promise<unknown> = Promise.resolve();
 
-export function generateAiMove(request: AiMoveRequest, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<AiMoveResult> {
+export function generateAiMove(request: AiMoveRequest, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<AiMoveOutcome> {
   // A game against GNU Go that predates the switch being turned off stays
   // in the list, but nothing here will spawn anything: its turn simply
   // never comes. Refused rather than attempted, so the reason is the
@@ -172,7 +243,10 @@ export function generateAiMove(request: AiMoveRequest, timeoutMs = DEFAULT_TIMEO
   if (!gnugoEnabled) {
     return Promise.reject(new Error('GNU Go is switched off on this server'));
   }
-  const run = queue.then(() => generateAiMoveNow(request, timeoutMs));
+  // Queued from here, so the wait is measured from when the move was
+  // asked for rather than from when it got its turn.
+  const queuedAt = Date.now();
+  const run = queue.then(() => generateAiMoveNow(request, timeoutMs, Date.now() - queuedAt));
   queue = run.catch(() => {});
   return run;
 }

@@ -27,6 +27,11 @@ export const trustProxy = process.env.TRUST_PROXY === 'true' || process.env.TRUS
 // don't offer the mode.
 export const gnugoEnabled = process.env.GNUGO_ENABLED === 'true';
 
+// Times every GNU Go move and keeps the numbers, for the per-game report.
+// Off unless asked for: the measuring is free, but a row per AI move on a
+// server nobody is watching is a table that only grows.
+export const gnugoDebugPerformance = process.env.GNUGO_DEBUG_PERFORMANCE === 'true';
+
 export const apnsKeyPath = process.env.APNS_KEY_PATH;
 export const apnsKeyId = process.env.APNS_KEY_ID;
 export const apnsTeamId = process.env.APNS_TEAM_ID;

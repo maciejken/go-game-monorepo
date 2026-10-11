@@ -499,11 +499,14 @@ export async function logout(): Promise<void> {
 // rides along with the launch call that asks who is signed in.
 export interface ServerFeatures {
   gnugo: boolean;
+  // Whether this server times GNU Go moves — if it doesn't, there is no
+  // report to offer and the link stays hidden.
+  gnugoDebugPerformance?: boolean;
 }
 
 // True for a server old enough not to say, which is how every server
 // behaved before there was anything to ask.
-export const DEFAULT_FEATURES: ServerFeatures = { gnugo: true };
+export const DEFAULT_FEATURES: ServerFeatures = { gnugo: true, gnugoDebugPerformance: false };
 
 export function getMe(): Promise<{ user: AuthUser | null; features: ServerFeatures }> {
   return fetch(`${API_BASE}/auth/me`)
@@ -554,4 +557,24 @@ async function patchSetting(body: Record<string, unknown>): Promise<void> {
     const data = await res.json().catch(() => null);
     throw new Error(data?.error ?? 'Failed to update setting');
   }
+}
+
+// What one GNU Go move cost, split into the phases it is made of. Only
+// collected on a server running with GNUGO_DEBUG_PERFORMANCE.
+export interface GnugoTiming {
+  moveNumber: number;
+  level: number;
+  boardSize: number;
+  movesReplayed: number;
+  queueWaitMs: number;
+  setupMs: number;
+  replayMs: number;
+  genmoveMs: number;
+  totalMs: number;
+  // Linux only — null where /proc isn't there to read.
+  cpuMs: number | null;
+}
+
+export function listGnugoTimings(gameId: string): Promise<GnugoTiming[]> {
+  return fetch(`${API_BASE}/games/${gameId}/gnugo-timings`).then((res) => handle<GnugoTiming[]>(res));
 }

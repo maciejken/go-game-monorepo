@@ -302,7 +302,7 @@ function GameView({ gameId }: GameViewProps) {
     clearError,
   } = useGame(gameId);
   const { history, error: historyError, load: loadHistory, clearError: clearHistoryError } = useGameHistory(gameId);
-  const { user } = useAuth();
+  const { user, features } = useAuth();
   const { confirm: confirmDialog, alert: alertDialog } = useDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -694,6 +694,13 @@ function GameView({ gameId }: GameViewProps) {
             {describeReopenAction(myColor, pendingReopenBy, isAiOpponent)}
           </button>
         )}
+        {/* Where someone reviewing a finished game already is, which is
+            the same place the chart's links send them back to. */}
+        {features.gnugoDebugPerformance && isAiOpponent && (
+          <Link className="modal-action" to={`/games/${gameId}/performance`} onClick={() => setResultOpen(false)}>
+            GNU Go performance
+          </Link>
+        )}
         <button type="button" className="modal-action" onClick={() => setResultOpen(false)}>
           {t('Close')}
         </button>
@@ -977,6 +984,13 @@ function GameView({ gameId }: GameViewProps) {
                 >
                   {t("Recompute GNU Go's move")}
                 </button>
+              )}
+              {/* Only where the server is measuring, and only for games
+                  against GNU Go — there is nothing to report otherwise. */}
+              {features.gnugoDebugPerformance && isAiOpponent && (
+                <Link to={`/games/${gameId}/performance`} onClick={() => setMenuOpen(false)}>
+                  GNU Go performance
+                </Link>
               )}
               {/* Open to anyone logged in: a spectator can't edit the title
                   or tags (the modal shows them read-only, as does the

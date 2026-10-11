@@ -31,7 +31,9 @@ import {
   type TimeControlName,
 } from 'shared';
 
-import { dbPath, port, httpsPort, keyPath, certPath, trustProxy, aasaApp, registerLimit } from './config.js';
+import {
+  dbPath, port, httpsPort, keyPath, certPath, trustProxy, aasaApp, registerLimit, gnugoDebugPerformance,
+} from './config.js';
 import {
   clearSessionCookie,
   createSession,
@@ -49,7 +51,7 @@ import {
 } from './auth.js';
 import { seedDefaultUser, seedAiUser, getAiUserId } from './seed.js';
 import { attachWebSocketServer, broadcastGameUpdate, broadcastGamesListUpdate } from './ws.js';
-import { generateAiMove, isGnuGoAvailable, type AiMoveResult, type ReplayMove } from './gnugo.js';
+import { generateAiMove, isGnuGoAvailable, type AiMoveOutcome, type AiMoveTimings, type ReplayMove } from './gnugo.js';
 import { isApnsConfigured, sendPushNotification } from './apns.js';
 
 
@@ -1284,6 +1286,34 @@ function applyResignToGame(game: GameRow, color: Color): string {
 // down further (less).
 const GNUGO_LEVEL = Number(process.env.GNUGO_LEVEL) || 5;
 
+// Kept only when asked for. The table is created either way — one empty
+// table costs nothing and saves a migration if the flag is ever turned
+// on — but nothing writes to it unless GNUGO_DEBUG_PERFORMANCE is set.
+function recordGnugoTimings(game: GameRow, moveNumber: number, level: number, timings: AiMoveTimings): void {
+  if (!gnugoDebugPerformance) {
+    return;
+  }
+  db.prepare(
+    `INSERT OR REPLACE INTO gnugo_timings
+       (game_id, move_number, level, board_size, moves_replayed,
+        queue_wait_ms, setup_ms, replay_ms, genmove_ms, total_ms, cpu_ms, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    game.id,
+    moveNumber,
+    level,
+    game.size,
+    timings.movesReplayed,
+    timings.queueWaitMs,
+    timings.setupMs,
+    timings.replayMs,
+    timings.genmoveMs,
+    timings.totalMs,
+    timings.cpuMs,
+    Date.now(),
+  );
+}
+
 // Games whose last AI move timed out. Deliberately in memory rather than
 // a column: it describes an attempt, not the game, and a restart is one
 // of the things that fixes it — the player's next nudge tries again from
@@ -1341,16 +1371,17 @@ async function maybeTriggerAiMove(gameId: string): Promise<void> {
   // waiting, and they can ask for another go — or undo and play
   // something else, which they could always do.
   const level = configuredLevel;
-  let aiResult: AiMoveResult;
+  let outcome: AiMoveOutcome;
   setAiCurrentLevel(game.id, level);
   try {
-    aiResult = await generateAiMove({ ...baseRequest, level });
+    outcome = await generateAiMove({ ...baseRequest, level });
   } catch (err) {
     console.error(`GNU Go (level ${level}) failed to respond (${(err as Error).message}).`);
     markAiStalled(game.id);
     return;
   }
   clearAiStalled(game.id);
+  const aiResult = outcome.result;
 
   // Re-check: state may have moved on (e.g. an undo), or the AI's own clock
   // may have run out, while GNU Go was thinking.
@@ -1362,6 +1393,10 @@ async function maybeTriggerAiMove(gameId: string): Promise<void> {
   if (freshGame.status !== 'in_progress') {
     return;
   }
+
+  // Recorded against the move number this move is about to take, before
+  // anything is applied — afterwards the counter has moved on.
+  recordGnugoTimings(freshGame, getNextMoveNumber(freshGame.id), level, outcome.timings);
 
   if (aiResult.type === 'move') {
     const applied = applyMoveToGame(freshGame, aiResult.point.x, aiResult.point.y, currentColor);
@@ -1577,7 +1612,7 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/api/auth/me', async (req, res) => {
   res.json({
     user: getSessionUser(req),
-    features: { gnugo: await isGnuGoAvailable() },
+    features: { gnugo: await isGnuGoAvailable(), gnugoDebugPerformance },
   });
 });
 
@@ -2905,6 +2940,49 @@ app.delete('/api/games/:id/star', (req, res) => {
   res.json({ starred: false });
 });
 
+// What each GNU Go move cost, for the per-game performance report. 404
+// rather than an empty list when the server isn't measuring, so a client
+// can tell "nothing collected" from "not collecting".
+app.get('/api/games/:id/gnugo-timings', (req, res) => {
+  const game = getGameRow(req.params.id);
+  if (!game) {
+    fail(res, 404, 'Game not found');
+    return;
+  }
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  if (!gnugoDebugPerformance) {
+    fail(res, 404, 'This server is not measuring GNU Go performance');
+    return;
+  }
+  // The same trust level as the rest of a game's detail: anyone signed in
+  // can look at a game, so anyone signed in can look at its timings.
+  const rows = db
+    .prepare(
+      `SELECT move_number, level, board_size, moves_replayed,
+              queue_wait_ms, setup_ms, replay_ms, genmove_ms, total_ms, cpu_ms
+         FROM gnugo_timings WHERE game_id = ? ORDER BY move_number`,
+    )
+    .all(game.id) as Record<string, number | null>[];
+
+  res.json(
+    rows.map((row) => ({
+      moveNumber: row.move_number,
+      level: row.level,
+      boardSize: row.board_size,
+      movesReplayed: row.moves_replayed,
+      queueWaitMs: row.queue_wait_ms,
+      setupMs: row.setup_ms,
+      replayMs: row.replay_ms,
+      genmoveMs: row.genmove_ms,
+      totalMs: row.total_ms,
+      cpuMs: row.cpu_ms,
+    })),
+  );
+});
+
 app.get('/api/games/:id/history', (req, res) => {
   const game = getGameRow(req.params.id);
   if (!game) {
@@ -2977,6 +3055,7 @@ function deleteGameRecord(gameId: string): void {
 
   db.prepare('DELETE FROM game_tags WHERE game_id = ?').run(gameId);
   db.prepare('DELETE FROM stars WHERE game_id = ?').run(gameId);
+  db.prepare('DELETE FROM gnugo_timings WHERE game_id = ?').run(gameId);
   // A token for a game that no longer exists can't authorize anything, but
   // there is no reason to keep the row around either.
   db.prepare('DELETE FROM vision_tokens WHERE game_id = ?').run(gameId);

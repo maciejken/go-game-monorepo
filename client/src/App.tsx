@@ -3,6 +3,7 @@ import Home from './pages/Home'
 import Game from './pages/Game'
 import Auth from './pages/Auth'
 import Profile from './pages/Profile'
+import Performance from './pages/Performance'
 import { AuthProvider } from './hooks/AuthProvider'
 import { DialogProvider } from './hooks/DialogProvider'
 import './App.css'
@@ -15,6 +16,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Auth />} />
           <Route path="/games/:id" element={<Game />} />
+          <Route path="/games/:id/performance" element={<Performance />} />
           <Route path="/profile/:id" element={<Profile />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

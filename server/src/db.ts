@@ -151,6 +151,33 @@ db.exec(`
   -- places — the username search and the invite guard — so that to the
   -- blocked person it is indistinguishable from someone who has turned
   -- invitations off for everyone.
+  -- How long each GNU Go move took, broken into the phases that make it
+  -- up, when GNUGO_DEBUG_PERFORMANCE is on. Its own table rather than a
+  -- field on the event: the event log is what games are rebuilt from and
+  -- what the replay check verifies, and measurements have no business in
+  -- it. Nothing reads this but the report, and dropping the table costs
+  -- nothing.
+  CREATE TABLE IF NOT EXISTS gnugo_timings (
+    game_id TEXT NOT NULL,
+    move_number INTEGER NOT NULL,
+    level INTEGER NOT NULL,
+    board_size INTEGER NOT NULL,
+    moves_replayed INTEGER NOT NULL,
+    -- Waiting for another game's move: one queue serves the whole server.
+    queue_wait_ms INTEGER NOT NULL,
+    -- Starting the process and telling it the rules.
+    setup_ms INTEGER NOT NULL,
+    -- Replaying the game into it, which grows with every move played.
+    replay_ms INTEGER NOT NULL,
+    -- Thinking.
+    genmove_ms INTEGER NOT NULL,
+    total_ms INTEGER NOT NULL,
+    -- utime+stime from /proc, so NULL anywhere that isn't Linux.
+    cpu_ms INTEGER,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (game_id, move_number)
+  );
+
   CREATE TABLE IF NOT EXISTS blocked_users (
     blocker_id TEXT NOT NULL,
     blocked_id TEXT NOT NULL,

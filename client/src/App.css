@@ -1607,3 +1607,89 @@ button.danger {
 .site-footer a {
   color: inherit;
 }
+
+/* The GNU Go performance report. A debug screen behind a server flag, so
+   it is plain: numbers, a chart, and a table saying the same thing for
+   anyone who cannot separate the two lighter series by colour. */
+.perf-page {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.perf-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 16px 0 24px;
+}
+
+.perf-summary div {
+  min-width: 120px;
+}
+
+.perf-summary dt {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.perf-summary dd {
+  margin: 2px 0 0;
+  font: 600 22px/1.2 var(--sans);
+  color: var(--text-h);
+}
+
+.perf-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.perf-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.perf-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.perf-chart-scroll {
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.perf-chart a:hover rect {
+  opacity: 0.75;
+}
+
+.perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 24px 0;
+  font: 14px/1.4 var(--mono);
+}
+
+.perf-table th,
+.perf-table td {
+  padding: 4px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.perf-table th:first-child,
+.perf-table td:first-child {
+  text-align: left;
+}
+
+.perf-table th {
+  color: var(--text);
+  font-weight: 500;
+}

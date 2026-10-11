@@ -96,6 +96,18 @@ expect(
 );
 const reread = await stayer('GET', '/api/quick-game-preset');
 expect(reread.body?.mode !== 'gnugo', `and reads it back as "${reread.body?.mode}"`);
+
+// Nor does it offer the performance report, which is a separate switch
+// again (GNUGO_DEBUG_PERFORMANCE) and off here too. A client reads the
+// feature to decide whether to show the screen at all; the endpoint
+// refuses either way, so neither is load-bearing on its own.
+const features = (await stayer('GET', '/api/auth/me')).body?.features;
+expect(
+  features?.gnugoDebugPerformance === false,
+  `features.gnugoDebugPerformance is ${features?.gnugoDebugPerformance}, expected false`,
+);
+const timings = await stayer('GET', `/api/games/${shared.id}/gnugo-timings`);
+expect(timings.status === 404, `timings with the switch off: got ${timings.status}, expected 404`);
 // Somebody else's list has this account on it, and should not keep it.
 await stayer('POST', '/api/blocks', { username: leaverName });
 
