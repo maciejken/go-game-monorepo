@@ -19,6 +19,8 @@ export DB_PATH
 # to survive being run twice in a row.
 REGISTER_RATE_LIMIT=1000
 export REGISTER_RATE_LIMIT
+ADMIN_USERNAME=suiteadmin
+export ADMIN_USERNAME
 PORT="$PORT" npx tsx server/src/server.ts > "$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 
@@ -34,5 +36,6 @@ node scripts/check-server-account.mjs "http://localhost:$PORT"
 node scripts/check-server-blocks.mjs "http://localhost:$PORT"
 node scripts/check-server-stars.mjs "http://localhost:$PORT"
 node scripts/check-server-progress.mjs "http://localhost:$PORT"
+node scripts/check-server-reports.mjs "http://localhost:$PORT" "$ADMIN_USERNAME"
 # Takes the database file too: pruning stored boards is what it checks.
 node scripts/check-server-replay.mjs "http://localhost:$PORT" "$DB_PATH"

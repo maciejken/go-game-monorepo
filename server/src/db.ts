@@ -139,6 +139,25 @@ db.exec(`
   -- your turn" notifications. One user can have several rows (multiple
   -- devices); a token moves to a new owner if it's re-registered under a
   -- different logged-in user (e.g. a shared device, or a reinstall).
+  -- What one player has reported about another: an offensive username, a
+  -- game title or tag, or how somebody behaved. Kept rather than only
+  -- forwarded, so there is a record of what was reported and whether it
+  -- was dealt with — handled_at is set once it has been.
+  --
+  -- The reported text itself is not copied here: it is reached through
+  -- game_id, and a snapshot would go stale the moment the title changed,
+  -- which is exactly what a report usually causes.
+  CREATE TABLE IF NOT EXISTS reports (
+    id TEXT PRIMARY KEY,
+    reporter_user_id TEXT NOT NULL,
+    target_user_id TEXT NOT NULL,
+    game_id TEXT,
+    reason TEXT NOT NULL,
+    note TEXT,
+    created_at INTEGER NOT NULL,
+    handled_at INTEGER
+  );
+
   CREATE TABLE IF NOT EXISTS device_tokens (
     token TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,

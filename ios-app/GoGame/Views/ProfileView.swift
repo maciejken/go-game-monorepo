@@ -15,6 +15,7 @@ struct ProfileView: View {
     @State private var isRequestingRecoveryCode = false
     @State private var isUpdatingBlock = false
     @State private var blockError: String?
+    @State private var showReport = false
     @State private var showDeleteAccount = false
     @State private var deletePassword = ""
     @State private var deleteError: String?
@@ -57,6 +58,16 @@ struct ProfileView: View {
                                     Task { await setBlocked(true, username: profile.username) }
                                 }
                                 .disabled(isUpdatingBlock)
+                            }
+                            // Blocking is a decision about your own games;
+                            // reporting asks somebody to look at a name or
+                            // something written in a game. Both are offered,
+                            // because they answer different questions.
+                            Button("Report") {
+                                showReport = true
+                            }
+                            .sheet(isPresented: $showReport, onDismiss: { Task { await load() } }) {
+                                ReportSheet(username: profile.username)
                             }
                             if let blockError {
                                 Text(blockError)

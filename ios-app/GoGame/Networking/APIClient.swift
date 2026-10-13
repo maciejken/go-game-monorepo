@@ -287,6 +287,36 @@ enum APIClient {
         try await post("api/blocks", body: Body(username: username))
     }
 
+    // Reporting a player, optionally blocking them in the same request so
+    // the two can't half happen. The server keeps the report; blocking is
+    // the part the reporter sees take effect.
+    static func report(
+        username: String,
+        gameId: String?,
+        reason: String,
+        note: String,
+        block: Bool
+    ) async throws {
+        struct Body: Encodable {
+            let username: String
+            let gameId: String?
+            let reason: String
+            let note: String?
+            let block: Bool
+        }
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        try await post(
+            "api/reports",
+            body: Body(
+                username: username,
+                gameId: gameId,
+                reason: reason,
+                note: trimmed.isEmpty ? nil : trimmed,
+                block: block
+            )
+        )
+    }
+
     static func unblock(username: String) async throws {
         // Usernames are [a-z0-9_], so nothing in one needs escaping.
         try await delete("api/blocks/\(username)")

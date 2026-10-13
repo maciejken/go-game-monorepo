@@ -32,7 +32,7 @@ import {
 } from 'shared';
 
 import {
-  dbPath, port, httpsPort, keyPath, certPath, trustProxy, aasaApp, registerLimit, gnugoDebugPerformance,
+  dbPath, port, httpsPort, keyPath, certPath, trustProxy, aasaApp, registerLimit, gnugoDebugPerformance, adminUsername,
 } from './config.js';
 import {
   clearSessionCookie,
@@ -417,12 +417,12 @@ function hasOpenStandardGame(userId: string): boolean {
 // custom push-payload data (see apns.ts) so a tap on the notification can
 // take the iOS app straight to that game via DeepLinkRouter, the same
 // mechanism a /games/<id> universal link uses.
-function pushToUser(userId: string, alert: string, gameId: string): void {
+function pushToUser(userId: string, alert: string, gameId?: string): void {
   const tokens = db.prepare('SELECT token FROM device_tokens WHERE user_id = ?').all(userId) as {
     token: string;
   }[];
   for (const { token } of tokens) {
-    sendPushNotification(token, alert, { gameId });
+    sendPushNotification(token, alert, gameId ? { gameId } : undefined);
   }
 }
 
@@ -1892,6 +1892,138 @@ app.get('/api/blocks', (req, res) => {
   res.json(rows.map((row) => row.username));
 });
 
+// Blocking, apart from who asked for it — reporting somebody can carry a
+// block with it, and the rule about invitations has to hold either way
+// rather than being written out twice.
+//
+// An invitation already waiting between the two goes with the block, in
+// either direction. Had the block been in place it could never have been
+// sent, and that is the state being restored — so it goes quietly,
+// without the "declined your invitation" push that rejecting one sends.
+// Games already under way are left alone: this stops new invitations, it
+// doesn't erase what was played.
+function applyBlock(blockerId: string, targetId: string): void {
+  db.prepare('INSERT OR IGNORE INTO blocked_users (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)').run(
+    blockerId,
+    targetId,
+    Date.now(),
+  );
+
+  const pending = db
+    .prepare(
+      `SELECT id FROM games WHERE invite_status = 'pending'
+         AND ((black_user_id = ? AND white_user_id = ?) OR (black_user_id = ? AND white_user_id = ?))`,
+    )
+    .all(blockerId, targetId, targetId, blockerId) as { id: string }[];
+  for (const row of pending) {
+    deleteGameRecord(row.id);
+    broadcastGameUpdate(row.id);
+  }
+  if (pending.length > 0) {
+    broadcastGamesListUpdate();
+  }
+}
+
+// Reporting somebody, which is a different act from blocking them:
+// blocking is a decision about your own games and takes effect at once,
+// reporting asks for a look at a name, a title or a tag that shouldn't be
+// there. The two are offered together and usually taken together, but a
+// report is no use if it only hides the content from the one person who
+// objected to it.
+const REPORT_REASONS = ['username', 'game_text', 'behaviour'];
+const MAX_REPORT_NOTE_LENGTH = 500;
+
+const reportRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.post('/api/reports', reportRateLimiter, (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const target = db.prepare('SELECT id, username FROM users WHERE username = ? AND deleted_at IS NULL').get(username) as
+    | { id: string; username: string }
+    | undefined;
+  if (!target) {
+    fail(res, 404, 'User not found');
+    return;
+  }
+  if (target.id === user.id) {
+    fail(res, 400, 'You cannot report yourself');
+    return;
+  }
+
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+  if (!REPORT_REASONS.includes(reason)) {
+    fail(res, 400, 'Invalid report reason');
+    return;
+  }
+
+  // Optional, and only kept if it points at a real game — a report about
+  // a title is only actionable if it says which game's title.
+  const gameId = typeof req.body?.gameId === 'string' ? req.body.gameId : null;
+  const game = gameId ? getGameRow(gameId) : undefined;
+
+  const rawNote = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+  const note = rawNote ? rawNote.slice(0, MAX_REPORT_NOTE_LENGTH) : null;
+
+  db.prepare(
+    `INSERT INTO reports (id, reporter_user_id, target_user_id, game_id, reason, note, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(randomUUID(), user.id, target.id, game ? game.id : null, reason, note, Date.now());
+
+  // Told, not just filed — a queue nobody is watching is not a response
+  // within a day. Unset ADMIN_USERNAME and reports simply wait.
+  if (adminUsername) {
+    const admin = db.prepare('SELECT id FROM users WHERE username = ? AND deleted_at IS NULL').get(adminUsername) as
+      | { id: string }
+      | undefined;
+    if (admin && admin.id !== user.id) {
+      pushToUser(admin.id, `Report about ${target.username} (${reason})`, game ? game.id : undefined);
+    }
+  }
+
+  // Taken in the same request as the report, so the two can't half
+  // happen: the person who asks for both gets both or neither.
+  if (req.body?.block === true) {
+    applyBlock(user.id, target.id);
+  }
+
+  res.json({ reported: true });
+});
+
+// The queue, for whoever has to act on it. No web page of its own: this
+// is read by one person, and an endpoint they can curl is enough.
+app.get('/api/reports', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  if (!adminUsername || user.username !== adminUsername) {
+    fail(res, 403, 'Not allowed');
+    return;
+  }
+
+  const rows = db
+    .prepare(
+      `SELECT r.id, r.reason, r.note, r.game_id, r.created_at, r.handled_at,
+              reporter.username AS reporter, target.username AS target
+         FROM reports r
+         JOIN users reporter ON reporter.id = r.reporter_user_id
+         JOIN users target ON target.id = r.target_user_id
+        ORDER BY r.handled_at IS NOT NULL, r.created_at DESC`,
+    )
+    .all() as Record<string, unknown>[];
+
+  res.json(rows);
+});
+
 app.post('/api/blocks', (req, res) => {
   const user = requireAuth(req, res);
   if (!user) {
@@ -1910,31 +2042,7 @@ app.post('/api/blocks', (req, res) => {
     return;
   }
 
-  db.prepare('INSERT OR IGNORE INTO blocked_users (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)').run(
-    user.id,
-    target.id,
-    Date.now(),
-  );
-
-  // An invitation already waiting between the two goes with it, in either
-  // direction. Had the block been in place it could never have been sent,
-  // and that is the state being restored — so it goes quietly, without the
-  // "declined your invitation" push that rejecting one sends. Games
-  // already under way are left alone: this stops new invitations, it
-  // doesn't erase what was played.
-  const pending = db
-    .prepare(
-      `SELECT id FROM games WHERE invite_status = 'pending'
-         AND ((black_user_id = ? AND white_user_id = ?) OR (black_user_id = ? AND white_user_id = ?))`,
-    )
-    .all(user.id, target.id, target.id, user.id) as { id: string }[];
-  for (const row of pending) {
-    deleteGameRecord(row.id);
-    broadcastGameUpdate(row.id);
-  }
-  if (pending.length > 0) {
-    broadcastGamesListUpdate();
-  }
+  applyBlock(user.id, target.id);
 
   res.status(204).end();
 });

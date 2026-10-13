@@ -29,6 +29,7 @@ struct GameBoardView: View {
     // Measured from the tags sheet's own content, so its detent grows with
     // the number of chip rows instead of guessing one height for all of them.
     @State private var tagsSheetHeight: CGFloat = 200
+    @State private var showReportSheet = false
     @State private var showDeleteConfirmation = false
     // Set once the SGF has been fetched and written to a temp file — its
     // presence both drives the share sheet (.sheet(isPresented:), same
@@ -700,6 +701,22 @@ struct GameBoardView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.red)
                 .disabled(isBusy)
+
+                // The invitation itself is where an offensive name or
+                // game title is seen, so it is where reporting one
+                // belongs — not only on a profile you'd have to go
+                // looking for.
+                Button {
+                    showReportSheet = true
+                } label: {
+                    Text("Report")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.plain)
+                .disabled(isBusy)
+                .sheet(isPresented: $showReportSheet) {
+                    ReportSheet(username: opponentUsername, gameId: gameId)
+                }
             }
         }
         .padding()
