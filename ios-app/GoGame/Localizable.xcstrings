@@ -6432,6 +6432,65 @@
         }
       }
     },
+    "Games": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Games"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gry"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ігри"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Партии"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partien"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parties"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partite"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对局数"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対局数"
+          }
+        }
+      }
+    },
     "Games against GNU Go are unavailable on this server.": {
       "extractionState": "manual",
       "localizations": {
@@ -6900,6 +6959,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "対局を立てる"
+          }
+        }
+      }
+    },
+    "Improving by %@ points a game": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Improving by %@ points a game"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poprawa o %@ pkt na grę"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Покращення на %@ оч. за гру"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Улучшение на %@ оч. за игру"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbesserung um %@ Punkte pro Partie"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Progression de %@ pt par partie"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Miglioramento di %@ punti a partita"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每局进步 %@ 目"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1局あたり %@ 目の改善"
           }
         }
       }
@@ -9087,6 +9205,65 @@
         }
       }
     },
+    "Needed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needed"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wymagane"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Потрібно"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требуется"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erforderlich"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requis"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Richiesto"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所需"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "必要値"
+          }
+        }
+      }
+    },
     "New Game": {
       "extractionState": "manual",
       "localizations": {
@@ -9496,6 +9673,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "次の手 — 長押しで最後の手へ"
+          }
+        }
+      }
+    },
+    "No clear trend yet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No clear trend yet"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brak wyraźnego trendu"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чіткої тенденції ще немає"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чёткой тенденции пока нет"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch kein klarer Trend"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas encore de tendance nette"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessuna tendenza chiara"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚无明显趋势"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "はっきりした傾向はまだありません"
           }
         }
       }
@@ -11742,6 +11978,65 @@
         }
       }
     },
+    "Playing more games lowers the threshold quickly. Steadier results lower it too: one heavy defeat among close games raises the scatter, and the threshold rises with it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing more games lowers the threshold quickly. Steadier results lower it too: one heavy defeat among close games raises the scatter, and the threshold rises with it."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Próg szybko maleje, gdy rozegrasz więcej gier. Obniżają go też bardziej wyrównane wyniki: jedna dotkliwa porażka wśród bliskich partii zwiększa rozrzut, a wraz z nim próg."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поріг швидко знижується, коли ви граєте більше ігор. Знижують його й рівніші результати: одна важка поразка серед близьких партій збільшує розкид, а разом з ним і поріг."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Порог быстро снижается, когда вы играете больше партий. Снижают его и более ровные результаты: одно тяжёлое поражение среди близких партий увеличивает разброс, а с ним и порог."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehr Partien senken die Schwelle schnell. Gleichmäßigere Ergebnisse senken sie ebenfalls: eine schwere Niederlage zwischen knappen Partien erhöht die Streuung, und mit ihr die Schwelle."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jouer davantage abaisse vite le seuil. Des résultats plus réguliers l’abaissent aussi : une lourde défaite parmi des parties serrées augmente la dispersion, et le seuil avec elle."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giocare più partite abbassa rapidamente la soglia. Anche risultati più costanti la abbassano: una sconfitta pesante tra partite equilibrate aumenta la dispersione, e con essa la soglia."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多下几局会迅速降低阈值。成绩更稳定也会降低它：在一批小分差的对局中出现一次惨败，会抬高离散度，阈值也随之上升。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対局数が増えると、しきい値は速く下がります。成績が安定することでも下がります。接戦のなかに大敗が一局あると、ばらつきが大きくなり、しきい値も上がります。"
+          }
+        }
+      }
+    },
     "Playing without an account — these games are saved on this device": {
       "extractionState": "manual",
       "localizations": {
@@ -13512,6 +13807,65 @@
         }
       }
     },
+    "Scatter": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scatter"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rozrzut"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Розкид"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разброс"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Streuung"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispersion"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispersione"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "离散度"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ばらつき"
+          }
+        }
+      }
+    },
     "Search games": {
       "extractionState": "manual",
       "localizations": {
@@ -14574,6 +14928,183 @@
         }
       }
     },
+    "Slipping by %@ points a game": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slipping by %@ points a game"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spadek o %@ pkt na grę"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Погіршення на %@ оч. за гру"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ухудшение на %@ оч. за игру"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verschlechterung um %@ Punkte pro Partie"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recul de %@ pt par partie"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Peggioramento di %@ punti a partita"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每局退步 %@ 目"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1局あたり %@ 目の悪化"
+          }
+        }
+      }
+    },
+    "Slope": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slope"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachylenie"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нахил"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наклон"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steigung"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pente"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pendenza"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "斜率"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "傾き"
+          }
+        }
+      }
+    },
+    "Slope and the threshold are points a game. Scatter is how far a game sits from the line, on average, in points.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Slope and the threshold are points a game. Scatter is how far a game sits from the line, on average, in points."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachylenie i próg podano w punktach na grę. Rozrzut to średnia odległość gry od linii, w punktach."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нахил і поріг подано в очках за гру. Розкид — це середня відстань гри від лінії, в очках."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наклон и порог указаны в очках за игру. Разброс — это среднее отклонение партии от линии, в очках."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steigung und Schwelle sind Punkte pro Partie. Die Streuung ist der durchschnittliche Abstand einer Partie von der Linie, in Punkten."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La pente et le seuil sont en points par partie. La dispersion est l’écart moyen d’une partie par rapport à la ligne, en points."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pendenza e soglia sono in punti a partita. La dispersione è la distanza media di una partita dalla linea, in punti."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "斜率和阈值的单位是每局目数。离散度是各局与趋势线的平均偏差，单位为目。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "傾きとしきい値は1局あたりの目数です。ばらつきは、各対局が線からどれだけ離れているかの平均（目）です。"
+          }
+        }
+      }
+    },
     "Source on GitHub": {
       "extractionState": "manual",
       "localizations": {
@@ -15101,6 +15632,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "アカウント作成時に渡されたコードです。使うと新しいパスワードを設定し、新しいコードが発行されます。"
+          }
+        }
+      }
+    },
+    "The line is fitted to your results by least squares. It only counts as a trend once the slope reaches twice its own margin of error, so that a run of luck doesn't read as improvement.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The line is fitted to your results by least squares. It only counts as a trend once the slope reaches twice its own margin of error, so that a run of luck doesn't read as improvement."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linia jest dopasowana do Twoich wyników metodą najmniejszych kwadratów. Za trend uznajemy ją dopiero wtedy, gdy nachylenie osiągnie dwukrotność własnego błędu, żeby passa szczęścia nie wyglądała jak postęp."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лінію підібрано до ваших результатів методом найменших квадратів. Вона вважається тенденцією лише тоді, коли нахил удвічі перевищує власну похибку, щоб смуга везіння не виглядала як прогрес."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Линия подобрана к вашим результатам методом наименьших квадратов. Тенденцией она считается только тогда, когда наклон вдвое превышает собственную погрешность, чтобы полоса везения не выглядела как прогресс."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Linie wird mit der Methode der kleinsten Quadrate an deine Ergebnisse angepasst. Als Trend gilt sie erst, wenn die Steigung das Doppelte ihres eigenen Fehlers erreicht, damit eine Glückssträhne nicht wie Fortschritt aussieht."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La ligne est ajustée à vos résultats par la méthode des moindres carrés. Elle ne compte comme tendance que lorsque la pente atteint le double de sa propre marge d’erreur, pour qu’une série de chance ne passe pas pour des progrès."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La linea è adattata ai tuoi risultati con il metodo dei minimi quadrati. Conta come tendenza solo quando la pendenza raggiunge il doppio del proprio margine di errore, così una serie fortunata non sembra un miglioramento."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条线用最小二乘法拟合你的成绩。只有当斜率达到其自身误差的两倍时才算作趋势，以免一段好运被当成进步。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この線は最小二乗法で成績に当てはめたものです。傾きが自身の誤差の2倍に達して初めて傾向とみなします。幸運の連続が上達に見えないようにするためです。"
           }
         }
       }
@@ -15868,6 +16458,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "公開した対局が多すぎます — しばらくしてからお試しください。"
+          }
+        }
+      }
+    },
+    "Trend": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trend"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trend"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тенденція"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тенденция"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trend"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tendance"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tendenza"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "趋势"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "傾向"
           }
         }
       }
