@@ -20,6 +20,11 @@ struct UserProfile: Codable, Identifiable {
     // is meant to be invisible to whoever it is aimed at, so the server
     // will not answer that question.
     let blocked: Bool
+    // GNU Go's own account. Optional so the app still decodes against a
+    // server that predates the field.
+    let isAi: Bool?
+
+    var isComputer: Bool { isAi == true }
 }
 
 // What the server this app is talking to can do. Asked once at launch,

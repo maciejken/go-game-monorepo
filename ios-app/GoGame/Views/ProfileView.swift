@@ -42,7 +42,11 @@ struct ProfileView: View {
                     // them. Phrased as a plain toggle of a state you can
                     // see, so it is obvious which way round it currently
                     // is before you press anything.
-                    if !isOwnProfile {
+                    // Neither offered for GNU Go: its name was given to
+                    // it by the server, it writes nothing, and blocking a
+                    // computer opponent that never invites anybody would
+                    // do nothing at all.
+                    if !isOwnProfile && !profile.isComputer {
                         Section {
                             // Spelled out as two buttons rather than one
                             // with a conditional title: a literal is what

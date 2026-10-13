@@ -369,6 +369,13 @@ function isValidVisionToken(req: express.Request, gameId: string): boolean {
   return row?.game_id === gameId;
 }
 
+// GNU Go has a row in users like anybody else. Asked in two places —
+// search, so a client can mark it, and the profile, so a client knows not
+// to offer Block or Report — and they must not be able to disagree.
+function isAiUser(userId: string | null): boolean {
+  return userId === getAiUserId();
+}
+
 function isAiOpponentGame(game: Participants): boolean {
   const aiId = getAiUserId();
   return game.black_user_id === aiId || game.white_user_id === aiId;
@@ -1778,8 +1785,6 @@ app.get('/api/users/search', (req, res) => {
   }
   const escaped = query.replace(/[\\%_]/g, '\\$&');
   const pattern = `${escaped}%`;
-  const aiId = getAiUserId();
-
   // accepts_invitations = 1 OR id = ? (self) so someone who's opted out
   // still finds themself — they're just invisible to everyone else. The
   // AI needs no such exception: its row defaults to accepts_invitations =
@@ -1796,7 +1801,7 @@ app.get('/api/users/search', (req, res) => {
          ORDER BY username LIMIT 10`,
       )
       .all(pattern, user.id, user.id) as { id: string; username: string }[];
-    res.json(rows.map((row) => ({ username: row.username, isAi: row.id === aiId })));
+    res.json(rows.map((row) => ({ username: row.username, isAi: isAiUser(row.id) })));
     return;
   }
 
@@ -1819,7 +1824,7 @@ app.get('/api/users/search', (req, res) => {
     username: string;
   }[];
 
-  const results = opponentRows.map((row) => ({ username: row.username, isAi: row.id === aiId }));
+  const results = opponentRows.map((row) => ({ username: row.username, isAi: isAiUser(row.id) }));
   // A "me" shortcut on top of the recent-opponents list: typing "m"/"me"
   // (a prefix of the literal word "me") or a prefix of your own username
   // surfaces yourself first — you're never a "recent opponent" of your
@@ -1863,6 +1868,10 @@ app.get('/api/users/:id', (req, res) => {
     username: row.username,
     createdAt: row.created_at,
     acceptsInvitations: row.accepts_invitations === 1,
+    // GNU Go has a row in users like anyone else, but it is not a person:
+    // nothing about its name or its play is somebody's doing, so a client
+    // shouldn't offer to block or report it.
+    isAi: isAiUser(row.id),
     // Whether the viewer blocks this person, so their profile can offer
     // the right one of Block/Unblock. Never the other direction: being
     // told you are blocked is exactly what blocking hides.
@@ -1956,6 +1965,13 @@ app.post('/api/reports', reportRateLimiter, (req, res) => {
   }
   if (target.id === user.id) {
     fail(res, 400, 'You cannot report yourself');
+    return;
+  }
+  // Its username was seeded by this server and it writes no titles or
+  // tags, so there is nothing about it that a person could have written
+  // and nothing a report could act on.
+  if (isAiUser(target.id)) {
+    fail(res, 400, 'You cannot report the computer opponent');
     return;
   }
 

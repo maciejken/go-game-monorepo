@@ -109,6 +109,40 @@ expect(nobody.status === 404, `reporting a nonexistent user: got ${nobody.status
 const nonsense = await reporter('POST', '/api/reports', { username: targetName, reason: 'because' });
 expect(nonsense.status === 400, `an invented reason: got ${nonsense.status}`);
 
+// GNU Go is an account like any other as far as the table is concerned,
+// and nothing about it is anybody's doing: the server named it and it
+// writes no titles or tags, so there is nothing to act on.
+const robot = await reporter('POST', '/api/reports', { username: 'gnugo', reason: 'username' });
+expect(robot.status === 400, `reporting the computer opponent: got ${robot.status}`);
+// And the server says which account that is, which is how a client knows
+// not to offer the buttons in the first place — on the profile, since
+// that is the screen with the buttons on it.
+const found = await reporter('GET', '/api/users/search?q=gnugo');
+const robotRow = Array.isArray(found.body) ? found.body.find((row) => row.username === 'gnugo') : undefined;
+expect(robotRow !== undefined, 'the computer opponent is missing from search, so the check above proves nothing');
+expect(robotRow?.isAi === true, `search does not mark the computer opponent: ${JSON.stringify(robotRow)}`);
+
+// Its id is only reachable through a game against it, so this part needs
+// a server that actually has GNU Go. Skipped rather than failed where it
+// is absent: the refusal above is the part that must hold everywhere.
+const features = (await reporter('GET', '/api/auth/me')).body?.features;
+if (features?.gnugo === true) {
+  const aiGame = await reporter('POST', '/api/games', {
+    size: 9,
+    mode: 'gnugo',
+    color: 'black',
+    timeControl: 'unlimited',
+  });
+  // Black was asked for above, so the other side is the one to look up.
+  const state = (await reporter('GET', `/api/games/${aiGame.body?.id}`)).body;
+  const aiId = state?.whiteUserId;
+  const profile = aiId ? (await reporter('GET', `/api/users/${aiId}`)).body : null;
+  expect(profile?.username === 'gnugo', `the AI game's opponent is ${JSON.stringify(profile?.username)}`);
+  expect(profile?.isAi === true, `the profile does not mark the computer opponent: ${JSON.stringify(profile)}`);
+} else {
+  console.log('  (no GNU Go on this server — skipped the AI profile check)');
+}
+
 const anonymous = session();
 const loggedOut = await anonymous('POST', '/api/reports', { username: targetName, reason: 'username' });
 expect(loggedOut.status === 401, `reporting while logged out: got ${loggedOut.status}`);
