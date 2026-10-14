@@ -16521,61 +16521,61 @@
         }
       }
     },
-    "They can't invite you, and don't know it. Tap a name to let them again.": {
+    "They can't invite you, and don't know it. Remove a name to let them again.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "They can't invite you, and don't know it. Tap a name to let them again."
+            "value": "They can't invite you, and don't know it. Remove a name to let them again."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nie mogą Cię zaprosić i nie wiedzą o tym. Dotknij nazwy, aby znów im pozwolić."
+            "value": "Nie mogą Cię zaprosić i nie wiedzą o tym. Usuń nazwę, aby znów im pozwolić."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вони не можуть вас запросити й не знають про це. Торкніться імені, щоб знову дозволити."
+            "value": "Вони не можуть вас запросити й не знають про це. Приберіть ім’я, щоб знову дозволити."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Они не могут вас пригласить и не знают об этом. Нажмите на имя, чтобы снова разрешить."
+            "value": "Они не могут вас пригласить и не знают об этом. Удалите имя, чтобы снова разрешить."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sie können dich nicht einladen und erfahren nichts davon. Tippe auf einen Namen, um es wieder zu erlauben."
+            "value": "Sie können dich nicht einladen und erfahren nichts davon. Entferne einen Namen, um es wieder zu erlauben."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ils ne peuvent pas vous inviter et ne le savent pas. Touchez un nom pour les autoriser à nouveau."
+            "value": "Ils ne peuvent pas vous inviter et ne le savent pas. Retirez un nom pour les autoriser à nouveau."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Non possono invitarti e non lo sanno. Tocca un nome per permetterglielo di nuovo."
+            "value": "Non possono invitarti e non lo sanno. Rimuovi un nome per permetterglielo di nuovo."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "他们无法邀请你，也不会知道。点按名称即可重新允许。"
+            "value": "他们无法邀请你，也不会知道。移除名称即可重新允许。"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "相手はあなたを招待できず、そのことを知りません。名前をタップすると解除します。"
+            "value": "相手はあなたを招待できず、そのことを知りません。名前を削除すると解除します。"
           }
         }
       }

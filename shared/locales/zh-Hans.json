@@ -279,7 +279,7 @@
   "The line is fitted to your results by least squares. It only counts as a trend once the slope reaches twice its own margin of error, so that a run of luck doesn't read as improvement.": "这条线用最小二乘法拟合你的成绩。只有当斜率达到其自身误差的两倍时才算作趋势，以免一段好运被当成进步。",
   "The other player requested to reopen scoring.": "对方请求重新点目。",
   "They can't invite you to games. They aren't told.": "他们无法邀请你对局，并且不会收到通知。",
-  "They can't invite you, and don't know it. Tap a name to let them again.": "他们无法邀请你，也不会知道。点按名称即可重新允许。",
+  "They can't invite you, and don't know it. Remove a name to let them again.": "他们无法邀请你，也不会知道。移除名称即可重新允许。",
   "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.": "此操作无法撤销。你的账号以及你独自下的对局将被删除；与其他玩家的对局会留在他们那里，但不再显示你的名字。",
   "This game has no pending invitation for you": "这盘棋没有待你回应的邀请",
   "This game is now on the server, in your games list.": "该对局已发布到服务器，可在你的对局列表中查看。",

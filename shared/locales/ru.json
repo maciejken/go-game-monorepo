@@ -279,7 +279,7 @@
   "The line is fitted to your results by least squares. It only counts as a trend once the slope reaches twice its own margin of error, so that a run of luck doesn't read as improvement.": "Линия подобрана к вашим результатам методом наименьших квадратов. Тенденцией она считается только тогда, когда наклон вдвое превышает собственную погрешность, чтобы полоса везения не выглядела как прогресс.",
   "The other player requested to reopen scoring.": "Другой игрок запросил повторный подсчёт.",
   "They can't invite you to games. They aren't told.": "Они не могут приглашать вас в игры. Им об этом не сообщают.",
-  "They can't invite you, and don't know it. Tap a name to let them again.": "Они не могут вас пригласить и не знают об этом. Нажмите на имя, чтобы снова разрешить.",
+  "They can't invite you, and don't know it. Remove a name to let them again.": "Они не могут вас пригласить и не знают об этом. Удалите имя, чтобы снова разрешить.",
   "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.": "Это действие нельзя отменить. Ваша учётная запись и партии, сыгранные в одиночку, будут удалены; партии с другими игроками останутся у них, без вашего имени.",
   "This game has no pending invitation for you": "В этой партии нет ожидающего приглашения для вас",
   "This game is now on the server, in your games list.": "Эта партия теперь на сервере, в списке ваших игр.",

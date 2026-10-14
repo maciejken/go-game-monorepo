@@ -279,7 +279,7 @@
   "The line is fitted to your results by least squares. It only counts as a trend once the slope reaches twice its own margin of error, so that a run of luck doesn't read as improvement.": "この線は最小二乗法で成績に当てはめたものです。傾きが自身の誤差の2倍に達して初めて傾向とみなします。幸運の連続が上達に見えないようにするためです。",
   "The other player requested to reopen scoring.": "相手が整地のやり直しを求めています。",
   "They can't invite you to games. They aren't told.": "相手はあなたを対局に招待できません。通知はされません。",
-  "They can't invite you, and don't know it. Tap a name to let them again.": "相手はあなたを招待できず、そのことを知りません。名前をタップすると解除します。",
+  "They can't invite you, and don't know it. Remove a name to let them again.": "相手はあなたを招待できず、そのことを知りません。名前を削除すると解除します。",
   "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.": "この操作は取り消せません。アカウントと、ひとりで打った対局は削除されます。他の人との対局は相手の側に残りますが、あなたの名前は表示されません。",
   "This game has no pending invitation for you": "この対局にあなた宛ての申し込みはありません",
   "This game is now on the server, in your games list.": "この対局はサーバーに保存され、対局一覧に表示されます。",

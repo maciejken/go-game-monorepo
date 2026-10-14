@@ -372,7 +372,7 @@ function BlockedUsers() {
   return (
     <>
       <h3>{t('Blocked players')}</h3>
-      <p className="muted">{t("They can't invite you, and don't know it. Tap a name to let them again.")}</p>
+      <p className="muted">{t("They can't invite you, and don't know it. Remove a name to let them again.")}</p>
       <ul className="tag-chips">
         {names.map((name) => (
           <li className="tag-chip" key={name}>

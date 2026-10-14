@@ -279,7 +279,7 @@
   "The line is fitted to your results by least squares. It only counts as a trend once the slope reaches twice its own margin of error, so that a run of luck doesn't read as improvement.": "The line is fitted to your results by least squares. It only counts as a trend once the slope reaches twice its own margin of error, so that a run of luck doesn't read as improvement.",
   "The other player requested to reopen scoring.": "The other player requested to reopen scoring.",
   "They can't invite you to games. They aren't told.": "They can't invite you to games. They aren't told.",
-  "They can't invite you, and don't know it. Tap a name to let them again.": "They can't invite you, and don't know it. Tap a name to let them again.",
+  "They can't invite you, and don't know it. Remove a name to let them again.": "They can't invite you, and don't know it. Remove a name to let them again.",
   "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.": "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.",
   "This game has no pending invitation for you": "This game has no pending invitation for you",
   "This game is now on the server, in your games list.": "This game is now on the server, in your games list.",

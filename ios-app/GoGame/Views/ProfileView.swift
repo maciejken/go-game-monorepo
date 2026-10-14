@@ -120,7 +120,7 @@ struct ProfileView: View {
                         } header: {
                             Text("Blocked players")
                         } footer: {
-                            Text("They can't invite you, and don't know it. Tap a name to let them again.")
+                            Text("They can't invite you, and don't know it. Remove a name to let them again.")
                         }
                         Section {
                             NavigationLink {

@@ -279,7 +279,7 @@
   "The line is fitted to your results by least squares. It only counts as a trend once the slope reaches twice its own margin of error, so that a run of luck doesn't read as improvement.": "Die Linie wird mit der Methode der kleinsten Quadrate an deine Ergebnisse angepasst. Als Trend gilt sie erst, wenn die Steigung das Doppelte ihres eigenen Fehlers erreicht, damit eine Glückssträhne nicht wie Fortschritt aussieht.",
   "The other player requested to reopen scoring.": "Der andere Spieler hat eine erneute Auszählung angefragt.",
   "They can't invite you to games. They aren't told.": "Sie können dich nicht zu Partien einladen. Sie erfahren nichts davon.",
-  "They can't invite you, and don't know it. Tap a name to let them again.": "Sie können dich nicht einladen und erfahren nichts davon. Tippe auf einen Namen, um es wieder zu erlauben.",
+  "They can't invite you, and don't know it. Remove a name to let them again.": "Sie können dich nicht einladen und erfahren nichts davon. Entferne einen Namen, um es wieder zu erlauben.",
   "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.": "Das lässt sich nicht rückgängig machen. Dein Konto und die Partien, die du allein gespielt hast, werden gelöscht; Partien gegen andere bleiben bei ihnen, ohne deinen Namen.",
   "This game has no pending invitation for you": "Für dich liegt keine Einladung zu dieser Partie vor",
   "This game is now on the server, in your games list.": "Diese Partie liegt jetzt auf dem Server, in deiner Partienliste.",
