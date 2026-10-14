@@ -38,7 +38,16 @@ export interface UserProfile {
   gamesPlayed: number;
   gamesWon: number;
   gamesLost: number;
+  // Whether *you* block this person. Never the other way round: a block is
+  // meant to be invisible to whoever it is aimed at.
+  blocked: boolean;
+  // GNU Go's own account, which is nobody's doing and so offers neither
+  // blocking nor reporting. Optional, so an older server still decodes.
+  isAi?: boolean;
 }
+
+// What a report can be about. Mirrors REPORT_REASONS in server.ts.
+export type ReportReason = 'username' | 'game_text' | 'behaviour';
 
 export interface GameResponse {
   id: string;
@@ -198,6 +207,16 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+// For the endpoints that answer 204 with no body at all: handle() reads
+// res.json() first, which throws on an empty one. Errors still go through
+// handle(), so a failure is translated the same way everywhere.
+async function handleEmpty(res: Response): Promise<void> {
+  if (res.ok) {
+    return;
+  }
+  await handle<void>(res);
 }
 
 async function handle<T>(res: Response): Promise<T> {
@@ -518,6 +537,41 @@ export function getMe(): Promise<{ user: AuthUser | null; features: ServerFeatur
 // backs the profile page (/profile/:id).
 export function getUser(id: string): Promise<UserProfile> {
   return fetch(`${API_BASE}/users/${id}`).then((res) => handle<UserProfile>(res));
+}
+
+// Everyone this account refuses invitations from, by username.
+export function listBlockedUsers(): Promise<string[]> {
+  return fetch(`${API_BASE}/blocks`).then((res) => handle<string[]>(res));
+}
+
+export function blockUser(username: string): Promise<void> {
+  return fetch(`${API_BASE}/blocks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username }),
+  }).then((res) => handleEmpty(res));
+}
+
+export function unblockUser(username: string): Promise<void> {
+  // Usernames are [a-z0-9_], so nothing in one needs escaping.
+  return fetch(`${API_BASE}/blocks/${username}`, { method: 'DELETE' }).then((res) => handleEmpty(res));
+}
+
+// Reporting a player, optionally blocking them in the same request so the
+// two can't half happen.
+export function reportUser(report: {
+  username: string;
+  reason: ReportReason;
+  note?: string;
+  gameId?: string;
+  block: boolean;
+}): Promise<void> {
+  const note = report.note?.trim();
+  return fetch(`${API_BASE}/reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...report, note: note ? note : undefined }),
+  }).then((res) => handleEmpty(res));
 }
 
 // Ends the account. The password goes with it because the server asks for

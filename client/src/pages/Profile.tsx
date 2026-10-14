@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
+  blockUser,
   changePassword,
   deleteAccount,
+  listBlockedUsers,
   newRecoveryCode,
   getUser,
+  reportUser,
   setAcceptsInvitations,
+  unblockUser,
+  type ReportReason,
   type UserProfile,
 } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -224,6 +229,165 @@ function DeleteAccountForm() {
   );
 }
 
+
+// Somebody else's profile: the one thing you can do to them, phrased as a
+// toggle of a state you can see, so it is obvious which way round it is
+// before you press anything.
+function BlockButton({ profile, onChange }: { profile: UserProfile; onChange: (blocked: boolean) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = () => {
+    setBusy(true);
+    setError(null);
+    const next = !profile.blocked;
+    (next ? blockUser(profile.username) : unblockUser(profile.username))
+      .then(() => onChange(next))
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <>
+      <p className="muted">
+        {profile.blocked
+          ? t("They can't invite you to games. They aren't told.")
+          : t("Blocking stops them inviting you to games. They aren't told.")}
+      </p>
+      <p>
+        <button type="button" className={profile.blocked ? undefined : 'danger'} onClick={toggle} disabled={busy}>
+          {profile.blocked ? t('Unblock') : t('Block')}
+        </button>
+      </p>
+      {error && <p className="error">{error}</p>}
+    </>
+  );
+}
+
+// Reporting is not blocking: blocking is a decision about your own games,
+// a report asks somebody to look at a name or something written on a
+// game. Both are offered, and the block is suggested alongside, because
+// whoever wants one usually wants the other.
+function ReportForm({ username, onBlocked }: { username: string; onBlocked: () => void }) {
+  const [reason, setReason] = useState<ReportReason>('behaviour');
+  const [note, setNote] = useState('');
+  const [alsoBlock, setAlsoBlock] = useState(true);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    reportUser({ username, reason, note, block: alsoBlock })
+      .then(() => {
+        setSent(true);
+        if (alsoBlock) {
+          onBlocked();
+        }
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setSubmitting(false));
+  };
+
+  if (sent) {
+    return (
+      <>
+        <h3>{t('Report')}</h3>
+        <p className="success">{t("Thanks — we'll look at this within a day.")}</p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h3>{t('Report')}</h3>
+      <form className="auth-form" onSubmit={submit}>
+        <fieldset>
+          <legend>{t('Reason')}</legend>
+          {(
+            [
+              ['username', t('Offensive name')],
+              ['game_text', t('Offensive text in a game')],
+              ['behaviour', t('Behaviour towards me')],
+            ] as [ReportReason, string][]
+          ).map(([value, label]) => (
+            <label className="inline" key={value}>
+              <input
+                type="radio"
+                name="report-reason"
+                value={value}
+                checked={reason === value}
+                onChange={() => setReason(value)}
+              />{' '}
+              {label}
+            </label>
+          ))}
+        </fieldset>
+        <label>
+          {t('Anything else we should know?')}
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} rows={3} />
+        </label>
+        <label className="inline">
+          <input type="checkbox" checked={alsoBlock} onChange={(e) => setAlsoBlock(e.target.checked)} />{' '}
+          {t('Block them too')}
+        </label>
+        {error && <p className="error">{error}</p>}
+        <button type="submit" disabled={submitting}>
+          {t('Send')}
+        </button>
+      </form>
+    </>
+  );
+}
+
+// Your own profile: everyone you have blocked, and the only thing to do
+// with the list — undo one. There is no way to add somebody here, which
+// is the point: blocking starts from the person, not from a list.
+function BlockedUsers() {
+  const [names, setNames] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listBlockedUsers()
+      .then(setNames)
+      .catch((err: Error) => setError(err.message));
+  }, []);
+
+  if (!names || names.length === 0) {
+    return null;
+  }
+
+  const unblock = (name: string) => {
+    setBusy(name);
+    setError(null);
+    unblockUser(name)
+      .then(() => setNames((current) => (current ?? []).filter((each) => each !== name)))
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setBusy(null));
+  };
+
+  return (
+    <>
+      <h3>{t('Blocked players')}</h3>
+      <p className="muted">{t("They can't invite you, and don't know it. Tap a name to let them again.")}</p>
+      <ul className="tag-chips">
+        {names.map((name) => (
+          <li className="tag-chip" key={name}>
+            {name}
+            <button type="button" onClick={() => unblock(name)} disabled={busy === name} aria-label={t('Unblock')}>
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="error">{error}</p>}
+    </>
+  );
+}
+
 // Keyed by id so moving between profiles mounts a fresh ProfileView — its
 // state starts empty instead of showing the previous user until the new
 // one loads, and a late response for the old id lands on the unmounted one.
@@ -264,9 +428,25 @@ function ProfileView({ id }: { id: string | undefined }) {
           <dd>{profile.gamesLost}</dd>
         </dl>
       )}
+      {/* Neither offered for GNU Go: the server named that account, it
+          writes nothing, and blocking a computer opponent that never
+          invites anybody would do nothing at all. */}
+      {profile && user && user.id !== profile.id && !profile.isAi && (
+        <>
+          <BlockButton
+            profile={profile}
+            onChange={(blocked) => setProfile((current) => (current ? { ...current, blocked } : current))}
+          />
+          <ReportForm
+            username={profile.username}
+            onBlocked={() => setProfile((current) => (current ? { ...current, blocked: true } : current))}
+          />
+        </>
+      )}
       {profile && user?.id === profile.id && (
         <>
           <AcceptInvitationsToggle initialValue={profile.acceptsInvitations} />
+          <BlockedUsers />
           <ChangePasswordForm />
           <RecoveryCodeForm />
           <DeleteAccountForm />
