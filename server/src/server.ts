@@ -2014,8 +2014,36 @@ app.post('/api/reports', reportRateLimiter, (req, res) => {
   res.json({ reported: true });
 });
 
-// The queue, for whoever has to act on it. No web page of its own: this
-// is read by one person, and an endpoint they can curl is enough.
+// Marking one dealt with, which is what takes it out of the queue — the
+// row stays, because what was reported and that it was acted on is the
+// record worth keeping. Idempotent: marking a handled report again keeps
+// the time it was first handled, so a double tap can't rewrite history.
+app.post('/api/reports/:id/handled', (req, res) => {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+  if (!adminUsername || user.username !== adminUsername) {
+    fail(res, 403, 'Not allowed');
+    return;
+  }
+
+  const report = db.prepare('SELECT id, handled_at FROM reports WHERE id = ?').get(req.params.id) as
+    | { id: string; handled_at: number | null }
+    | undefined;
+  if (!report) {
+    fail(res, 404, 'Report not found');
+    return;
+  }
+  if (report.handled_at === null) {
+    db.prepare('UPDATE reports SET handled_at = ? WHERE id = ?').run(Date.now(), report.id);
+  }
+
+  res.status(204).end();
+});
+
+// The queue, for whoever has to act on it. Everything, handled included:
+// the page shows the open ones, and the rest is the record behind them.
 app.get('/api/reports', (req, res) => {
   const user = requireAuth(req, res);
   if (!user) {

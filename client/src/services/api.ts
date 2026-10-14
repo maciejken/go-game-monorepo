@@ -592,6 +592,12 @@ export function listReports(): Promise<Report[]> {
   return fetch(`${API_BASE}/reports`).then((res) => handle<Report[]>(res));
 }
 
+// Takes a report out of the queue. The row stays: handled is a state, not
+// a deletion.
+export function markReportHandled(id: string): Promise<void> {
+  return fetch(`${API_BASE}/reports/${id}/handled`, { method: 'POST' }).then((res) => handleEmpty(res));
+}
+
 // Ends the account. The password goes with it because the server asks for
 // it again: a session left open on a shared computer is not enough.
 export function deleteAccount(password: string): Promise<void> {

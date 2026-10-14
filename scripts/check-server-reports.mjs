@@ -172,6 +172,30 @@ if (adminName) {
   // Trimmed on the way in, so the note reads as written rather than as typed.
   expect(noted?.note === 'said something awful', `the note came back as ${JSON.stringify(noted?.note)}`);
   expect(noted?.handled_at === null, 'a new report is already marked handled');
+
+  // --- Dealing with one takes it out of the queue, not out of the table -
+
+  const handled = await admin('POST', `/api/reports/${noted?.id}/handled`);
+  expect(handled.status === 204, `marking a report handled: got ${handled.status} (${handled.body?.error})`);
+  const afterHandling = (await admin('GET', '/api/reports')).body ?? [];
+  const sameReport = afterHandling.find((row) => row.id === noted?.id);
+  expect(sameReport !== undefined, 'marking a report handled deleted it');
+  expect(typeof sameReport?.handled_at === 'number', `handled_at is ${JSON.stringify(sameReport?.handled_at)}`);
+
+  // Marking it again keeps the time it was first dealt with, so a second
+  // tap can't rewrite when it happened.
+  const firstTime = sameReport?.handled_at;
+  const again = await admin('POST', `/api/reports/${noted?.id}/handled`);
+  expect(again.status === 204, `marking a handled report again: got ${again.status}`);
+  const afterTwice = ((await admin('GET', '/api/reports')).body ?? []).find((row) => row.id === noted?.id);
+  expect(afterTwice?.handled_at === firstTime, 'marking twice moved the time it was handled');
+
+  const missing = await admin('POST', '/api/reports/does-not-exist/handled');
+  expect(missing.status === 404, `marking a nonexistent report: got ${missing.status}`);
+
+  // And it is the admin's to do, like reading the queue.
+  const byOther = await reporter('POST', `/api/reports/${noted?.id}/handled`);
+  expect(byOther.status === 403, `an ordinary account marked a report handled: got ${byOther.status}`);
 }
 
 if (failures.length === 0) {

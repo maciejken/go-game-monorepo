@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listReports, type Report } from '../services/api';
+import { listReports, markReportHandled, type Report } from '../services/api';
 
 // Deliberately not translated, for the same reason as the performance
 // screen: the server answers 403 to everybody but the one account named
@@ -24,12 +24,28 @@ function formatWhen(ms: number): string {
 function Reports() {
   const [reports, setReports] = useState<Report[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     listReports()
       .then(setReports)
       .catch((err: Error) => setError(err.message));
   }, []);
+
+  // Out of the queue, not out of the table — the server keeps the row, and
+  // this stops showing it.
+  const markHandled = (id: string) => {
+    setBusy(id);
+    setError(null);
+    markReportHandled(id)
+      .then(() =>
+        setReports((current) =>
+          (current ?? []).map((report) => (report.id === id ? { ...report, handled_at: Date.now() } : report)),
+        ),
+      )
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setBusy(null));
+  };
 
   if (error) {
     return (
@@ -45,7 +61,10 @@ function Reports() {
     return <div className="perf-page">{'Loading…'}</div>;
   }
 
-  const open = reports.filter((report) => report.handled_at === null).length;
+  // The queue is what is left to do; the rest is history the server still
+  // holds, and counting it is all this page needs to say about it.
+  const open = reports.filter((report) => report.handled_at === null);
+  const handled = reports.length - open.length;
 
   return (
     <div className="perf-page">
@@ -53,10 +72,12 @@ function Reports() {
       <p className="muted">
         {reports.length === 0
           ? 'Nothing reported yet.'
-          : `${reports.length} in all, ${open} not yet dealt with.`}
+          : open.length === 0
+            ? `Nothing to deal with. ${handled} dealt with so far.`
+            : `${open.length} to deal with${handled > 0 ? `, ${handled} already done` : ''}.`}
       </p>
 
-      {reports.length > 0 && (
+      {open.length > 0 && (
         <table className="perf-table reports-table">
           <thead>
             <tr>
@@ -66,11 +87,12 @@ function Reports() {
               <th>{'Reason'}</th>
               <th>{'Note'}</th>
               <th>{'Game'}</th>
+              <th />
             </tr>
           </thead>
           <tbody>
-            {reports.map((report) => (
-              <tr key={report.id} className={report.handled_at === null ? undefined : 'reports-handled'}>
+            {open.map((report) => (
+              <tr key={report.id}>
                 <td>{formatWhen(report.created_at)}</td>
                 <td>{report.target}</td>
                 <td>{report.reporter}</td>
@@ -80,6 +102,11 @@ function Reports() {
                     is being complained about. React escapes it. */}
                 <td className="reports-note">{report.note ?? '—'}</td>
                 <td>{report.game_id ? <Link to={`/games/${report.game_id}`}>{'open'}</Link> : '—'}</td>
+                <td>
+                  <button type="button" onClick={() => markHandled(report.id)} disabled={busy === report.id}>
+                    {'Done'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
