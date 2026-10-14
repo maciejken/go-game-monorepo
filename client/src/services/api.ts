@@ -580,7 +580,9 @@ export function reportUser(report: {
 export interface Report {
   id: string;
   reporter: string;
+  reporter_id: string;
   target: string;
+  target_id: string;
   reason: ReportReason;
   note: string | null;
   game_id: string | null;

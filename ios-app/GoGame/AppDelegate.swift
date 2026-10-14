@@ -142,13 +142,26 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     // Fires when the user actually taps the notification (background,
     // foreground, or a cold launch — iOS delivers this once the delegate
-    // above is set regardless of which). gameId is the custom payload data
-    // server.ts's pushToUser attaches alongside aps.
+    // above is set regardless of which). gameId and reportId are the
+    // custom payload data server.ts's pushToUser attaches alongside aps.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        guard let gameId = response.notification.request.content.userInfo["gameId"] as? String else {
+        let payload = response.notification.request.content.userInfo
+
+        // A report has no screen in this app — it is read and dealt with
+        // on the website, which the one account that receives these
+        // notifications can open. /reports is deliberately not among the
+        // universal-link paths (see apple-app-site-association), so this
+        // opens the browser rather than bouncing back into the app.
+        if let reportId = payload["reportId"] as? String,
+           let url = URL(string: "\(Config.baseURL.absoluteString)/reports/\(reportId)") {
+            await UIApplication.shared.open(url)
+            return
+        }
+
+        guard let gameId = payload["gameId"] as? String else {
             return
         }
         if let deepLinkRouter {

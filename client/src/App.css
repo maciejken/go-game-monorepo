@@ -1724,16 +1724,99 @@ button.danger {
   font-weight: 500;
 }
 
-/* The reports table is mostly words rather than numbers, so it reads
-   left-aligned, and a handled row recedes without disappearing. */
-.reports-table th,
-.reports-table td {
+/* Reports: a column of cards that stacks the same way at any width, so a
+   phone needs no horizontal scroll and no separate layout to maintain. */
+.reports-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  /* Against the app-wide centring: a card is a block of text to read, and
+     centred prose with a ragged left edge is hard work on a phone. */
   text-align: left;
-  vertical-align: top;
 }
 
-.reports-table .reports-note {
-  max-width: 320px;
+.reports-page h2 {
+  text-align: center;
+}
+
+.report-cards {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 0;
+}
+
+.report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.report-card:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.report-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.report-card-reason {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.report-card-note,
+.report-note {
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.report-card-note {
+  /* Two lines of it on the card; the rest is a tap away. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.report-card-meta {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.report-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 8px;
+  margin: 16px 0;
+}
+
+.report-fields dt {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.report-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.report-note {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
 }
 

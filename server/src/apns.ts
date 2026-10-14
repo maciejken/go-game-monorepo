@@ -4,6 +4,14 @@ import http2 from 'http2';
 
 import { apnsBundleId, apnsHost, apnsKeyId, apnsKeyPath, apnsTeamId } from './config.js';
 
+// What a tap on the notification should open. A game for the ones a
+// player gets; a report for the one the admin gets, which has no screen in
+// the app and opens on the website instead.
+export interface PushData {
+  gameId?: string;
+  reportId?: string;
+}
+
 export function isApnsConfigured(): boolean {
   return Boolean(apnsHost && apnsKeyPath && apnsKeyId && apnsTeamId && apnsBundleId);
 }
@@ -40,7 +48,7 @@ function getProviderToken(): string {
 // is waiting on, so failures are logged and swallowed rather than thrown.
 // No-ops entirely (also without logging) until isApnsConfigured() is true —
 // see config.ts for what that requires.
-export function sendPushNotification(deviceToken: string, alert: string, data?: { gameId: string }): void {
+export function sendPushNotification(deviceToken: string, alert: string, data?: PushData): void {
   if (!isApnsConfigured()) {
     return;
   }

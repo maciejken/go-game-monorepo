@@ -52,7 +52,7 @@ import {
 import { seedDefaultUser, seedAiUser, getAiUserId } from './seed.js';
 import { attachWebSocketServer, broadcastGameUpdate, broadcastGamesListUpdate } from './ws.js';
 import { generateAiMove, isGnuGoAvailable, type AiMoveOutcome, type AiMoveTimings, type ReplayMove } from './gnugo.js';
-import { isApnsConfigured, sendPushNotification } from './apns.js';
+import { isApnsConfigured, sendPushNotification, type PushData } from './apns.js';
 
 
 seedDefaultUser();
@@ -424,12 +424,12 @@ function hasOpenStandardGame(userId: string): boolean {
 // custom push-payload data (see apns.ts) so a tap on the notification can
 // take the iOS app straight to that game via DeepLinkRouter, the same
 // mechanism a /games/<id> universal link uses.
-function pushToUser(userId: string, alert: string, gameId?: string): void {
+function pushToUser(userId: string, alert: string, data?: PushData): void {
   const tokens = db.prepare('SELECT token FROM device_tokens WHERE user_id = ?').all(userId) as {
     token: string;
   }[];
   for (const { token } of tokens) {
-    sendPushNotification(token, alert, gameId ? { gameId } : undefined);
+    sendPushNotification(token, alert, data);
   }
 }
 
@@ -452,7 +452,9 @@ function notifyOpponentOfMove(game: Participants & { id: string; title: string |
   }
 
   const moverName = moverId === aiId ? 'GNU Go' : getUsername(moverId) ?? 'Your opponent';
-  pushToUser(opponentId, `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`, game.id);
+  pushToUser(opponentId, `${moverName} moved${game.title ? ` in ${game.title}` : ''} — it's your turn.`, {
+    gameId: game.id,
+  });
 }
 
 // Resign ends the game outright rather than handing the turn back, so
@@ -467,7 +469,7 @@ function notifyOpponentOfResign(game: Participants & { id: string; title: string
   }
 
   const resignedName = getUsername(resignedId) ?? 'Your opponent';
-  pushToUser(opponentId, `${resignedName} resigned${game.title ? ` in ${game.title}` : ''}.`, game.id);
+  pushToUser(opponentId, `${resignedName} resigned${game.title ? ` in ${game.title}` : ''}.`, { gameId: game.id });
 }
 
 // A new remote game has no prior move for notifyOpponentOfMove to hang an
@@ -475,7 +477,7 @@ function notifyOpponentOfResign(game: Participants & { id: string; title: string
 // learns about it until they happen to open the app themselves.
 function notifyOfInvite(inviterId: string, invitedId: string, gameId: string, title: string | null): void {
   const inviterName = getUsername(inviterId) ?? 'Someone';
-  pushToUser(invitedId, `${inviterName} invited you to a game${title ? ` — ${title}` : ''}.`, gameId);
+  pushToUser(invitedId, `${inviterName} invited you to a game${title ? ` — ${title}` : ''}.`, { gameId });
 }
 
 // A game this user starred: their own shortlist, which is also how a game
@@ -1989,10 +1991,11 @@ app.post('/api/reports', reportRateLimiter, (req, res) => {
   const rawNote = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
   const note = rawNote ? rawNote.slice(0, MAX_REPORT_NOTE_LENGTH) : null;
 
+  const reportId = randomUUID();
   db.prepare(
     `INSERT INTO reports (id, reporter_user_id, target_user_id, game_id, reason, note, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(randomUUID(), user.id, target.id, game ? game.id : null, reason, note, Date.now());
+  ).run(reportId, user.id, target.id, game ? game.id : null, reason, note, Date.now());
 
   // Told, not just filed — a queue nobody is watching is not a response
   // within a day. Unset ADMIN_USERNAME and reports simply wait.
@@ -2001,7 +2004,7 @@ app.post('/api/reports', reportRateLimiter, (req, res) => {
       | { id: string }
       | undefined;
     if (admin && admin.id !== user.id) {
-      pushToUser(admin.id, `Report about ${target.username} (${reason})`, game ? game.id : undefined);
+      pushToUser(admin.id, `Report about ${target.username} (${reason})`, { reportId });
     }
   }
 
@@ -2057,6 +2060,7 @@ app.get('/api/reports', (req, res) => {
   const rows = db
     .prepare(
       `SELECT r.id, r.reason, r.note, r.game_id, r.created_at, r.handled_at,
+              r.reporter_user_id AS reporter_id, r.target_user_id AS target_id,
               reporter.username AS reporter, target.username AS target
          FROM reports r
          JOIN users reporter ON reporter.id = r.reporter_user_id
@@ -3373,7 +3377,9 @@ app.post('/api/games/:id/respond-invite', (req, res) => {
   broadcastGamesListUpdate();
   if (inviterId) {
     const invitedName = getUsername(user.id) ?? 'The invited player';
-    pushToUser(inviterId, `${invitedName} declined your invitation${game.title ? ` to ${game.title}` : ''}.`, game.id);
+    pushToUser(inviterId, `${invitedName} declined your invitation${game.title ? ` to ${game.title}` : ''}.`, {
+      gameId: game.id,
+    });
   }
   res.json({ status: 'rejected' });
 });
