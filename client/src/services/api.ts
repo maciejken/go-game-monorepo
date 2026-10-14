@@ -574,6 +574,24 @@ export function reportUser(report: {
   }).then((res) => handleEmpty(res));
 }
 
+// The report queue, unhandled first. Admin only — the server answers 403
+// to everybody else, which is what the page shows rather than pretending
+// the queue is empty.
+export interface Report {
+  id: string;
+  reporter: string;
+  target: string;
+  reason: ReportReason;
+  note: string | null;
+  game_id: string | null;
+  created_at: number;
+  handled_at: number | null;
+}
+
+export function listReports(): Promise<Report[]> {
+  return fetch(`${API_BASE}/reports`).then((res) => handle<Report[]>(res));
+}
+
 // Ends the account. The password goes with it because the server asks for
 // it again: a session left open on a shared computer is not enough.
 export function deleteAccount(password: string): Promise<void> {

@@ -1723,3 +1723,20 @@ button.danger {
   color: var(--text);
   font-weight: 500;
 }
+
+/* The reports table is mostly words rather than numbers, so it reads
+   left-aligned, and a handled row recedes without disappearing. */
+.reports-table th,
+.reports-table td {
+  text-align: left;
+  vertical-align: top;
+}
+
+.reports-table .reports-note {
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+
+.reports-table .reports-handled td {
+  opacity: 0.55;
+}
