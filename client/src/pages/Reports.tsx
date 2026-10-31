@@ -93,7 +93,7 @@ function Reports() {
         ))}
       </ul>
 
-      <p>
+      <p className="report-back">
         <Link to="/">{'Back to games'}</Link>
       </p>
     </div>
