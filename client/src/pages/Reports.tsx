@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useDialog } from '../hooks/useDialog';
 import { listReports, markReportHandled, suspendUser, unsuspendUser, type Report } from '../services/api';
 
 // Deliberately not translated, for the same reason as the performance
@@ -104,16 +105,20 @@ export function ReportDetails() {
   const { id } = useParams<{ id: string }>();
   const { reports, setReports, error, setError } = useReports();
   const [busy, setBusy] = useState(false);
+  const { confirm: confirmDialog } = useDialog();
 
   const report = reports?.find((each) => each.id === id);
 
   // Every report about the same person shows the same suspension, so the
   // change is applied to all of them, not just this one.
-  const setSuspended = (suspend: boolean) => {
+  const setSuspended = async (suspend: boolean) => {
     if (!report) {
       return;
     }
-    if (suspend && !window.confirm(`Suspend ${report.target}? They are signed out at once and cannot log in.`)) {
+    if (
+      suspend &&
+      !(await confirmDialog(`Suspend ${report.target}? They are signed out at once and cannot log in.`, 'Suspend'))
+    ) {
       return;
     }
     setBusy(true);
@@ -168,7 +173,7 @@ export function ReportDetails() {
                   ? 'active'
                   : `suspended ${formatWhen(report.target_suspended_at)}`}
               </span>
-              {report.target_suspended_at === null ? (
+              {report.target_is_me ? null : report.target_suspended_at === null ? (
                 <button type="button" onClick={() => setSuspended(true)} disabled={busy}>
                   {'Suspend account'}
                 </button>

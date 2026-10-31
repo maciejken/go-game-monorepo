@@ -592,6 +592,8 @@ export interface Report {
   game_tags: string[];
   // When the person reported was suspended, if they are.
   target_suspended_at: number | null;
+  // The report is about the signed-in admin, who cannot be suspended.
+  target_is_me: boolean;
   created_at: number;
   handled_at: number | null;
 }

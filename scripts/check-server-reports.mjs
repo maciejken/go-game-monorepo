@@ -220,6 +220,17 @@ if (adminName) {
   const byOther = await reporter('POST', `/api/reports/${noted?.id}/handled`);
   expect(byOther.status === 403, `an ordinary account marked a report handled: got ${byOther.status}`);
 
+  // A report about the admin says so, so the page can leave out the one
+  // action the server would refuse; the others say they are about somebody else.
+  await target('POST', '/api/reports', { username: adminName, reason: 'behaviour' });
+  const queueNow = (await admin('GET', '/api/reports')).body ?? [];
+  const aboutAdmin = queueNow.find((row) => row.target === adminName);
+  expect(aboutAdmin?.target_is_me === true, `a report about the admin isn't marked as theirs: ${JSON.stringify(aboutAdmin?.target_is_me)}`);
+  expect(
+    queueNow.filter((row) => row.target !== adminName).every((row) => row.target_is_me === false),
+    'a report about somebody else is marked as the admin\'s own',
+  );
+
   // --- Suspending: off the service, not out of the table ----------------
 
   const victim = session();

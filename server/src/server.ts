@@ -2172,11 +2172,13 @@ app.get('/api/reports', (req, res) => {
     )
     .all() as Record<string, unknown>[];
 
-  // Stored as JSON text; the page gets a list.
+  // Stored as JSON text; the page gets a list. target_is_me is for the page
+  // to leave out what the server would refuse anyway: suspending yourself.
   res.json(
     rows.map((row) => ({
       ...row,
       game_tags: typeof row.game_tags === 'string' ? (JSON.parse(row.game_tags) as string[]) : [],
+      target_is_me: row.target_id === user.id,
     })),
   );
 });
