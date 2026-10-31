@@ -161,12 +161,22 @@ export function ReportDetails() {
             <dt>{'About'}</dt>
             <dd>
               <Link to={`/profile/${report.target_id}`}>{report.target}</Link>
-            </dd>
-            <dt>{'Account'}</dt>
-            <dd>
-              {report.target_suspended_at === null
-                ? 'active'
-                : `suspended ${formatWhen(report.target_suspended_at)}`}
+              {/* Under the name it acts on: suspending is a decision about
+                  this person's account, not about the report. */}
+              <span className="report-account">
+                {report.target_suspended_at === null
+                  ? 'active'
+                  : `suspended ${formatWhen(report.target_suspended_at)}`}
+              </span>
+              {report.target_suspended_at === null ? (
+                <button type="button" onClick={() => setSuspended(true)} disabled={busy}>
+                  {'Suspend account'}
+                </button>
+              ) : (
+                <button type="button" onClick={() => setSuspended(false)} disabled={busy}>
+                  {'Lift suspension'}
+                </button>
+              )}
             </dd>
             <dt>{'Reason'}</dt>
             <dd>{REASONS[report.reason] ?? report.reason}</dd>
@@ -196,21 +206,9 @@ export function ReportDetails() {
               would hide what is being complained about. React escapes it. */}
           {report.note && <p className="report-note">{report.note}</p>}
 
-          <p>
-            {report.target_suspended_at === null ? (
-              <button type="button" onClick={() => setSuspended(true)} disabled={busy}>
-                {'Suspend account'}
-              </button>
-            ) : (
-              <button type="button" onClick={() => setSuspended(false)} disabled={busy}>
-                {'Lift suspension'}
-              </button>
-            )}
-          </p>
-
           {report.handled_at === null && (
             <p>
-              <button type="button" onClick={markHandled} disabled={busy}>
+              <button type="button" className="report-done" onClick={markHandled} disabled={busy}>
                 {'Done'}
               </button>
             </p>
@@ -218,7 +216,7 @@ export function ReportDetails() {
         </>
       )}
 
-      <p>
+      <p className="report-back">
         <Link to="/reports">{'Back to reports'}</Link>
       </p>
     </div>

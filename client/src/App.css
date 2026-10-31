@@ -1813,6 +1813,33 @@ button.danger {
   overflow-wrap: anywhere;
 }
 
+/* The state of the account a report is about, and the button that changes
+   it, stacked under that account's name. */
+.report-account {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.report-fields dd button {
+  margin-top: 6px;
+}
+
+/* The one thing to do with a report, as wide as the page's column so it is
+   the easy target, with the way out well clear of it. */
+.report-done {
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 16px;
+  font-size: 16px;
+}
+
+.report-back {
+  margin-top: 32px;
+  text-align: center;
+}
+
 .report-note {
   padding: 12px 14px;
   border: 1px solid var(--border);
