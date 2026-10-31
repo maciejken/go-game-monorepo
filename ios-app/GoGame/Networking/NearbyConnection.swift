@@ -136,6 +136,10 @@ final class NearbyHost: NSObject, MCNearbyServiceAdvertiserDelegate {
     private var link: MultipeerLink?
     private var service: PeerHostService?
     private(set) var gameId: String?
+    // Whether the game still has anything to join. False once it has been
+    // scored: a guest already in it stays, and sees the result, but the
+    // game stops being advertised to anyone else.
+    private var isOffered = true
     // Set by the host's board while it is open, so a move made on the other
     // device shows up here.
     var onGuestActed: (@Sendable () -> Void)? {
@@ -171,6 +175,10 @@ final class NearbyHost: NSObject, MCNearbyServiceAdvertiserDelegate {
         link.onDisconnected = { [weak self] in
             Task { @MainActor in
                 guard self?.phase == .connected else { return }
+                guard self?.isOffered == true else {
+                    self?.phase = .idle
+                    return
+                }
                 self?.phase = .waiting
                 self?.advertiser?.startAdvertisingPeer()
             }
@@ -188,6 +196,7 @@ final class NearbyHost: NSObject, MCNearbyServiceAdvertiserDelegate {
         self.service = service
         self.advertiser = advertiser
         gameId = record.id
+        isOffered = true
         phase = .waiting
         NearbySessions.shared.host = self
     }
@@ -208,10 +217,33 @@ final class NearbyHost: NSObject, MCNearbyServiceAdvertiserDelegate {
     // suspended, so a game nobody has joined is offered again; one that was
     // joined has lost its connection too, and waits to be rejoined.
     func resume() {
-        guard advertiser != nil else { return }
+        guard advertiser != nil, isOffered else { return }
         if link?.isConnected != true {
             phase = .waiting
             advertiser?.startAdvertisingPeer()
+        }
+    }
+
+    // Stops offering the game without ending it. Called when scoring
+    // finishes: nobody new can join a game with a result, but whoever is
+    // already in it stays connected and sees that result arrive. Calling
+    // stop() instead would drop them at the moment the score appeared.
+    func withdrawOffer() {
+        guard isOffered else { return }
+        isOffered = false
+        advertiser?.stopAdvertisingPeer()
+        if phase == .waiting {
+            phase = .idle
+        }
+    }
+
+    // Puts it back on offer, for a host that reopens scoring.
+    func offerAgain() {
+        guard advertiser != nil, !isOffered else { return }
+        isOffered = true
+        advertiser?.startAdvertisingPeer()
+        if phase != .connected {
+            phase = .waiting
         }
     }
 

@@ -134,30 +134,15 @@ struct GameListView: View {
                         // glass is the translucent one, adaptive in both
                         // themes with no color of its own beyond what shows
                         // through it.
-                        if #available(iOS 26.0, *) {
-                            Button {
-                                showNewGame = true
-                            } label: {
-                                Image(systemName: "plus")
-                                    .font(.title2.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                    .frame(width: 56, height: 56)
-                            }
-                            .buttonStyle(.glass)
-                            .buttonBorderShape(.circle)
-                        } else {
-                            Button {
-                                showNewGame = true
-                            } label: {
-                                Image(systemName: "plus")
-                                    .font(.title2.weight(.semibold))
-                                    .foregroundStyle(.primary)
-                                    .frame(width: 56, height: 56)
-                                    .background(.ultraThinMaterial, in: Circle())
-                                    .overlay(Circle().stroke(Color.primary.opacity(0.2), lineWidth: 1))
-                                    .shadow(radius: 4, y: 2)
-                            }
+                        Button {
+                            showNewGame = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.title2.weight(.semibold))
+                                .frame(width: Igo5.heroCircleDiameter, height: Igo5.heroCircleDiameter)
                         }
+                        .buttonStyle(.igo5GhostCircle)
+                        .shadow(radius: 4, y: 2)
                     }
                 }
                 // On the Group, so it applies to whichever of the two
@@ -179,10 +164,14 @@ struct GameListView: View {
             // the same list twice every time this view appeared.
             .task(id: scope) { await loadGames() }
             .searchable(text: $searchText, prompt: "Search titles, players, tags")
-            // A magnifying glass in the header rather than a field of its
-            // own: the field scrolls away with the list, while the button
-            // stays reachable at any scroll position.
-            .modifier(MinimizedSearchField())
+            // The field scrolls with the list rather than collapsing into a
+            // toolbar magnifying glass. It was the glass until
+            // .searchToolbarBehavior(.minimize) turned out to need three
+            // taps on the clear button to dismiss — the first two
+            // re-expanded it — which bisecting pinned on that modifier
+            // rather than on anything here. Worth revisiting if a later
+            // iOS fixes it; the glass stayed reachable at any scroll
+            // position, which this does not.
             // Debounced the same way the web client's search input is: the
             // task restarts on every keystroke, and only the last one
             // survives the sleep to actually apply the query.
@@ -444,16 +433,6 @@ struct GameListView: View {
 
 // searchToolbarBehavior is iOS 26+, and there's no pre-26 equivalent —
 // older versions simply keep the always-visible field.
-private struct MinimizedSearchField: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.searchToolbarBehavior(.minimize)
-        } else {
-            content
-        }
-    }
-}
-
 // Gives a row a visible press highlight — .plain alone gives zero visual
 // feedback on tap, which made it easy to tap twice (once out of
 // uncertainty whether the first tap registered) and collide two navigation

@@ -87,6 +87,24 @@ struct GameBoardView: View {
         (NearbySessions.shared.transport(forGameId: gameId) as? PeerTransport)?.client
     }
 
+    // This board is the guest's side of a nearby game: the game lives on
+    // the other device, and this one is a window onto it. The guest plays
+    // its own stones, but scoring belongs to the host — marking dead
+    // groups from both sides at once would be two people editing one
+    // decision, and the protocol has no way to reconcile that.
+    private var isNearbyGuest: Bool {
+        NearbySessions.shared.transport(forGameId: gameId) != nil
+    }
+
+    // Whether a stored game has been played out, by the same test
+    // publishableRecord uses to decide a game can be published.
+    private func isFinished(_ record: OfflineGameRecord) -> Bool {
+        if record.scoredResult != nil {
+            return true
+        }
+        return GameFlow.replay(record.gameEvents, configuration: record.configuration).status == .finished
+    }
+
     private func notifyNearbyGuest() {
         nearbyHost?.notifyChanged()
     }
@@ -273,10 +291,14 @@ struct GameBoardView: View {
                     } label: {
                         Label("Share game", systemImage: "square.and.arrow.up")
                     }
-                    Button(role: .destructive) {
-                        showDeleteConfirmation = true
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+                    // Not the guest's to delete: the game lives on the
+                    // host, and this side is a window onto it.
+                    if !isNearbyGuest {
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                     }
                     Button {
                         showSettingsSheet = true
@@ -291,7 +313,7 @@ struct GameBoardView: View {
         }
         .sheet(isPresented: $showDeleteConfirmation) {
             deleteConfirmationSheetContent
-                .presentationDetents([.height(230)])
+                .fittedSheetHeight()
                 .presentationBackground(sheetBackground)
         }
         // Bound directly to the game's own pendingInviteResponse rather
@@ -305,7 +327,7 @@ struct GameBoardView: View {
             if let game {
                 inviteResponseSheetContent(game)
                     .interactiveDismissDisabled(true)
-                    .presentationDetents([.height(260)])
+                    .fittedSheetHeight()
                     .presentationBackground(sheetBackground)
             }
         }
@@ -317,7 +339,7 @@ struct GameBoardView: View {
         .sheet(isPresented: $showActionsSheet) {
             if let game {
                 actionsSheetContent(game)
-                    .presentationDetents([.height(204)])
+                    .fittedSheetHeight()
                     // A sheet's default background is a translucent system
                     // material, which applies automatic vibrancy blending to
                     // semantic colors like Color.primary — that washed the
@@ -517,12 +539,16 @@ struct GameBoardView: View {
                 // changed. Moving both below the board means only content
                 // beneath it reflows.
                 if game.status == "scoring" {
-                    Picker("Marking mode", selection: $markMode) {
-                        Text("Dead").tag(MarkMode.dead)
-                        Text("Seki").tag(MarkMode.seki)
+                    // The guest watches scoring rather than taking part in
+                    // it, so it gets no mode to mark in.
+                    if !isNearbyGuest {
+                        Picker("Marking mode", selection: $markMode) {
+                            Text("Dead").tag(MarkMode.dead)
+                            Text("Seki").tag(MarkMode.seki)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
 
                     if let estimate = estimateText(game) {
                         Text(estimate)
@@ -645,47 +671,24 @@ struct GameBoardView: View {
                 .font(.headline)
             Text("\(opponentName) invited you to a game\(game.title?.isEmpty == false ? " — \(game.title!)" : "").")
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Text(inviteMetaParts(game).joined(separator: " · "))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Group {
-                if #available(iOS 26.0, *) {
-                    Button {
-                        Task { await respondToInvite(accept: true) }
-                    } label: {
-                        ProminentActionLabel(title: "Accept")
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(.primary)
-                } else {
-                    Button {
-                        Task { await respondToInvite(accept: true) }
-                    } label: {
-                        Text("Accept").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
+            Button {
+                Task { await respondToInvite(accept: true) }
+            } label: {
+                Text("Accept").frame(maxWidth: .infinity)
             }
+            .buttonStyle(.igo5Primary)
             .disabled(isBusy)
-            Group {
-                if #available(iOS 26.0, *) {
-                    Button(role: .destructive) {
-                        Task { await respondToInvite(accept: false) }
-                    } label: {
-                        Text("Reject").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.glass)
-                    .tint(.red)
-                } else {
-                    Button(role: .destructive) {
-                        Task { await respondToInvite(accept: false) }
-                    } label: {
-                        Text("Reject").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
+            Button(role: .destructive) {
+                Task { await respondToInvite(accept: false) }
+            } label: {
+                Text("Reject").frame(maxWidth: .infinity)
             }
+            .buttonStyle(.igo5Ghost)
             .disabled(isBusy)
             // Quieter than the other two on purpose: rejecting is the
             // ordinary answer to an unwanted game, and blocking is for
@@ -727,45 +730,21 @@ struct GameBoardView: View {
             Text("Delete this game and all its moves? This cannot be undone.")
                 .font(.headline)
                 .multilineTextAlignment(.center)
-            Group {
-                if #available(iOS 26.0, *) {
-                    Button(role: .destructive) {
-                        showDeleteConfirmation = false
-                        Task { await deleteGame() }
-                    } label: {
-                        Text("Delete").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.glass)
-                    .tint(.red)
-                } else {
-                    Button(role: .destructive) {
-                        showDeleteConfirmation = false
-                        Task { await deleteGame() }
-                    } label: {
-                        Text("Delete").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
+                .fixedSize(horizontal: false, vertical: true)
+            Button(role: .destructive) {
+                showDeleteConfirmation = false
+                Task { await deleteGame() }
+            } label: {
+                Text("Delete").frame(maxWidth: .infinity)
             }
+            .buttonStyle(.igo5Ghost)
             .disabled(isBusy)
-            Group {
-                if #available(iOS 26.0, *) {
-                    Button {
-                        showDeleteConfirmation = false
-                    } label: {
-                        ProminentActionLabel(title: "Cancel")
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(.primary)
-                } else {
-                    Button {
-                        showDeleteConfirmation = false
-                    } label: {
-                        Text("Cancel").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
+            Button {
+                showDeleteConfirmation = false
+            } label: {
+                Text("Cancel").frame(maxWidth: .infinity)
             }
+            .buttonStyle(.igo5Primary)
         }
         .padding()
     }
@@ -790,47 +769,21 @@ struct GameBoardView: View {
                 Text(turnLabel(game))
                     .font(.headline)
             }
-            Group {
-                if #available(iOS 26.0, *) {
-                    Button {
-                        showActionsSheet = false
-                        Task { await pass() }
-                    } label: {
-                        ProminentActionLabel(title: "Pass")
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(.primary) // keeps the black-in-light/white-in-dark contrast the pre-26 fallback uses
-                } else {
-                    Button {
-                        showActionsSheet = false
-                        Task { await pass() }
-                    } label: {
-                        Text("Pass").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(ActionButtonStyle(inverted: false))
-                }
+            Button {
+                showActionsSheet = false
+                Task { await pass() }
+            } label: {
+                Text("Pass").frame(maxWidth: .infinity)
             }
+            .buttonStyle(.igo5Primary)
             .disabled(!canAct(game) || isBusy)
-            Group {
-                if #available(iOS 26.0, *) {
-                    Button(role: .destructive) {
-                        showActionsSheet = false
-                        Task { await resign() }
-                    } label: {
-                        Text("Resign").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.glass)
-                    .tint(.red) // an explicit tint rather than relying on the destructive role alone
-                } else {
-                    Button(role: .destructive) {
-                        showActionsSheet = false
-                        Task { await resign() }
-                    } label: {
-                        Text("Resign").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(ActionButtonStyle(inverted: true))
-                }
+            Button(role: .destructive) {
+                showActionsSheet = false
+                Task { await resign() }
+            } label: {
+                Text("Resign").frame(maxWidth: .infinity)
             }
+            .buttonStyle(.igo5Ghost)
             .disabled(game.myColor == nil || isBusy)
         }
         .padding()
@@ -1122,20 +1075,13 @@ struct GameBoardView: View {
     private func finalizeButton(_ game: GameState) -> some View {
         let action: () -> Void = { Task { await finalizeScoring() } }
         let icon = Image(systemName: "checkmark")
-            .font(.system(size: 18, weight: .semibold))
-            .frame(width: 44, height: 44)
-        if #available(iOS 26.0, *) {
-            Button(action: action) { icon }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
-                .disabled(game.myColor == nil || isBusy)
-        } else {
-            Button(action: action) {
-                icon.background(.ultraThinMaterial, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(game.myColor == nil || isBusy)
-        }
+            .font(.system(size: 20, weight: .semibold))
+            .frame(width: Igo5.heroCircleDiameter, height: Igo5.heroCircleDiameter)
+        Button(action: action) { icon }
+            .buttonStyle(.igo5PrimaryCircle)
+            // Shown but inert for the guest: it says scoring is happening
+            // and that finishing it is the host's call.
+            .disabled(game.myColor == nil || isBusy || isNearbyGuest)
     }
 
     // Mirrors client/src/pages/Game.tsx's describeResult: the sentence is
@@ -1208,20 +1154,11 @@ struct GameBoardView: View {
             // Only a scoring-based finish can be reopened (a
             // resignation/timeout has no scoring to redo) — the same
             // condition resultBreakdown itself is gated on server-side.
-            if game.resultBreakdown != nil, game.myColor != nil {
-                Group {
-                    if #available(iOS 26.0, *) {
-                        Button(reopenScoringLabel(game)) {
-                            Task { await reopenScoring() }
-                        }
-                        .buttonStyle(.glass)
-                    } else {
-                        Button(reopenScoringLabel(game)) {
-                            Task { await reopenScoring() }
-                        }
-                        .buttonStyle(.bordered)
-                    }
+            if game.resultBreakdown != nil, game.myColor != nil, !isNearbyGuest {
+                Button(reopenScoringLabel(game)) {
+                    Task { await reopenScoring() }
                 }
+                .buttonStyle(.igo5Secondary)
                 .disabled(isBusy)
                 if let pendingReopenBy = game.pendingReopenBy {
                     Text(pendingReopenBy == myStoneColor(game)
@@ -1346,7 +1283,14 @@ struct GameBoardView: View {
 
     // Mirrors client/src/pages/Game.tsx's describeReopenAction.
     private func reopenScoringLabel(_ game: GameState) -> String {
-        if game.myColor == .both || game.isAiOpponent {
+        // Immediate wherever there is nobody to ask: both colours on one
+        // device, a game against GNU Go, and any game stored on this
+        // device — including the host's side of a nearby game, which
+        // reopens through LocalTransport and comes back "confirmed"
+        // without ever setting pendingReopenBy. Only two different people
+        // on the server negotiate it. The guest is not offered the button
+        // at all; scoring is the host's.
+        if game.myColor == .both || game.isAiOpponent || isOfflineGameId(gameId) {
             return String(localized: "Reopen Scoring")
         }
         guard let pendingReopenBy = game.pendingReopenBy else {
@@ -1397,7 +1341,10 @@ struct GameBoardView: View {
         // a game is played on the host, and there is no host to send it to
         // until the connection is back.
         guard !isWaitingToReconnect else { return false }
-        return game.status == "scoring" ? game.myColor != nil : canAct(game)
+        if game.status == "scoring" {
+            return game.myColor != nil && !isNearbyGuest
+        }
+        return canAct(game)
     }
 
     // True while this board is a game held on another device that can't be
@@ -1423,12 +1370,32 @@ struct GameBoardView: View {
     // it, so quitting the app and coming back doesn't leave a game that
     // looks shared but isn't. Only one game is offered at a time — opening
     // another shared game's board takes over.
+    // Called after every load, so finishing a game withdraws it and
+    // reopening scoring offers it again without anyone leaving the board.
+    private func reconcileHosting() {
+        guard isOfflineGameId(gameId), !isNearbyGuest else { return }
+        if game?.status == "finished" {
+            // Withdrawn, not stopped: a guest watching the scoring should
+            // see the result land rather than lose the board at the
+            // moment it does.
+            nearbyHost?.withdrawOffer()
+        } else {
+            startHostingIfShared()
+            nearbyHost?.offerAgain()
+        }
+    }
+
     private func startHostingIfShared() {
         guard nearbyHost == nil,
               isOfflineGameId(gameId),
               NearbySessions.shared.transport(forGameId: gameId) == nil,
               let record = try? OfflineGameStore.shared.load(gameId),
-              record.hostColor != nil
+              record.hostColor != nil,
+              // Joinable up to and including scoring, which is when the
+              // other player still has something to watch. A game with a
+              // result has nothing to join, and advertising it would put a
+              // finished game in somebody else's nearby list.
+              !isFinished(record)
         else {
             return
         }
@@ -1472,7 +1439,7 @@ struct GameBoardView: View {
                 Button("Try again") {
                     Task { await recomputeAiMove() }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.igo5Secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
@@ -1981,6 +1948,7 @@ struct GameBoardView: View {
             // opponent's move arriving live, etc.), mirrors
             // client/src/pages/Game.tsx's own pendingMove-clearing effect.
             pendingMove = nil
+            reconcileHosting()
             if game?.status == "finished", history == nil, let fetched = try? await transport.history(gameId: gameId) {
                 history = fetched
                 reviewMoveNumber = fetched.moves.count - 1
@@ -2339,39 +2307,6 @@ struct GameBoardView: View {
 // disabled while the text stayed white. Reading isEnabled here keeps the
 // pair matched, and keeps the knowledge in one place rather than beside
 // every .disabled() that governs it.
-private struct ProminentActionLabel: View {
-    @Environment(\.isEnabled) private var isEnabled
-    let title: LocalizedStringKey
-
-    var body: some View {
-        Text(title)
-            .foregroundStyle(isEnabled ? Color(uiColor: .systemBackground) : Color.secondary)
-            .frame(maxWidth: .infinity)
-    }
-}
-
-private struct ActionButtonStyle: ButtonStyle {
-    var inverted: Bool
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        let fill = inverted ? Color(uiColor: .systemBackground) : Color.primary
-        let foreground = inverted ? Color.primary : Color(uiColor: .systemBackground)
-        configuration.label
-            .font(.body.weight(.semibold))
-            .foregroundStyle(foreground)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(fill)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.primary.opacity(0.35), lineWidth: inverted ? 1 : 0)
-                    )
-            )
-            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
-    }
-}
 
 // Review navigation flanking the result button — 32pt, ~62% of that
 // button's 52pt. A tap steps one move; a press and hold runs to the end of
@@ -2390,21 +2325,11 @@ private struct ReviewNavButton: View {
 
     var body: some View {
         let icon = Image(systemName: systemName)
-            .font(.system(size: 15, weight: .semibold))
-            .frame(width: 32, height: 32)
+            .font(.system(size: 17, weight: .semibold))
+            .frame(width: Igo5.compactCircleDiameter, height: Igo5.compactCircleDiameter)
         Group {
-            if #available(iOS 26.0, *) {
-                Button(action: tapped) { icon }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
-            } else {
-                Button(action: tapped) {
-                    icon
-                        .background(.ultraThinMaterial, in: Circle())
-                        .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            }
+            Button(action: tapped) { icon }
+                .buttonStyle(.igo5GhostCircle)
         }
         .disabled(disabled)
         // simultaneousGesture rather than .onLongPressGesture: the latter
