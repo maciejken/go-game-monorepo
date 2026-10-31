@@ -163,6 +163,9 @@ struct GameBoardView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var socketGeneration = 0
     @State private var wasBackgrounded = false
+    // The colour marker before a name in the result sheet: kept under the
+    // text's line height, and scaled with it.
+    @ScaledMetric(relativeTo: .subheadline) private var nameStoneDiameter: CGFloat = 12
 
     var body: some View {
         Group {
@@ -376,7 +379,7 @@ struct GameBoardView: View {
         .sheet(isPresented: $showResultSheet) {
             if let game {
                 resultSheetContent(game)
-                    .presentationDetents([.height(resultSheetHeight(game))])
+                    .fittedSheetHeight()
             }
         }
         .alert(
@@ -1121,28 +1124,36 @@ struct GameBoardView: View {
             // Clear of the sheet's grabber, which sits close enough to the
             // first line to read as crowding it.
             .padding(.top, 16)
-            // The stone markers' own centre line is this row's centre line:
-            // each player's name-and-details column is centred against it
-            // (an HStack's default .center alignment), so extra detail lines
-            // grow either side of the stones instead of shifting them.
-            // Unscored finishes (B+R, W+T) keep the row, with empty stones —
-            // the setup details below are worth showing either way.
-            HStack(spacing: 8) {
+            // Each player is a column of centred rows — colour and name,
+            // whatever sets them apart (handicap, GNU Go's level), and their
+            // own points, when there are any — with "vs" on the name line
+            // between the two. The columns take only the width their text
+            // needs, so the names sit close with just "vs" between them.
+            let detailLines = max(
+                playerDetails(game, color: .black).count,
+                playerDetails(game, color: .white).count
+            )
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
                 playerColumn(
+                    color: .black,
                     username: game.blackUsername,
                     userId: game.blackUserId,
-                    details: playerDetails(game, color: .black)
+                    details: playerDetails(game, color: .black),
+                    detailLines: detailLines,
+                    points: game.resultBreakdown?.black
                 )
-                resultPointsStone(.black, score: game.resultBreakdown?.black)
-                Spacer().frame(width: 20)
-                resultPointsStone(.white, score: game.resultBreakdown?.white)
+                Text("vs")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 playerColumn(
+                    color: .white,
                     username: game.whiteUsername,
                     userId: game.whiteUserId,
-                    details: playerDetails(game, color: .white)
+                    details: playerDetails(game, color: .white),
+                    detailLines: detailLines,
+                    points: game.resultBreakdown?.white
                 )
             }
-            .font(.subheadline)
             VStack(spacing: 4) {
                 Text(setupLine(game))
                 if let startedLine = startedLine(game) {
@@ -1172,18 +1183,45 @@ struct GameBoardView: View {
         .padding()
     }
 
-    // One player's name with their setup details stacked underneath it.
+    // One player: the colour as a bullet, and beside it a column of text —
+    // the name, their setup details, then their points in a slightly larger
+    // size, all starting at the column's left edge. The marker is not part
+    // of the text, so nothing in the column can slip out to the left of the
+    // name.
+    // The details are padded to `detailLines` with empty lines so that both
+    // players' points land on the same row when only one of them has a
+    // detail. `points` is nil for a resignation or timeout, which has no
+    // count.
     @ViewBuilder
-    private func playerColumn(username: String?, userId: String?, details: [String]) -> some View {
-        VStack(spacing: 2) {
-            profileLink(username: username, userId: userId)
-            ForEach(details, id: \.self) { detail in
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    private func playerColumn(
+        color: StoneColor, username: String?, userId: String?, details: [String],
+        detailLines: Int, points: Double?
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Circle()
+                .fill(color == .black ? Color.black : Color.white)
+                .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
+                .frame(width: nameStoneDiameter, height: nameStoneDiameter)
+                // Centred on the name's line rather than sitting on its
+                // baseline: a circle has no baseline of its own.
+                .alignmentGuide(.firstTextBaseline) { $0.height / 2 + 4.5 }
+            VStack(alignment: .leading, spacing: 2) {
+                profileLink(username: username, userId: userId)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                ForEach(0..<detailLines, id: \.self) { index in
+                    Text(index < details.count ? details[index] : " ")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let points {
+                    Text(formatScore(points))
+                        .font(.body.monospacedDigit())
+                        .padding(.top, 4)
+                }
             }
         }
-        .multilineTextAlignment(.center)
     }
 
     // Per-player setup details: GNU Go's level goes under whichever side it
@@ -1223,27 +1261,6 @@ struct GameBoardView: View {
         let started = Date(timeIntervalSince1970: Double(createdAt) / 1000)
         let date = started.formatted(date: .abbreviated, time: .shortened)
         return String(localized: "Started on %@", defaultValue: "Started on \(date)")
-    }
-
-    // Every row in this sheet has a fixed height, so adding them up sizes it
-    // to its content — snug whether or not there are per-player details, a
-    // score breakdown to reopen, or a pending reopen request.
-    private func resultSheetHeight(_ game: GameState) -> CGFloat {
-        let detailLines = max(
-            playerDetails(game, color: .black).count,
-            playerDetails(game, color: .white).count
-        )
-        // padding + the block's own top inset + the game-kind line + the
-        // result headline + the stone row + the setup/started lines
-        var height: CGFloat = 32 + 16 + (16 + 12) + 22 + 16 + max(52, 22 + CGFloat(detailLines) * 17)
-        height += 16 + (game.createdAt == nil ? 16 : 36)
-        if game.resultBreakdown != nil, game.myColor != nil {
-            height += 16 + 34
-            if game.pendingReopenBy != nil {
-                height += 4 + 16
-            }
-        }
-        return height
     }
 
     // A player's name in the result sheet, tappable to their profile. Safe
@@ -1299,24 +1316,6 @@ struct GameBoardView: View {
         return pendingReopenBy == myStoneColor(game)
             ? String(localized: "Cancel Reopen Request")
             : String(localized: "Confirm Reopen Scoring")
-    }
-
-    // Sized to comfortably fit a 3-digit score (e.g. "182.5") without the
-    // text ellipsizing. A nil score (a resignation or timeout, which has no
-    // point count) leaves the stone empty rather than dropping it.
-    @ViewBuilder
-    private func resultPointsStone(_ color: StoneColor, score: Double?) -> some View {
-        ZStack {
-            Circle()
-                .fill(color == .black ? Color.black : Color.white)
-                .overlay(Circle().stroke(Color.primary.opacity(0.35), lineWidth: 1))
-            if let score {
-                Text(formatScore(score))
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(color == .black ? Color.white : Color.black)
-            }
-        }
-        .frame(width: 52, height: 52)
     }
 
     // Just the "Estimated: ..." line, with no explainer sentence — the
