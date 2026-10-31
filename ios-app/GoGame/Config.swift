@@ -1,6 +1,11 @@
 import Foundation
 
 enum Config {
+    // Where to write about a problem, a report that needs a human, or a
+    // suspension that looks like a mistake. The same address the support
+    // page and the server's suspension message give (server/public/support.html).
+    static let supportEmail = "support@igo5.online"
+
     // Which server this build talks to, from the API_HOST build setting
     // by way of Info.plist: test.igo5.online in Debug, igo5.online in
     // Release. The host alone rather than a whole URL, because a build

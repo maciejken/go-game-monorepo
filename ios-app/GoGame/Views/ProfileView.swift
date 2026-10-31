@@ -169,6 +169,18 @@ struct ProfileView: View {
                         } footer: {
                             Text("A code that sets a new password when you've forgotten yours. A new one replaces the last.")
                         }
+                        // Published here as well as on the support page, so a
+                        // problem — or a report nobody has answered — has
+                        // somewhere to go that doesn't depend on the app
+                        // being able to send it.
+                        Section {
+                            Link(
+                                "Contact support",
+                                destination: URL(string: "mailto:\(Config.supportEmail)")!
+                            )
+                        } footer: {
+                            Text(verbatim: Config.supportEmail)
+                        }
                         Section {
                             Button("Log out", role: .destructive) {
                                 Task { await session.logout() }
