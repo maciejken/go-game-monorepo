@@ -94,7 +94,7 @@ const SOURCE_PATTERNS = [
     dir: 'ios-app/GoGame',
     extensions: ['.swift'],
     pattern:
-      /(?:Text|Button|Toggle|Label|Section|TextField|SecureField|navigationTitle|confirmationDialog|ContentUnavailableView|accessibilityLabel|String\(localized:)\(\s*"((?:[^"\\]|\\.)+)"/g,
+      /(?:(?:Text|Button|Toggle|Label|Section|TextField|SecureField|navigationTitle|confirmationDialog|ContentUnavailableView|accessibilityLabel)\(|String\(localized:)\s*"((?:[^"\\]|\\.)+)"/g,
   },
   // Web: t('…') — the one way the client reaches the catalogue.
   {

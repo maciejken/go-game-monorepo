@@ -692,13 +692,25 @@ struct GameBoardView: View {
     private func inviteResponseSheetContent(_ game: GameState) -> some View {
         let opponentUsername = game.myColor == .black ? game.whiteUsername : game.blackUsername
         let opponentName = opponentUsername ?? "Someone"
+        // Two whole sentences, so each can be translated with its words in
+        // the right order; interpolating the title into one would make a
+        // key no catalogue entry matches.
+        let invitation: String = {
+            if let title = game.title, !title.isEmpty {
+                return String(
+                    localized: "%@ invited you to a game — %@.",
+                    defaultValue: "\(opponentName) invited you to a game — \(title)."
+                )
+            }
+            return String(localized: "%@ invited you to a game.", defaultValue: "\(opponentName) invited you to a game.")
+        }()
         if inviteRejected {
             return AnyView(inviteRejectedSheetContent(opponentUsername))
         }
         return AnyView(VStack(spacing: 12) {
             Text("Game Invitation")
                 .font(.headline)
-            Text("\(opponentName) invited you to a game\(game.title?.isEmpty == false ? " — \(game.title!)" : "").")
+            Text(invitation)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             Text(inviteMetaParts(game).joined(separator: " · "))

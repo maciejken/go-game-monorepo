@@ -16580,6 +16580,65 @@
         }
       }
     },
+    "The other device answered with something unexpected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The other device answered with something unexpected."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drugie urządzenie odpowiedziało czymś nieoczekiwanym."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Інший пристрій відповів чимось неочікуваним."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Другое устройство ответило чем-то неожиданным."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das andere Gerät hat unerwartet geantwortet."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’autre appareil a répondu de façon inattendue."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’altro dispositivo ha risposto in modo inatteso."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另一台设备返回了意外的响应。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相手のデバイスから予期しない応答がありました。"
+          }
+        }
+      }
+    },
     "The other player requested to reopen scoring.": {
       "extractionState": "manual",
       "localizations": {
@@ -17048,6 +17107,65 @@
           "stringUnit": {
             "state": "translated",
             "value": "このサーバーは GNU Go の性能を測定していません"
+          }
+        }
+      }
+    },
+    "Those aren't your stones to play.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Those aren't your stones to play."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To nie są Twoje kamienie."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Це не ваші камені."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это не ваши камни."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das sind nicht deine Steine."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce ne sont pas vos pierres."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quelle non sono le tue pietre."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些不是你的棋子。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "それはあなたの石ではありません。"
           }
         }
       }
