@@ -282,6 +282,7 @@
   "The other player requested to reopen scoring.": "L’autre joueur a demandé un nouveau comptage.",
   "They can't invite you to games. They aren't told.": "Ils ne peuvent pas vous inviter à des parties. Ils n'en sont pas informés.",
   "They can't invite you, and don't know it. Remove a name to let them again.": "Ils ne peuvent pas vous inviter et ne le savent pas. Retirez un nom pour les autoriser à nouveau.",
+  "This account has been suspended. If you think this is a mistake, write to %@.": "Ce compte a été suspendu. Si vous pensez que c’est une erreur, écrivez à %@.",
   "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.": "Cette action est irréversible. Votre compte et les parties jouées seul sont supprimés ; les parties contre d'autres joueurs restent chez eux, sans votre nom.",
   "This game has no pending invitation for you": "Cette partie n’a pas d’invitation en attente pour vous",
   "This game is now on the server, in your games list.": "Cette partie est maintenant sur le serveur, dans votre liste de parties.",

@@ -33,6 +33,7 @@ import {
 
 import {
   dbPath, port, httpsPort, keyPath, certPath, trustProxy, aasaApp, registerLimit, gnugoDebugPerformance, adminUsername,
+  supportEmail, loginLimit,
 } from './config.js';
 import {
   clearSessionCookie,
@@ -1575,7 +1576,7 @@ app.post('/api/auth/reset-password', recoveryRateLimiter, (req, res) => {
 
 const loginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: loginLimit,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts — try again later.' },
@@ -1592,12 +1593,19 @@ app.post('/api/auth/login', loginRateLimiter, (req, res) => {
     return;
   }
 
-  const user = db.prepare('SELECT id, username, password_hash FROM users WHERE username = ?').get(username) as
-    | { id: string; username: string; password_hash: string }
+  const user = db.prepare('SELECT id, username, password_hash, suspended_at FROM users WHERE username = ?').get(username) as
+    | { id: string; username: string; password_hash: string; suspended_at: number | null }
     | undefined;
 
   if (!user || !verifyPassword(password, user.password_hash)) {
     fail(res, 401, 'Invalid username or password');
+    return;
+  }
+  // Said only to someone who has proved the password, so it can't be used
+  // to ask which usernames are suspended — and said plainly, with where to
+  // write, because "invalid password" would send them round in circles.
+  if (user.suspended_at !== null) {
+    fail(res, 403, 'This account has been suspended. If you think this is a mistake, write to %@.', [supportEmail]);
     return;
   }
 
@@ -1798,7 +1806,8 @@ app.get('/api/users/search', (req, res) => {
     const rows = db
       .prepare(
         `SELECT id, username FROM users
-         WHERE username LIKE ? ESCAPE '\\' AND deleted_at IS NULL AND (accepts_invitations = 1 OR id = ?)
+         WHERE username LIKE ? ESCAPE '\\' AND deleted_at IS NULL AND suspended_at IS NULL
+           AND (accepts_invitations = 1 OR id = ?)
            AND id NOT IN (SELECT blocker_id FROM blocked_users WHERE blocked_id = ?)
          ORDER BY username LIMIT 10`,
       )
@@ -1817,6 +1826,7 @@ app.get('/api/users/search', (req, res) => {
          AND g.updated_at >= ?
          AND u.username LIKE ? ESCAPE '\\'
          AND u.accepts_invitations = 1
+         AND u.suspended_at IS NULL
          AND u.id NOT IN (SELECT blocker_id FROM blocked_users WHERE blocked_id = ?)
        ORDER BY u.username
        LIMIT 10`,
@@ -2040,8 +2050,8 @@ app.post('/api/reports/:id/handled', (req, res) => {
     return;
   }
 
-  const report = db.prepare('SELECT id, handled_at FROM reports WHERE id = ?').get(req.params.id) as
-    | { id: string; handled_at: number | null }
+  const report = db.prepare('SELECT id, handled_at, reporter_user_id FROM reports WHERE id = ?').get(req.params.id) as
+    | { id: string; handled_at: number | null; reporter_user_id: string }
     | undefined;
   if (!report) {
     fail(res, 404, 'Report not found');
@@ -2049,8 +2059,88 @@ app.post('/api/reports/:id/handled', (req, res) => {
   }
   if (report.handled_at === null) {
     db.prepare('UPDATE reports SET handled_at = ? WHERE id = ?').run(Date.now(), report.id);
+    // Told once, the first time: the sheet promised an answer within a day,
+    // and this is the answer. Nothing about what was done — only that it
+    // was looked at — so it says nothing about the person reported.
+    pushToUser(report.reporter_user_id, 'Thanks for your report — we have dealt with it.');
   }
 
+  res.status(204).end();
+});
+
+// Taking somebody off the service after a report. The account is kept, not
+// erased, so this can be undone: what goes is everything that lets it act
+// — its sessions (so it is signed out at once, on every device), its push
+// tokens, and any invitation it was in the middle of — and what stops it
+// coming back is that login refuses it and search and invitations skip it.
+// Games already under way are left as they are for the other player to
+// finish, resign or let run out of time.
+function suspendUser(userId: string): void {
+  db.transaction(() => {
+    db.prepare('UPDATE users SET suspended_at = ? WHERE id = ? AND suspended_at IS NULL').run(Date.now(), userId);
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM device_tokens WHERE user_id = ?').run(userId);
+  })();
+  const pending = db
+    .prepare("SELECT id FROM games WHERE invite_status = 'pending' AND (black_user_id = ? OR white_user_id = ?)")
+    .all(userId, userId) as { id: string }[];
+  for (const row of pending) {
+    deleteGameRecord(row.id);
+    broadcastGameUpdate(row.id);
+  }
+  if (pending.length > 0) {
+    broadcastGamesListUpdate();
+  }
+}
+
+// Admin only, like the rest of the report queue. The refusals are plain
+// English rather than catalogue keys for the same reason the admin page is
+// untranslated: one reader, who is not the audience the catalogue is for.
+function requireSuspensionTarget(
+  req: Request,
+  res: Response,
+): { id: string; suspended_at: number | null } | null {
+  const user = requireAuth(req, res);
+  if (!user) {
+    return null;
+  }
+  if (!adminUsername || user.username !== adminUsername) {
+    fail(res, 403, 'Not allowed');
+    return null;
+  }
+  const target = db.prepare('SELECT id, suspended_at FROM users WHERE id = ? AND deleted_at IS NULL').get(req.params.id) as
+    | { id: string; suspended_at: number | null }
+    | undefined;
+  if (!target) {
+    fail(res, 404, 'User not found');
+    return null;
+  }
+  if (target.id === user.id) {
+    res.status(400).json({ error: 'You cannot suspend yourself' });
+    return null;
+  }
+  if (isAiUser(target.id)) {
+    res.status(400).json({ error: 'The computer opponent cannot be suspended' });
+    return null;
+  }
+  return target;
+}
+
+app.post('/api/users/:id/suspend', (req, res) => {
+  const target = requireSuspensionTarget(req, res);
+  if (!target) {
+    return;
+  }
+  suspendUser(target.id);
+  res.status(204).end();
+});
+
+app.post('/api/users/:id/unsuspend', (req, res) => {
+  const target = requireSuspensionTarget(req, res);
+  if (!target) {
+    return;
+  }
+  db.prepare('UPDATE users SET suspended_at = NULL WHERE id = ?').run(target.id);
   res.status(204).end();
 });
 
@@ -2073,7 +2163,8 @@ app.get('/api/reports', (req, res) => {
               r.game_tags,
               r.reporter_user_id AS reporter_id, r.target_user_id AS target_id,
               reporter.username AS reporter,
-              COALESCE(r.target_username, target.username) AS target
+              COALESCE(r.target_username, target.username) AS target,
+              target.suspended_at AS target_suspended_at
          FROM reports r
          JOIN users reporter ON reporter.id = r.reporter_user_id
          JOIN users target ON target.id = r.target_user_id
@@ -2521,9 +2612,9 @@ app.post('/api/games', async (req, res) => {
       return;
     }
 
-    const opponent = db.prepare('SELECT id, accepts_invitations FROM users WHERE username = ?').get(opponentUsername) as
-      | { id: string; accepts_invitations: number }
-      | undefined;
+    const opponent = db
+      .prepare('SELECT id, accepts_invitations, suspended_at FROM users WHERE username = ?')
+      .get(opponentUsername) as { id: string; accepts_invitations: number; suspended_at: number | null } | undefined;
     // Self-invite gets its own message regardless of the toggle — telling
     // someone their own account "isn't accepting invitations" would just
     // be confusing. A nonexistent username and an existing-but-opted-out
@@ -2536,7 +2627,7 @@ app.post('/api/games', async (req, res) => {
     // Blocked is folded into the same answer as opted-out and nonexistent,
     // for the same reason they already share one: anything that singled
     // blocking out would tell the blocked person they had been blocked.
-    if (!opponent || opponent.accepts_invitations !== 1 || hasBlocked(opponent.id, user.id)) {
+    if (!opponent || opponent.accepts_invitations !== 1 || opponent.suspended_at !== null || hasBlocked(opponent.id, user.id)) {
       fail(res, 400, "Selected player isn't currently accepting invitations");
       return;
     }

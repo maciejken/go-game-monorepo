@@ -219,6 +219,83 @@ if (adminName) {
   // And it is the admin's to do, like reading the queue.
   const byOther = await reporter('POST', `/api/reports/${noted?.id}/handled`);
   expect(byOther.status === 403, `an ordinary account marked a report handled: got ${byOther.status}`);
+
+  // --- Suspending: off the service, not out of the table ----------------
+
+  const victim = session();
+  const victimName = `rv${suffix}`;
+  const victimId = (await victim('POST', '/api/auth/register', { username: victimName, password })).body?.id;
+  // An invitation the victim sent, still waiting: it should not outlive
+  // the suspension, since nobody could answer for them.
+  const inFlight = await victim('POST', '/api/games', {
+    size: 9,
+    mode: 'remote',
+    color: 'black',
+    timeControl: 'unlimited',
+    opponentUsername: reporterName,
+  });
+  expect(typeof inFlight.body?.id === 'string', `couldn't create the victim's invitation (${JSON.stringify(inFlight.body)})`);
+
+  const ordinary = await reporter('POST', `/api/users/${victimId}/suspend`);
+  expect(ordinary.status === 403, `an ordinary account suspended somebody: got ${ordinary.status}`);
+  const adminSelf = await admin('POST', `/api/users/${signedIn.body?.id}/suspend`);
+  expect(adminSelf.status === 400, `the admin suspended themselves: got ${adminSelf.status}`);
+  const unknown = await admin('POST', '/api/users/no-such-id/suspend');
+  expect(unknown.status === 404, `suspending a nonexistent user: got ${unknown.status}`);
+
+  const suspend = await admin('POST', `/api/users/${victimId}/suspend`);
+  expect(suspend.status === 204, `suspending: got ${suspend.status} (${suspend.body?.error})`);
+  // Suspending twice is no harm, and keeps the first time.
+  const suspendAgain = await admin('POST', `/api/users/${victimId}/suspend`);
+  expect(suspendAgain.status === 204, `suspending twice: got ${suspendAgain.status}`);
+
+  // Signed out at once, on the device that was in use.
+  const whoAmI = await victim('GET', '/api/auth/me');
+  expect(whoAmI.body?.user === null, `a suspended account kept its session: ${JSON.stringify(whoAmI.body?.user)}`);
+  const stillActing = await victim('GET', '/api/blocks');
+  expect(stillActing.status === 401, `a suspended account still reached the API: got ${stillActing.status}`);
+
+  // Can't sign back in, and is told why — but only with the right password.
+  const fresh = session();
+  const refused = await fresh('POST', '/api/auth/login', { username: victimName, password });
+  expect(refused.status === 403, `logging in while suspended: got ${refused.status}`);
+  expect(
+    refused.body?.errorParams?.[0] === 'support@igo5.online',
+    `the refusal doesn't say where to write: ${JSON.stringify(refused.body)}`,
+  );
+  const wrongPassword = await fresh('POST', '/api/auth/login', { username: victimName, password: 'not-the-password' });
+  expect(wrongPassword.status === 401, `a wrong password on a suspended account: got ${wrongPassword.status}`);
+
+  // Gone from search and invitations, and the pending invitation with it.
+  const search = await reporter('GET', `/api/users/search?q=${victimName}`);
+  expect(
+    Array.isArray(search.body) && !search.body.some((row) => row.username === victimName),
+    `a suspended account is still in search: ${JSON.stringify(search.body)}`,
+  );
+  const inviteSuspended = await reporter('POST', '/api/games', {
+    size: 9,
+    mode: 'remote',
+    color: 'black',
+    timeControl: 'unlimited',
+    opponentUsername: victimName,
+  });
+  expect(inviteSuspended.status === 400, `inviting a suspended account: got ${inviteSuspended.status}`);
+  const goneInvite = await reporter('GET', `/api/games/${inFlight.body?.id}`);
+  expect(goneInvite.status === 404, `the suspended account's invitation survived: got ${goneInvite.status}`);
+
+  // The queue says so, for the report about them.
+  await reporter('POST', '/api/reports', { username: victimName, reason: 'behaviour' });
+  const aboutVictim = ((await admin('GET', '/api/reports')).body ?? []).find((row) => row.target === victimName);
+  expect(
+    typeof aboutVictim?.target_suspended_at === 'number',
+    `the queue doesn't show the suspension: ${JSON.stringify(aboutVictim?.target_suspended_at)}`,
+  );
+
+  // And it can be lifted: the account is as it was.
+  const lift = await admin('POST', `/api/users/${victimId}/unsuspend`);
+  expect(lift.status === 204, `lifting the suspension: got ${lift.status}`);
+  const back = await fresh('POST', '/api/auth/login', { username: victimName, password });
+  expect(back.status === 200, `logging in after the suspension was lifted: got ${back.status}`);
 }
 
 if (failures.length === 0) {

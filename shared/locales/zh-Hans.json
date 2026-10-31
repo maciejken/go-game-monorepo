@@ -282,6 +282,7 @@
   "The other player requested to reopen scoring.": "对方请求重新点目。",
   "They can't invite you to games. They aren't told.": "他们无法邀请你对局，并且不会收到通知。",
   "They can't invite you, and don't know it. Remove a name to let them again.": "他们无法邀请你，也不会知道。移除名称即可重新允许。",
+  "This account has been suspended. If you think this is a mistake, write to %@.": "此账号已被暂停。如果你认为这是个错误，请写信至 %@。",
   "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.": "此操作无法撤销。你的账号以及你独自下的对局将被删除；与其他玩家的对局会留在他们那里，但不再显示你的名字。",
   "This game has no pending invitation for you": "这盘棋没有待你回应的邀请",
   "This game is now on the server, in your games list.": "该对局已发布到服务器，可在你的对局列表中查看。",

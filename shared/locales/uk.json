@@ -282,6 +282,7 @@
   "The other player requested to reopen scoring.": "Інший гравець попросив повторний підрахунок.",
   "They can't invite you to games. They aren't told.": "Вони не можуть запрошувати вас до ігор. Їм про це не повідомляють.",
   "They can't invite you, and don't know it. Remove a name to let them again.": "Вони не можуть вас запросити й не знають про це. Приберіть ім’я, щоб знову дозволити.",
+  "This account has been suspended. If you think this is a mistake, write to %@.": "Цей обліковий запис призупинено. Якщо ви вважаєте, що це помилка, напишіть на %@.",
   "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.": "Цю дію не можна скасувати. Ваш обліковий запис і партії, зіграні наодинці, буде видалено; партії з іншими гравцями залишаться в них, без вашого імені.",
   "This game has no pending invitation for you": "Ця гра не має для вас очікуваного запрошення",
   "This game is now on the server, in your games list.": "Ця партія тепер на сервері, у списку ваших ігор.",

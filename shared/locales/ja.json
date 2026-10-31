@@ -282,6 +282,7 @@
   "The other player requested to reopen scoring.": "相手が整地のやり直しを求めています。",
   "They can't invite you to games. They aren't told.": "相手はあなたを対局に招待できません。通知はされません。",
   "They can't invite you, and don't know it. Remove a name to let them again.": "相手はあなたを招待できず、そのことを知りません。名前を削除すると解除します。",
+  "This account has been suspended. If you think this is a mistake, write to %@.": "このアカウントは停止されています。誤りだと思われる場合は %@ までご連絡ください。",
   "This cannot be undone. Your account and the games you played alone are deleted; games against other players stay with them, without your name.": "この操作は取り消せません。アカウントと、ひとりで打った対局は削除されます。他の人との対局は相手の側に残りますが、あなたの名前は表示されません。",
   "This game has no pending invitation for you": "この対局にあなた宛ての申し込みはありません",
   "This game is now on the server, in your games list.": "この対局はサーバーに保存され、対局一覧に表示されます。",

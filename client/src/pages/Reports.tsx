@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { listReports, markReportHandled, type Report } from '../services/api';
+import { listReports, markReportHandled, suspendUser, unsuspendUser, type Report } from '../services/api';
 
 // Deliberately not translated, for the same reason as the performance
 // screen: the server answers 403 to everybody but the one account named
@@ -107,6 +107,31 @@ export function ReportDetails() {
 
   const report = reports?.find((each) => each.id === id);
 
+  // Every report about the same person shows the same suspension, so the
+  // change is applied to all of them, not just this one.
+  const setSuspended = (suspend: boolean) => {
+    if (!report) {
+      return;
+    }
+    if (suspend && !window.confirm(`Suspend ${report.target}? They are signed out at once and cannot log in.`)) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    (suspend ? suspendUser(report.target_id) : unsuspendUser(report.target_id))
+      .then(() =>
+        setReports((current) =>
+          (current ?? []).map((each) =>
+            each.target_id === report.target_id
+              ? { ...each, target_suspended_at: suspend ? Date.now() : null }
+              : each,
+          ),
+        ),
+      )
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setBusy(false));
+  };
+
   const markHandled = () => {
     if (!report) {
       return;
@@ -137,6 +162,12 @@ export function ReportDetails() {
             <dd>
               <Link to={`/profile/${report.target_id}`}>{report.target}</Link>
             </dd>
+            <dt>{'Account'}</dt>
+            <dd>
+              {report.target_suspended_at === null
+                ? 'active'
+                : `suspended ${formatWhen(report.target_suspended_at)}`}
+            </dd>
             <dt>{'Reason'}</dt>
             <dd>{REASONS[report.reason] ?? report.reason}</dd>
             <dt>{'From'}</dt>
@@ -164,6 +195,18 @@ export function ReportDetails() {
           {/* Shown as typed — it is the evidence, and tidying it here
               would hide what is being complained about. React escapes it. */}
           {report.note && <p className="report-note">{report.note}</p>}
+
+          <p>
+            {report.target_suspended_at === null ? (
+              <button type="button" onClick={() => setSuspended(true)} disabled={busy}>
+                {'Suspend account'}
+              </button>
+            ) : (
+              <button type="button" onClick={() => setSuspended(false)} disabled={busy}>
+                {'Lift suspension'}
+              </button>
+            )}
+          </p>
 
           {report.handled_at === null && (
             <p>

@@ -6,6 +6,9 @@ export const defaultPassword = process.env.DEFAULT_USER_PASSWORD;
 // are still recorded, they just wait to be read rather than announcing
 // themselves. A username rather than an id so it can be set by hand.
 export const adminUsername = process.env.ADMIN_USERNAME;
+// Where a suspended player is told to write, and where the support page
+// already sends everyone (server/public/support.html).
+export const supportEmail = process.env.SUPPORT_EMAIL || 'support@igo5.online';
 export const httpsPort = process.env.HTTPS_PORT;
 export const keyPath = process.env.KEY_PATH;
 export const certPath = process.env.CERT_PATH;
@@ -47,6 +50,11 @@ export const apnsHost = process.env.APNS_HOST;
 // the rule checkers register a dozen accounts per run and have to be
 // runnable twice in an hour (scripts/check-server-rules.sh raises it).
 export const registerLimit = Number(process.env.REGISTER_RATE_LIMIT) || 10;
+
+// How many login attempts one address may make per 15 minutes. Five is the
+// real limit; it is a setting for the same reason the one above is — the
+// checkers between them log in more often than that from one address.
+export const loginLimit = Number(process.env.LOGIN_RATE_LIMIT) || 5;
 
 // Which of the two apple-app-site-association files this server publishes
 // — 'test' names the test app, anything else names the production one.

@@ -590,12 +590,23 @@ export interface Report {
   // itself may be gone by now.
   game_title: string | null;
   game_tags: string[];
+  // When the person reported was suspended, if they are.
+  target_suspended_at: number | null;
   created_at: number;
   handled_at: number | null;
 }
 
 export function listReports(): Promise<Report[]> {
   return fetch(`${API_BASE}/reports`).then((res) => handle<Report[]>(res));
+}
+
+// Taking somebody off the service, and putting them back. Admin only.
+export function suspendUser(id: string): Promise<void> {
+  return fetch(`${API_BASE}/users/${id}/suspend`, { method: 'POST' }).then((res) => handleEmpty(res));
+}
+
+export function unsuspendUser(id: string): Promise<void> {
+  return fetch(`${API_BASE}/users/${id}/unsuspend`, { method: 'POST' }).then((res) => handleEmpty(res));
 }
 
 // Takes a report out of the queue. The row stays: handled is a state, not

@@ -436,6 +436,15 @@ if (!usersColumns.has('deleted_at')) {
   db.exec('ALTER TABLE users ADD COLUMN deleted_at INTEGER');
 }
 
+// When an admin suspended the account, after a report. Unlike a deletion
+// the account is kept as it was — name, password, games — so a suspension
+// can be lifted; while it lasts, the account cannot sign in, has no live
+// session, and drops out of search and invitations (see suspendUser in
+// server.ts).
+if (!usersColumns.has('suspended_at')) {
+  db.exec('ALTER TABLE users ADD COLUMN suspended_at INTEGER');
+}
+
 // A one-time code that can set a new password without one, for an app with
 // no email to send a link to. Stored the way a password is — only its hash
 // — so the server can check a code without being able to show it again.

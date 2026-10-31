@@ -21,6 +21,10 @@ REGISTER_RATE_LIMIT=1000
 export REGISTER_RATE_LIMIT
 ADMIN_USERNAME=suiteadmin
 export ADMIN_USERNAME
+# The suspension checks log in as accounts that were just suspended, which
+# is more attempts from one address than the real limit allows in 15 minutes.
+LOGIN_RATE_LIMIT=1000
+export LOGIN_RATE_LIMIT
 PORT="$PORT" npx tsx server/src/server.ts > "$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 
