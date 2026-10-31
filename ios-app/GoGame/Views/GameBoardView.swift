@@ -30,6 +30,12 @@ struct GameBoardView: View {
     // the number of chip rows instead of guessing one height for all of them.
     @State private var tagsSheetHeight: CGFloat = 200
     @State private var showReportSheet = false
+    // Set once the invitation has been rejected: the same sheet then offers
+    // to report them, with the game already gone.
+    @State private var inviteRejected = false
+    // From the moment Go back is pressed until the board is gone: the card
+    // is hidden at once rather than riding along with the pop.
+    @State private var isLeavingInvite = false
     @State private var showDeleteConfirmation = false
     // Set once the SGF has been fetched and written to a temp file — its
     // presence both drives the share sheet (.sheet(isPresented:), same
@@ -319,21 +325,38 @@ struct GameBoardView: View {
                 .fittedSheetHeight()
                 .presentationBackground(sheetBackground)
         }
-        // Bound directly to the game's own pendingInviteResponse rather
-        // than a local flag: accepting clears it server-side, and the
-        // reload that follows naturally dismisses this sheet by itself
-        // once that flag comes back false — no separate state to keep in
-        // sync. The `set` half is a no-op (paired with
-        // .interactiveDismissDisabled below) so declining or accepting via
-        // the buttons are the only ways out, never a swipe.
-        .sheet(isPresented: Binding(get: { game?.pendingInviteResponse == true }, set: { _ in })) {
-            if let game {
-                inviteResponseSheetContent(game)
-                    .interactiveDismissDisabled(true)
-                    .fittedSheetHeight()
-                    .presentationBackground(sheetBackground)
+        // The invitation is a card on the board, not a sheet over it. It is
+        // tied to the game's own pendingInviteResponse — accepting clears
+        // it server-side and the reload that follows removes the card — and
+        // the only ways out are its buttons.
+        //
+        // It was a real sheet once, and a sheet can go missing: asked for
+        // while the board was still sliding in it was dropped without a
+        // word, and one left open when a push opened another game popped
+        // the board from under it. Either way the stack's presenter was
+        // left believing it was showing something, so the board sat there
+        // with an unanswered invitation, its own action sheet refusing to
+        // open. A view in this hierarchy has no presenter to get out of
+        // step with, and the dimmed backdrop keeps the board from being
+        // played underneath it, which a missing sheet did not.
+        .overlay {
+            if let game, game.pendingInviteResponse, !isLeavingInvite {
+                ZStack(alignment: .bottom) {
+                    Color.black.opacity(0.35)
+                        .ignoresSafeArea()
+                    inviteResponseSheetContent(game)
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
+                                .fill(sheetBackground)
+                                .ignoresSafeArea(edges: .bottom)
+                        }
+                }
+                .accessibilityAddTraits(.isModal)
+                .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: game?.pendingInviteResponse == true && !isLeavingInvite)
         .sheet(isPresented: Binding(get: { gameShare != nil }, set: { if !$0 { gameShare = nil } })) {
             if let gameShare {
                 ShareSheet(share: gameShare)
@@ -669,7 +692,10 @@ struct GameBoardView: View {
     private func inviteResponseSheetContent(_ game: GameState) -> some View {
         let opponentUsername = game.myColor == .black ? game.whiteUsername : game.blackUsername
         let opponentName = opponentUsername ?? "Someone"
-        return VStack(spacing: 12) {
+        if inviteRejected {
+            return AnyView(inviteRejectedSheetContent(opponentUsername))
+        }
+        return AnyView(VStack(spacing: 12) {
             Text("Game Invitation")
                 .font(.headline)
             Text("\(opponentName) invited you to a game\(game.title?.isEmpty == false ? " — \(game.title!)" : "").")
@@ -686,39 +712,44 @@ struct GameBoardView: View {
             }
             .buttonStyle(.igo5Primary)
             .disabled(isBusy)
-            Button(role: .destructive) {
-                Task { await respondToInvite(accept: false) }
+            // Only moves to the next step. The game isn't deleted until that
+            // step is finished — see inviteRejectedSheetContent.
+            Button {
+                inviteRejected = true
             } label: {
                 Text("Reject").frame(maxWidth: .infinity)
             }
-            .buttonStyle(.igo5Ghost)
+            .buttonStyle(.igo5Secondary)
             .disabled(isBusy)
-            // Quieter than the other two on purpose: rejecting is the
-            // ordinary answer to an unwanted game, and blocking is for
-            // when you don't want to be asked again. It needs no reject
-            // of its own — the invitation goes with the block.
-            if let opponentUsername {
-                Button(role: .destructive) {
-                    Task { await blockInviter(opponentUsername) }
-                } label: {
-                    Text(String(localized: "Block %@", defaultValue: "Block \(opponentUsername)"))
-                        .font(.subheadline)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.red)
-                .disabled(isBusy)
+        }
+        .padding())
+    }
 
-                // The invitation itself is where an offensive name or
-                // game title is seen, so it is where reporting one
-                // belongs — not only on a profile you'd have to go
-                // looking for.
+    // The second step, after Reject, and where the rejection actually
+    // happens: only Go back sends it. Until then the game still exists,
+    // which is what lets a report carry its id — the invitation is where an
+    // offensive name or title is seen, and a report made after the game was
+    // deleted could not say which game. Reporting does not end the step.
+    // Not dismissible by swipe, like the first step, so leaving is always a
+    // button.
+    private func inviteRejectedSheetContent(_ opponentUsername: String?) -> some View {
+        VStack(spacing: 12) {
+            Text("Invitation rejected")
+                .font(.headline)
+            Button {
+                Task { await respondToInvite(accept: false) }
+            } label: {
+                Text("Go back").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.igo5Primary)
+            .disabled(isBusy)
+            if let opponentUsername {
                 Button {
                     showReportSheet = true
                 } label: {
-                    Text("Report")
-                        .font(.subheadline)
+                    Text("Report").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.igo5Secondary)
                 .disabled(isBusy)
                 .sheet(isPresented: $showReportSheet) {
                     ReportSheet(username: opponentUsername, gameId: gameId)
@@ -2229,27 +2260,6 @@ struct GameBoardView: View {
         }
     }
 
-    // Blocking from the invitation itself. The server drops any pending
-    // invite between the two as part of blocking, so this needs no reject
-    // alongside it — and deliberately sends none, because a reject tells
-    // the inviter they were turned down, which is the one thing a block
-    // should not do.
-    private func blockInviter(_ username: String) async {
-        guard !isBusy else { return }
-        isBusy = true
-        // Same reasoning as rejecting: the game is about to stop existing,
-        // and the server's broadcast can beat the response back here.
-        isDeleted = true
-        defer { isBusy = false }
-        do {
-            try await APIClient.block(username: username)
-            dismiss()
-        } catch {
-            isDeleted = false
-            errorMessage = error.localizedDescription
-        }
-    }
-
     private func respondToInvite(accept: Bool) async {
         guard !isBusy else { return }
         isBusy = true
@@ -2261,6 +2271,10 @@ struct GameBoardView: View {
         // view is popping.
         if !accept {
             isDeleted = true
+            // The card goes now, not after the request and the pop: it
+            // would otherwise still be on screen as the board slides away,
+            // over the games list.
+            isLeavingInvite = true
         }
         defer { isBusy = false }
         do {
@@ -2273,6 +2287,7 @@ struct GameBoardView: View {
         } catch {
             if !accept {
                 isDeleted = false
+                isLeavingInvite = false
             }
             errorMessage = error.localizedDescription
         }
