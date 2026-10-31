@@ -586,6 +586,10 @@ export interface Report {
   reason: ReportReason;
   note: string | null;
   game_id: string | null;
+  // The game's title and tags as they were when it was reported — the game
+  // itself may be gone by now.
+  game_title: string | null;
+  game_tags: string[];
   created_at: number;
   handled_at: number | null;
 }

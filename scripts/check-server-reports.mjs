@@ -92,9 +92,20 @@ const invited = await third('POST', '/api/games', {
   color: 'black',
   timeControl: 'unlimited',
   opponentUsername: reporterName,
+  title: 'Rude title',
 });
 expect(typeof invited.body?.id === 'string', `couldn't create an invitation (${JSON.stringify(invited.body)})`);
-await reporter('POST', '/api/reports', { username: thirdName, reason: 'behaviour', block: true });
+// A shared tag, which is the kind both players see — a personal one is
+// the creator's alone and could not have been what the reporter objected to.
+await third('POST', `/api/games/${invited.body?.id}/tags`, { tag: 'rudetag', isPublic: true });
+// Reported from the invitation, where the offending text is seen: the
+// report names the game, and the block deletes it in the same request.
+await reporter('POST', '/api/reports', {
+  username: thirdName,
+  reason: 'game_text',
+  gameId: invited.body?.id,
+  block: true,
+});
 const goneGame = await reporter('GET', `/api/games/${invited.body?.id}`);
 expect(goneGame.status === 404, `the pending invitation survived the block: got ${goneGame.status}`);
 
@@ -168,6 +179,18 @@ if (adminName) {
   expect(queue.status === 200, `the admin couldn't read the queue: got ${queue.status}`);
   const mine = Array.isArray(queue.body) ? queue.body.filter((row) => row.reporter === reporterName) : [];
   expect(mine.length === 3, `the queue holds ${mine.length} of this run's reports, expected 3`);
+  // What was reported outlives the game it was on: the block above deleted
+  // that game, and the report still says what the title and tags were.
+  const aboutGame = mine.find((row) => row.reason === 'game_text');
+  expect(aboutGame?.game_title === 'Rude title', `the title was lost with the game: ${JSON.stringify(aboutGame?.game_title)}`);
+  expect(
+    JSON.stringify(aboutGame?.game_tags) === JSON.stringify(['rudetag']),
+    `the tags were lost with the game: ${JSON.stringify(aboutGame?.game_tags)}`,
+  );
+  expect(aboutGame?.target === thirdName, `the target is ${JSON.stringify(aboutGame?.target)}`);
+  const noTitle = mine.find((row) => row.reason === 'username');
+  expect(noTitle?.game_title === null && Array.isArray(noTitle?.game_tags) && noTitle.game_tags.length === 0,
+    `a report with no game carries ${JSON.stringify([noTitle?.game_title, noTitle?.game_tags])}`);
   const noted = mine.find((row) => row.reason === 'behaviour' && row.target === targetName);
   // Trimmed on the way in, so the note reads as written rather than as typed.
   expect(noted?.note === 'said something awful', `the note came back as ${JSON.stringify(noted?.note)}`);

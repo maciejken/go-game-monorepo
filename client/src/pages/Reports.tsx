@@ -83,9 +83,9 @@ function Reports() {
                 <span className="report-card-reason">{REASONS[report.reason] ?? report.reason}</span>
               </span>
               {report.note && <span className="report-card-note">{report.note}</span>}
+              {report.game_title && <span className="report-card-note">{`Title: ${report.game_title}`}</span>}
               <span className="report-card-meta">
                 {`from ${report.reporter} · ${formatWhen(report.created_at)}`}
-                {report.game_id ? ' · has a game' : ''}
               </span>
             </Link>
           </li>
@@ -145,12 +145,16 @@ export function ReportDetails() {
             </dd>
             <dt>{'When'}</dt>
             <dd>{formatWhen(report.created_at)}</dd>
+            {/* Copied when the report was made, as typed, and not linked to
+                the game: rejecting an invitation or blocking deletes it,
+                so by the time anyone reads this it is usually gone. A
+                report from before the copy was kept shows a dash. */}
             {report.game_id && (
               <>
-                <dt>{'Game'}</dt>
-                <dd>
-                  <Link to={`/games/${report.game_id}`}>{'open the game'}</Link>
-                </dd>
+                <dt>{'Title'}</dt>
+                <dd>{report.game_title || '—'}</dd>
+                <dt>{'Tags'}</dt>
+                <dd>{report.game_tags.length > 0 ? report.game_tags.join(', ') : '—'}</dd>
               </>
             )}
             <dt>{'Status'}</dt>

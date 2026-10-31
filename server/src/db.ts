@@ -144,9 +144,14 @@ db.exec(`
   -- forwarded, so there is a record of what was reported and whether it
   -- was dealt with — handled_at is set once it has been.
   --
-  -- The reported text itself is not copied here: it is reached through
-  -- game_id, and a snapshot would go stale the moment the title changed,
-  -- which is exactly what a report usually causes.
+  -- What was reported is copied here when the report is made: the
+  -- target's username, and the game's title and tags as the reporter saw
+  -- them (target_username, game_title, game_tags). The game and the account
+  -- can both be gone by the time anyone looks — rejecting the invitation
+  -- deletes the game, blocking deletes it, deleting an account renames it —
+  -- and a title that was changed or removed is exactly what a report
+  -- usually causes. The live game is still reachable through game_id while
+  -- it exists.
   CREATE TABLE IF NOT EXISTS reports (
     id TEXT PRIMARY KEY,
     reporter_user_id TEXT NOT NULL,
@@ -389,6 +394,18 @@ if (!gamesColumns.has('invited_user_id')) {
 }
 if (!gamesColumns.has('invite_status')) {
   db.exec('ALTER TABLE games ADD COLUMN invite_status TEXT');
+}
+
+// What a report is about, copied at the time (see the reports table above).
+// NULL for reports made before they were kept, which fall back to the live
+// username and have no title.
+const reportsColumns = new Set(
+  (db.prepare('PRAGMA table_info(reports)').all() as { name: string }[]).map((column) => column.name),
+);
+for (const column of ['target_username', 'game_title', 'game_tags']) {
+  if (!reportsColumns.has(column)) {
+    db.exec(`ALTER TABLE reports ADD COLUMN ${column} TEXT`);
+  }
 }
 
 // Whether other users can find and invite this one to a remote game —

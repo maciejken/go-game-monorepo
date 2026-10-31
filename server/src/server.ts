@@ -1991,11 +1991,20 @@ app.post('/api/reports', reportRateLimiter, (req, res) => {
   const rawNote = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
   const note = rawNote ? rawNote.slice(0, MAX_REPORT_NOTE_LENGTH) : null;
 
+  // Copied now, because none of it is guaranteed to be there later: the
+  // game can be deleted (rejecting the invitation does it, and so does
+  // blocking), and a title is usually changed once somebody complains.
+  // The tags are the ones this reporter could see, which is what they
+  // objected to.
+  const gameTitle = game ? game.title : null;
+  const gameTags = game ? JSON.stringify(getGameTags(game.id, user.id)) : null;
+
   const reportId = randomUUID();
   db.prepare(
-    `INSERT INTO reports (id, reporter_user_id, target_user_id, game_id, reason, note, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(reportId, user.id, target.id, game ? game.id : null, reason, note, Date.now());
+    `INSERT INTO reports (id, reporter_user_id, target_user_id, game_id, reason, note, created_at,
+                          target_username, game_title, game_tags)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(reportId, user.id, target.id, game ? game.id : null, reason, note, Date.now(), target.username, gameTitle, gameTags);
 
   // Told, not just filed — a queue nobody is watching is not a response
   // within a day. Unset ADMIN_USERNAME and reports simply wait.
@@ -2060,8 +2069,11 @@ app.get('/api/reports', (req, res) => {
   const rows = db
     .prepare(
       `SELECT r.id, r.reason, r.note, r.game_id, r.created_at, r.handled_at,
+              r.game_title,
+              r.game_tags,
               r.reporter_user_id AS reporter_id, r.target_user_id AS target_id,
-              reporter.username AS reporter, target.username AS target
+              reporter.username AS reporter,
+              COALESCE(r.target_username, target.username) AS target
          FROM reports r
          JOIN users reporter ON reporter.id = r.reporter_user_id
          JOIN users target ON target.id = r.target_user_id
@@ -2069,7 +2081,13 @@ app.get('/api/reports', (req, res) => {
     )
     .all() as Record<string, unknown>[];
 
-  res.json(rows);
+  // Stored as JSON text; the page gets a list.
+  res.json(
+    rows.map((row) => ({
+      ...row,
+      game_tags: typeof row.game_tags === 'string' ? (JSON.parse(row.game_tags) as string[]) : [],
+    })),
+  );
 });
 
 app.post('/api/blocks', (req, res) => {
