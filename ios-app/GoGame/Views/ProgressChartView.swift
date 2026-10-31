@@ -174,8 +174,16 @@ struct ProgressChartView: View {
 
             // Also the table view: every margin is a number here, so the
             // series is readable without separating the two hues.
+            //
+            // Newest first, deliberately against the chart's own direction.
+            // The chart is read left to right as the run of games; the list
+            // is where you look up the game you just played, and that one
+            // should not be at the bottom of a long scroll. Only the display
+            // order is reversed — `points` keeps its chronological positions,
+            // which the trend is fitted against, and reversing those would
+            // flip the slope's sign.
             Section {
-                ForEach(points) { point in
+                ForEach(points.reversed()) { point in
                     row(point.game)
                 }
             }
