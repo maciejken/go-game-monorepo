@@ -66,6 +66,10 @@ struct MainTabView: View {
         } message: {
             Text(quickGameError ?? "")
         }
+        // Paints the selection pill yellow; see TabSelectionTint for why
+        // this cannot be done with .tint() or the appearance proxy.
+        .task { TabSelectionTint.repaint() }
+        .onChange(of: selectedTab) { _, _ in TabSelectionTint.repaint() }
         .task { consumeProfileDeepLink() }
         .onChange(of: deepLinkRouter.targetProfileId) { _, _ in consumeProfileDeepLink() }
         // GameListView (the Home tab) does the actual push onto its own

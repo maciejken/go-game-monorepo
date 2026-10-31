@@ -32,7 +32,7 @@ struct RecoveryCodeSheet: View {
                     Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.igo5Secondary)
                 Button {
                     dismiss()
                 } label: {
@@ -41,7 +41,7 @@ struct RecoveryCodeSheet: View {
                     // own small size in the middle of it.
                     Text("Done").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.igo5Primary)
             }
             Spacer(minLength: 0)
         }

@@ -44,28 +44,50 @@ struct AuthView: View {
                 }
 
                 Section {
-                    Button("Log in") {
+                    Button {
                         Task {
                             isSubmitting = true
                             await session.login(username: username, password: password)
                             isSubmitting = false
                         }
+                    } label: {
+                        // Full width: a primary button that only wraps its
+                        // own word reads as a chip dropped in the row.
+                        Text("Log in").frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.igo5Primary)
                     .disabled(isSubmitting || username.isEmpty || password.isEmpty)
 
-                    Button("Register") {
+                    Button {
                         Task {
                             isSubmitting = true
                             await session.register(username: username, password: password)
                             isSubmitting = false
                         }
+                    } label: {
+                        Text("Register").frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.igo5Secondary)
                     .disabled(isSubmitting || username.isEmpty || password.isEmpty)
 
                     Button("Forgot password?") {
                         showReset = true
                     }
                 }
+                // The row dividers say nothing here: these three are a
+                // filled button, an outlined one and a plain link, which
+                // already read as three different things. An inset line
+                // under each only adds a short rule that stops before the
+                // edge of the card it is drawn in.
+                .listRowSeparator(.hidden)
+                // Half the usual row padding. A list spaces rows for text
+                // you read down; these are three buttons that belong
+                // together, and the default gap made them look like three
+                // unrelated settings. Horizontal stays at the grouped
+                // list's own 16pt — measured off a screenshot, because 20
+                // looked right and pulled the buttons 4pt in from the
+                // fields above.
+                .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
 
                 // An account is for playing other people. A game against
                 // the person opposite you, or one saved on this device,

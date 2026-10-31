@@ -23,7 +23,7 @@ struct RootView: View {
             )
         ) {
             RecoveryCodeSheet(code: session.recoveryCodeToShow ?? "")
-                .presentationDetents([.height(340)])
+                .presentationDetents([.height(372)])
         }
         .task {
             await session.checkSession()

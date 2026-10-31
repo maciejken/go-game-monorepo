@@ -148,7 +148,7 @@ struct TagPicker: View {
                         // says it.
                         Text("Share").lineLimit(1)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.igo5Secondary)
                     .disabled(isBusy || trimmedDraft.isEmpty)
                 }
                 Button {
@@ -165,7 +165,7 @@ struct TagPicker: View {
                     }
                     .labelStyle(.titleAndIcon)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.igo5Primary)
                 .disabled(isBusy || trimmedDraft.isEmpty)
             }
         }

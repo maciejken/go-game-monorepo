@@ -205,7 +205,7 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showDeleteAccount) {
             deleteAccountSheet
-                .presentationDetents([.height(320)])
+                .presentationDetents([.height(352)])
         }
         .alert(
             "Error",
@@ -240,8 +240,7 @@ struct ProfileView: View {
             } label: {
                 Text("Delete account").frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
+            .buttonStyle(.igo5Ghost)
             .disabled(isDeletingAccount || deletePassword.isEmpty)
             Spacer(minLength: 0)
         }
