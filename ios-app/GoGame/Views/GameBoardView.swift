@@ -326,7 +326,6 @@ struct GameBoardView: View {
         .sheet(isPresented: $showDeleteConfirmation) {
             deleteConfirmationSheetContent
                 .fittedSheetHeight()
-                .presentationBackground(sheetBackground)
         }
         // The invitation is a card on the board, not a sheet over it. It is
         // tied to the game's own pendingInviteResponse — accepting clears
@@ -349,11 +348,7 @@ struct GameBoardView: View {
                         .ignoresSafeArea()
                     inviteResponseSheetContent(game)
                         .frame(maxWidth: .infinity)
-                        .background {
-                            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
-                                .fill(sheetBackground)
-                                .ignoresSafeArea(edges: .bottom)
-                        }
+                        .background { inviteCardBackground }
                 }
                 .accessibilityAddTraits(.isModal)
                 .transition(.opacity)
@@ -369,12 +364,6 @@ struct GameBoardView: View {
             if let game {
                 actionsSheetContent(game)
                     .fittedSheetHeight()
-                    // A sheet's default background is a translucent system
-                    // material, which applies automatic vibrancy blending to
-                    // semantic colors like Color.primary — that washed the
-                    // Pass button's intended solid black/white fill out to
-                    // gray. An opaque background stops that blending.
-                    .presentationBackground(sheetBackground)
             }
         }
         .sheet(isPresented: $showSettingsSheet) {
@@ -399,7 +388,6 @@ struct GameBoardView: View {
                     contentHeight: $tagsSheetHeight
                 )
                 .presentationDetents([.height(tagsSheetHeight)])
-                .presentationBackground(sheetBackground)
             }
         }
         .sheet(isPresented: $showResultSheet) {
@@ -426,15 +414,25 @@ struct GameBoardView: View {
         }
     }
 
-    // These sheets sit on an opaque background rather than the default
-    // translucent material, which vibrancy-blends semantic colours like
-    // Color.primary towards grey (see the actions sheet below). In dark
-    // mode systemBackground is pure black, which leaves the secondary
-    // buttons on these sheets — plain .glass, so nearly unfilled — with
-    // almost nothing to stand out against. One step up the grey scale
-    // gives them an edge without visibly lightening the sheet.
-    private var sheetBackground: Color {
-        colorScheme == .dark ? Color(uiColor: .secondarySystemBackground) : Color(uiColor: .systemBackground)
+    // The invitation's card is not a sheet, so it is given what a sheet gets by
+    // default: Liquid Glass on iOS 26, a material below. Every sheet in the app
+    // takes the system's own background for the same reason — they used to sit
+    // on an opaque colour, picked when the buttons on them were filled with a
+    // semantic colour the translucent material washed out to grey, and plain
+    // glass buttons had nothing to stand out against in dark mode. The buttons
+    // are explicit colours now (see DesignSystem.swift), so neither holds.
+    @ViewBuilder
+    private var inviteCardBackground: some View {
+        let shape = UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
+        if #available(iOS 26.0, *) {
+            Color.clear
+                .glassEffect(.regular, in: shape)
+                .ignoresSafeArea(edges: .bottom)
+        } else {
+            shape
+                .fill(.regularMaterial)
+                .ignoresSafeArea(edges: .bottom)
+        }
     }
 
     private var navigationTitle: String {
