@@ -63,6 +63,42 @@ enum APIClient {
         }
     }
 
+    // For the one load a screen cannot do without: a few short attempts
+    // instead of one long one. A request that never gets an answer — the
+    // radio still waking at a cold launch from a push is the usual cause —
+    // used to be waited on for the session's full 15 seconds, then again
+    // after a pause, so a screen could show nothing for half a minute. Each
+    // attempt here is given `perAttempt` seconds and then abandoned, which
+    // cancels the request and starts a new one on a fresh connection.
+    // Only for GETs that are safe to repeat.
+    static func withShortAttempts<T: Sendable>(
+        attempts: Int = 3,
+        perAttempt: TimeInterval = 7,
+        _ operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        var lastError: Error = URLError(.timedOut)
+        for attempt in 1...attempts {
+            do {
+                return try await withThrowingTaskGroup(of: T.self) { group in
+                    group.addTask { try await operation() }
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: UInt64(perAttempt * 1_000_000_000))
+                        throw URLError(.timedOut)
+                    }
+                    defer { group.cancelAll() }
+                    return try await group.next()!
+                }
+            } catch {
+                // Cancelled from outside — the screen went away — is not a
+                // failed attempt, and trying again would only be cancelled too.
+                if Task.isCancelled || isCancellation(error) { throw error }
+                lastError = error
+                if attempt < attempts { try? await Task.sleep(nanoseconds: 500_000_000) }
+            }
+        }
+        throw lastError
+    }
+
     // A request that was cancelled because whatever owned it went away —
     // a view popped mid-load, most often — is not a failure anyone needs
     // telling about. URLSession reports it as URLError.cancelled, whose

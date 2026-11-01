@@ -36,6 +36,9 @@ struct GameBoardView: View {
     // From the moment Go back is pressed until the board is gone: the card
     // is hidden at once rather than riding along with the pop.
     @State private var isLeavingInvite = false
+    // Set when the first load of a game is taking long enough that a spinner
+    // on its own is not enough (see loadingView).
+    @State private var showSlowLoadHint = false
     @State private var showDeleteConfirmation = false
     // Set once the SGF has been fetched and written to a temp file — its
     // presence both drives the share sheet (.sheet(isPresented:), same
@@ -178,7 +181,7 @@ struct GameBoardView: View {
             if let game {
                 boardContent(game)
             } else {
-                ProgressView()
+                loadingView
             }
         }
         // The Home tab's bottom tab bar would otherwise stack on top of
@@ -436,6 +439,28 @@ struct GameBoardView: View {
 
     private var navigationTitle: String {
         game?.title?.isEmpty == false ? game!.title! : ""
+    }
+
+    // Nothing to show yet. A spinner alone gives no way out of a load that is
+    // stuck, so after a few seconds it says so and offers another go.
+    private var loadingView: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+            if showSlowLoadHint {
+                Text("Still loading…")
+                    .foregroundStyle(.secondary)
+                Button("Try again") {
+                    Task { await load() }
+                }
+                .buttonStyle(.igo5Secondary)
+                .fixedSize()
+            }
+        }
+        .padding()
+        .task {
+            try? await Task.sleep(for: .seconds(8))
+            if game == nil { showSlowLoadHint = true }
+        }
     }
 
     private func boardContent(_ game: GameState) -> some View {
@@ -1971,14 +1996,33 @@ struct GameBoardView: View {
                 // refetch) fall through to the plain path below, which only
                 // ever fetches history for a game already confirmed
                 // finished — never repeatedly for one still being played.
-                async let gameFetch = APIClient.withRetry { try await transport.state(gameId: gameId) }
-                async let historyFetch = try? APIClient.withRetry { try await transport.history(gameId: gameId) }
-                let fetchedGame = try await gameFetch
-                let fetchedHistory = await historyFetch
-                game = fetchedGame
-                if fetchedGame.status == "finished", let fetchedHistory {
-                    history = fetchedHistory
-                    reviewMoveNumber = fetchedHistory.moves.count - 1
+                //
+                // The history is only for a game that turns out finished, so
+                // it is asked for alongside but not waited on unless it is
+                // needed: a game still being played shows as soon as its
+                // state arrives, and a slow or stuck history request can no
+                // longer hold the board back — which it used to, for every
+                // game, whatever its status.
+                let transport = self.transport
+                let gameId = self.gameId
+                let historyTask = Task { try? await APIClient.withShortAttempts(attempts: 2) { try await transport.history(gameId: gameId) } }
+                let fetchedGame: GameState
+                do {
+                    fetchedGame = try await APIClient.withShortAttempts { try await transport.state(gameId: gameId) }
+                } catch {
+                    historyTask.cancel()
+                    throw error
+                }
+                if fetchedGame.status == "finished" {
+                    let fetchedHistory = await historyTask.value
+                    game = fetchedGame
+                    if let fetchedHistory {
+                        history = fetchedHistory
+                        reviewMoveNumber = fetchedHistory.moves.count - 1
+                    }
+                } else {
+                    historyTask.cancel()
+                    game = fetchedGame
                 }
             } else {
                 game = try await APIClient.withRetry { try await transport.state(gameId: gameId) }
