@@ -169,11 +169,12 @@
 				CODE_SIGN_ENTITLEMENTS = GoGame/GoGame.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = H36M3YGDVV;
 				DISPLAY_NAME = "Igo5 Test";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = GoGame/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.board-games";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -220,11 +221,12 @@
 				CODE_SIGN_ENTITLEMENTS = GoGame/GoGameRelease.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = H36M3YGDVV;
 				DISPLAY_NAME = Igo5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = GoGame/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.board-games";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
