@@ -33,7 +33,7 @@ import {
 
 import {
   dbPath, port, httpsPort, keyPath, certPath, trustProxy, aasaApp, registerLimit, gnugoDebugPerformance, adminUsername,
-  supportEmail, loginLimit,
+  supportEmail, loginLimit, undoEnabled,
 } from './config.js';
 import {
   clearSessionCookie,
@@ -58,6 +58,14 @@ import { isApnsConfigured, sendPushNotification, type PushData } from './apns.js
 
 seedDefaultUser();
 seedAiUser();
+
+// With undo switched off, a request that was waiting when the server last ran
+// would still stop every move, pass and resignation in its game — and there
+// would be no way left to answer it. They are dropped at startup, so turning
+// the flag off is enough on its own.
+if (!undoEnabled) {
+  db.prepare('UPDATE games SET pending_undo_by = NULL WHERE pending_undo_by IS NOT NULL').run();
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -1678,7 +1686,7 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/api/auth/me', async (req, res) => {
   res.json({
     user: getSessionUser(req),
-    features: { gnugo: await isGnuGoAvailable(), gnugoDebugPerformance },
+    features: { gnugo: await isGnuGoAvailable(), gnugoDebugPerformance, undo: undoEnabled },
   });
 });
 
@@ -3828,6 +3836,10 @@ app.post('/api/games/:id/reopen-scoring', (req, res) => {
 // player must call this same endpoint to confirm it — calling it again as
 // the original requester cancels the request instead.
 app.post('/api/games/:id/undo', (req, res) => {
+  if (!undoEnabled) {
+    fail(res, 403, 'Undo is turned off');
+    return;
+  }
   let game = getGameRow(req.params.id);
   if (!game) {
     fail(res, 404, 'Game not found');

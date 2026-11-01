@@ -521,6 +521,9 @@ export interface ServerFeatures {
   // Whether this server times GNU Go moves — if it doesn't, there is no
   // report to offer and the link stays hidden.
   gnugoDebugPerformance?: boolean;
+  // Whether this server lets players take moves back. Optional: a server
+  // that predates the switch simply does, so absent means yes.
+  undo?: boolean;
 }
 
 // True for a server old enough not to say, which is how every server

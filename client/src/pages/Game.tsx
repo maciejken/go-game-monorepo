@@ -303,6 +303,8 @@ function GameView({ gameId }: GameViewProps) {
   } = useGame(gameId);
   const { history, error: historyError, load: loadHistory, clearError: clearHistoryError } = useGameHistory(gameId);
   const { user, features } = useAuth();
+  // Resume from scoring goes through the undo endpoint too, so it goes with it.
+  const undoOn = features.undo !== false;
   const { confirm: confirmDialog, alert: alertDialog } = useDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -422,10 +424,12 @@ function GameView({ gameId }: GameViewProps) {
           <input type="checkbox" checked={showCoords} onChange={toggleCoords} />
           {t('Show coordinates')}
         </label>
-        <label className="modal-checkbox-row">
-          <input type="checkbox" checked={showUndo} onChange={toggleUndo} />
-          {t('Show Undo button')}
-        </label>
+        {undoOn && (
+          <label className="modal-checkbox-row">
+            <input type="checkbox" checked={showUndo} onChange={toggleUndo} />
+            {t('Show Undo button')}
+          </label>
+        )}
         <label className="modal-checkbox-row">
           <input type="checkbox" checked={confirmMoves} onChange={toggleConfirmMoves} />
           {t('Confirm moves before playing them')}
@@ -1269,7 +1273,7 @@ function GameView({ gameId }: GameViewProps) {
                 </button>
                 {isParticipant && turnMenuOpen && (
                   <div className="go-turn-balloon">
-                    {showUndo && (isImmediateUndo || canUndo) && (
+                    {undoOn && showUndo && (isImmediateUndo || canUndo) && (
                       <button
                         type="button"
                         disabled={isImmediateUndo && !canUndo}
@@ -1306,7 +1310,7 @@ function GameView({ gameId }: GameViewProps) {
             )}
             {scoring && isParticipant && (
               <div className="go-actions">
-                {(() => {
+                {undoOn && (() => {
                   const resumeLabel = describeUndoAction(myColor, pendingUndoBy, true, isAiOpponent);
                   return resumeLabel === t('Resume') ? (
                     <button type="button" className="icon-action-button" aria-label={t('Resume')} onClick={resume}>

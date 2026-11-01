@@ -34,6 +34,16 @@ export const trustProxy = process.env.TRUST_PROXY === 'true' || process.env.TRUS
 // don't offer the mode.
 export const gnugoEnabled = process.env.GNUGO_ENABLED === 'true';
 
+// Taking a move back, on or off for this server. On unless asked otherwise —
+// it has always been there — so the way to switch it off is UNDO_ENABLED=false.
+// Off, the undo endpoint refuses, the web client stops offering the button
+// (and Resume from scoring, which is the same endpoint), and any request
+// that was waiting for an answer is dropped when the server starts, so a
+// request left over from before cannot hold a game up. It is a switch for
+// when undo needs to be out of the way — the iOS app has no way to answer a
+// request, and while one is waiting nobody can move.
+export const undoEnabled = process.env.UNDO_ENABLED !== 'false';
+
 // Times every GNU Go move and keeps the numbers, for the per-game report.
 // Off unless asked for: the measuring is free, but a row per AI move on a
 // server nobody is watching is a table that only grows.

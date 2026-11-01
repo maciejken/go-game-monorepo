@@ -41,5 +41,7 @@ node scripts/check-server-blocks.mjs "http://localhost:$PORT"
 node scripts/check-server-stars.mjs "http://localhost:$PORT"
 node scripts/check-server-progress.mjs "http://localhost:$PORT"
 node scripts/check-server-reports.mjs "http://localhost:$PORT" "$ADMIN_USERNAME"
+# Starts two servers of its own: the flag is read at startup.
+node scripts/check-server-undo-flag.mjs "$((PORT + 1))" "$((PORT + 2))"
 # Takes the database file too: pruning stored boards is what it checks.
 node scripts/check-server-replay.mjs "http://localhost:$PORT" "$DB_PATH"
