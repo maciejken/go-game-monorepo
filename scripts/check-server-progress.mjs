@@ -91,7 +91,14 @@ const remoteGame = async (opponentName, opponent, patch = {}) => {
 const scoreOut = async (id, white) => {
   await alice('POST', `/api/games/${id}/pass`, { color: 'black' });
   await white('POST', `/api/games/${id}/pass`, { color: 'white' });
-  const finished = await alice('POST', `/api/games/${id}/finalize-scoring`, { deadPoints: [], sekiPoints: [] });
+  // A game on one device has nobody to agree with; one player's say ends it.
+  if (white === alice) {
+    const finished = await alice('POST', `/api/games/${id}/finalize-scoring`, { deadPoints: [], sekiPoints: [] });
+    return finished.body?.result ?? '';
+  }
+  // Two players, so both say the score is right; the second one ends it.
+  await alice('POST', `/api/games/${id}/scoring-confirm`, { confirmed: true });
+  const finished = await white('POST', `/api/games/${id}/scoring-confirm`, { confirmed: true });
   return finished.body?.result ?? '';
 };
 

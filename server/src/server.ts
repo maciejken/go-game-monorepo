@@ -245,6 +245,8 @@ interface GameRow {
   pending_undo_by: string | null;
   end_reason: string | null;
   pending_reopen_by: string | null;
+  scoring_marks: string | null;
+  scoring_confirmed_by: string | null;
   time_control: string | null;
   main_time_seconds: number | null;
   byoyomi_seconds: number | null;
@@ -281,6 +283,7 @@ function getGameRow(id: string): GameRow | undefined {
   return db.prepare(`
     SELECT id, size, status, result, handicap, title, created_at, updated_at,
            black_user_id, white_user_id, pending_undo_by, end_reason, pending_reopen_by,
+           scoring_marks, scoring_confirmed_by,
            time_control, main_time_seconds, byoyomi_seconds, byoyomi_periods,
            black_time_remaining_ms, white_time_remaining_ms, black_periods_left, white_periods_left, turn_started_at,
            gnugo_level, komi, ai_current_level, invited_user_id, invite_status
@@ -295,6 +298,39 @@ function getGameRow(id: string): GameRow | undefined {
 // extends to a logged-in participant.
 function isPendingInviteFor(game: GameRow, userId: string | null): boolean {
   return game.invite_status === 'pending' && game.invited_user_id !== null && userId === game.invited_user_id;
+}
+
+// Scoring between two different players is something they do together: the
+// dead and seki marks are kept on the server so both see and change the same
+// ones, and the game ends when both have said the score is right. A game
+// against the computer, or on one device, has nobody else to agree — there
+// one player's word ends it, as it always did, with the marks kept by the
+// client.
+function isSharedScoring(game: GameRow): boolean {
+  return game.black_user_id !== game.white_user_id && !isAiOpponentGame(game);
+}
+
+interface ScoringMarks {
+  dead: Point[];
+  seki: Point[];
+}
+
+function readScoringMarks(game: GameRow): ScoringMarks {
+  try {
+    const parsed = JSON.parse(game.scoring_marks ?? '{}') as Partial<ScoringMarks>;
+    return { dead: parsed.dead ?? [], seki: parsed.seki ?? [] };
+  } catch {
+    return { dead: [], seki: [] };
+  }
+}
+
+function readScoringConfirmed(game: GameRow): Color[] {
+  try {
+    const parsed = JSON.parse(game.scoring_confirmed_by ?? '[]') as unknown;
+    return Array.isArray(parsed) ? parsed.filter((c): c is Color => c === 'black' || c === 'white') : [];
+  } catch {
+    return [];
+  }
 }
 
 // The other participant in a pending invite — used to notify them when the
@@ -1316,7 +1352,9 @@ function applyPassToGame(game: GameRow, color: Color): { status: string; nextCol
   const previousEventType = getLastEventType(game.id, moveNumber - 1);
   const status = previousEventType === 'PASS' ? 'scoring' : 'in_progress';
 
-  db.prepare('UPDATE games SET status = ?, result = ?, updated_at = ? WHERE id = ?')
+  // Scoring starts from nothing marked and nobody having agreed, whatever an
+  // earlier round of it left behind (a game resumed after two passes).
+  db.prepare('UPDATE games SET status = ?, result = ?, scoring_marks = NULL, scoring_confirmed_by = NULL, updated_at = ? WHERE id = ?')
     .run(status, null, now, game.id);
 
   broadcastGameUpdate(game.id);
@@ -3077,6 +3115,10 @@ app.get('/api/games/:id', (req, res) => {
     pendingUndoBy: game.pending_undo_by,
     endReason: game.end_reason,
     pendingReopenBy: game.pending_reopen_by,
+    // Only while two players are scoring together; null everywhere else, so a
+    // client can tell "nothing is shared here" from "nothing is marked yet".
+    scoringMarks: game.status === 'scoring' && isSharedScoring(game) ? readScoringMarks(game) : null,
+    scoringConfirmedBy: game.status === 'scoring' && isSharedScoring(game) ? readScoringConfirmed(game) : null,
     isAiOpponent: isAiOpponentGame(game),
     gnugoLevel: game.gnugo_level,
     aiCurrentLevel: game.ai_current_level,
@@ -3713,6 +3755,44 @@ function parsePointArray(value: unknown, size: number): Point[] {
     );
 }
 
+// Counts the board with these dead and seki groups and ends the game on the
+// result. One place for it, because two things end a scoring phase: one
+// player's say in a game that has nobody else to agree (finalize-scoring
+// below), and the second of two players agreeing (scoring-confirm).
+function finishScoring(
+  game: GameRow,
+  deadPoints: Point[],
+  sekiPoints: Point[],
+): { result: string; captures: Captures } {
+  const board = getCurrentBoard(game.id, game.size);
+  const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(
+    board,
+    getCumulativeCaptures(game.id),
+    deadPoints,
+  );
+
+  const score = scoreBoard(effectiveBoard, adjustedCaptures, resolveKomi(game), sekiPoints);
+  const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
+  // No komi means every count involved is a whole number — showing a
+  // trailing ".0" there would be noise rather than precision.
+  const marginLabel = Number.isInteger(score.margin) ? String(score.margin) : score.margin.toFixed(1);
+  const gameResult = `${winnerLabel} wins by ${marginLabel} (B: ${score.black}, W: ${score.white})`;
+
+  const now = Date.now();
+  db.prepare('UPDATE games SET status = ?, result = ?, end_reason = ?, updated_at = ? WHERE id = ?')
+    .run('finished', gameResult, 'scoring', now, game.id);
+
+  broadcastGameUpdate(game.id);
+  broadcastGamesListUpdate();
+
+  return { result: gameResult, captures: adjustedCaptures };
+}
+
+// Ends scoring in a game where one player's word is enough: against the
+// computer, or on one device, with the marks the client kept. Between two
+// players it is refused — the score is theirs to agree on, through
+// scoring-marks and scoring-confirm — which also means an app that still
+// finishes a shared game this way is told so instead of deciding it alone.
 app.post('/api/games/:id/finalize-scoring', (req, res) => {
   const game = getGameRow(req.params.id);
   if (!game) {
@@ -3737,6 +3817,10 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
     fail(res, 400, 'An undo request is pending confirmation');
     return;
   }
+  if (isSharedScoring(game)) {
+    res.status(400).json({ error: 'Both players have to confirm the score. Update the app to do that.' });
+    return;
+  }
 
   const deadPoints = parsePointArray(req.body?.deadPoints, game.size);
   // A group a player has directly declared to be in seki (a separate
@@ -3745,28 +3829,143 @@ app.post('/api/games/:id/finalize-scoring', (req, res) => {
   // findDeclaredSekiRegions in shared for how marking one side is enough.
   const sekiPoints = parsePointArray(req.body?.sekiPoints, game.size);
 
+  const finished = finishScoring(game, deadPoints, sekiPoints);
+  res.json({ status: 'finished', result: finished.result, captures: finished.captures });
+});
+
+// The two things a scoring player can do in a game between two players, and
+// the checks they share.
+function sharedScoringContext(
+  req: Request,
+  res: Response,
+): { game: GameRow; color: Color; opponentId: string | null } | null {
+  const game = getGameRow(String(req.params.id));
+  if (!game) {
+    fail(res, 404, 'Game not found');
+    return null;
+  }
+  const user = requireAuth(req, res);
+  if (!user) {
+    return null;
+  }
+  if (!isParticipant(game, user.id)) {
+    fail(res, 403, 'Only players in this game can finalize scoring');
+    return null;
+  }
+  if (game.status !== 'scoring') {
+    fail(res, 400, 'Game is not in the scoring phase');
+    return null;
+  }
+  if (game.pending_undo_by) {
+    fail(res, 400, 'An undo request is pending confirmation');
+    return null;
+  }
+  if (!isSharedScoring(game)) {
+    res.status(400).json({ error: 'Scoring is shared only between two players.' });
+    return null;
+  }
+  const color: Color = game.black_user_id === user.id ? 'black' : 'white';
+  const opponentId = color === 'black' ? game.white_user_id : game.black_user_id;
+  return { game, color, opponentId };
+}
+
+// Marking, or unmarking, groups as dead or as seki — for both players at
+// once. A change says "these points are now marked" or "no longer marked",
+// not "the marks are now exactly this": two players marking different
+// groups at the same moment then both get what they marked, where sending
+// the whole set would let the later request erase the earlier one.
+// Anything that changes the marks takes back everybody's agreement, since
+// what was agreed was a score that no longer exists.
+app.post('/api/games/:id/scoring-marks', (req, res) => {
+  const context = sharedScoringContext(req, res);
+  if (!context) {
+    return;
+  }
+  const { game } = context;
+
+  const requestedMode: unknown = req.body?.mode;
+  if (requestedMode !== 'dead' && requestedMode !== 'seki') {
+    res.status(400).json({ error: 'Choose dead or seki.' });
+    return;
+  }
+  const mode: 'dead' | 'seki' = requestedMode;
+  const marked = req.body?.marked === true;
   const board = getCurrentBoard(game.id, game.size);
-  const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(
-    board,
-    getCumulativeCaptures(game.id),
-    deadPoints,
-  );
+  // Only stones can be dead or in seki; a point with nothing on it is not a
+  // mark, whatever a client sent.
+  const points = parsePointArray(req.body?.points, game.size).filter((p) => board[p.y][p.x] !== null);
 
-  const score = scoreBoard(effectiveBoard, adjustedCaptures, resolveKomi(game), sekiPoints);
-  const winnerLabel = score.winner === 'black' ? 'Black' : 'White';
-  // No komi means every count involved is a whole number — showing a
-  // trailing ".0" there would be noise rather than precision.
-  const marginLabel = Number.isInteger(score.margin) ? String(score.margin) : score.margin.toFixed(1);
-  const gameResult = `${winnerLabel} wins by ${marginLabel} (B: ${score.black}, W: ${score.white})`;
+  const current = readScoringMarks(game);
+  const keyOf = (p: Point) => `${p.x},${p.y}`;
+  const sets: Record<'dead' | 'seki', Map<string, Point>> = {
+    dead: new Map(current.dead.map((p) => [keyOf(p), p])),
+    seki: new Map(current.seki.map((p) => [keyOf(p), p])),
+  };
+  const other = mode === 'dead' ? 'seki' : 'dead';
+  for (const point of points) {
+    if (marked) {
+      sets[mode].set(keyOf(point), point);
+      // A group is dead or in seki, never both.
+      sets[other].delete(keyOf(point));
+    } else {
+      sets[mode].delete(keyOf(point));
+    }
+  }
 
-  const now = Date.now();
-  db.prepare('UPDATE games SET status = ?, result = ?, end_reason = ?, updated_at = ? WHERE id = ?')
-    .run('finished', gameResult, 'scoring', now, game.id);
+  const next: ScoringMarks = { dead: [...sets.dead.values()], seki: [...sets.seki.values()] };
+  db.prepare('UPDATE games SET scoring_marks = ?, scoring_confirmed_by = NULL, updated_at = ? WHERE id = ?')
+    .run(JSON.stringify(next), Date.now(), game.id);
 
   broadcastGameUpdate(game.id);
-  broadcastGamesListUpdate();
+  res.json({ scoringMarks: next, scoringConfirmedBy: [] });
+});
 
-  res.json({ status: 'finished', result: gameResult, captures: adjustedCaptures });
+// Saying the score is right, or taking that back. The game ends when both
+// players have said it, on the marks as they stand at that moment — which
+// is why a mark changing in between takes the agreement back, above.
+app.post('/api/games/:id/scoring-confirm', (req, res) => {
+  const context = sharedScoringContext(req, res);
+  if (!context) {
+    return;
+  }
+  const { game, color, opponentId } = context;
+
+  const confirmed = new Set(readScoringConfirmed(game));
+  if (req.body?.confirmed === false) {
+    confirmed.delete(color);
+  } else {
+    confirmed.add(color);
+  }
+
+  if (confirmed.size === 2) {
+    const marks = readScoringMarks(game);
+    const finished = finishScoring(game, marks.dead, marks.seki);
+    // The one who agreed first is not looking at the game; the second to
+    // agree just ended it. Told, with the result.
+    if (opponentId) {
+      pushToUser(opponentId, `Scoring is done${game.title ? ` in ${game.title}` : ''}: ${finished.result}.`, {
+        gameId: game.id,
+      });
+    }
+    res.json({ status: 'finished', result: finished.result, captures: finished.captures });
+    return;
+  }
+
+  db.prepare('UPDATE games SET scoring_confirmed_by = ?, updated_at = ? WHERE id = ?')
+    .run(JSON.stringify([...confirmed]), Date.now(), game.id);
+  broadcastGameUpdate(game.id);
+
+  // Told when it is theirs to answer — agreeing is the signal that the other
+  // player is waiting — not when somebody takes their agreement back.
+  if (confirmed.has(color) && opponentId && opponentId !== getAiUserId()) {
+    const name = getUsername(color === 'black' ? game.black_user_id : game.white_user_id) ?? 'Your opponent';
+    pushToUser(
+      opponentId,
+      `${name} agrees with the score${game.title ? ` in ${game.title}` : ''} — check the marks and confirm.`,
+      { gameId: game.id },
+    );
+  }
+  res.json({ status: 'scoring', scoringConfirmedBy: [...confirmed] });
 });
 
 // Lets a mismarked scoring result be redone: reopens a game that finished
@@ -3820,7 +4019,9 @@ app.post('/api/games/:id/reopen-scoring', (req, res) => {
   }
 
   const now = Date.now();
-  db.prepare('UPDATE games SET status = ?, result = NULL, end_reason = NULL, pending_reopen_by = NULL, updated_at = ? WHERE id = ?')
+  // The marks it was finished with stay, as the place to start from; the
+  // agreement does not — whatever was agreed is what is being reconsidered.
+  db.prepare('UPDATE games SET status = ?, result = NULL, end_reason = NULL, pending_reopen_by = NULL, scoring_confirmed_by = NULL, updated_at = ? WHERE id = ?')
     .run('scoring', now, game.id);
 
   broadcastGameUpdate(game.id);
@@ -3932,7 +4133,7 @@ app.post('/api/games/:id/undo', (req, res) => {
   }
   // Whoever's turn it now is gets a freshly-started clock reading from this
   // moment — there's no historical timing to restore for an undone move.
-  db.prepare('UPDATE games SET status = ?, result = ?, pending_undo_by = NULL, updated_at = ?, turn_started_at = ? WHERE id = ?')
+  db.prepare('UPDATE games SET status = ?, result = ?, pending_undo_by = NULL, scoring_marks = NULL, scoring_confirmed_by = NULL, updated_at = ?, turn_started_at = ? WHERE id = ?')
     .run('in_progress', null, now, now, game.id);
 
   broadcastGameUpdate(game.id);

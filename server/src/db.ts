@@ -289,6 +289,18 @@ if (!gamesColumns.has('end_reason')) {
 if (!gamesColumns.has('pending_reopen_by')) {
   db.exec('ALTER TABLE games ADD COLUMN pending_reopen_by TEXT');
 }
+// The dead and seki marks of a game being scored between two players, kept
+// here so both of them see and change the same ones, and which of them have
+// said the score is right. Both are JSON text: {"dead":[{x,y}],"seki":[{x,y}]}
+// and ["black","white"]. NULL means none — and for a game against the
+// computer or on one device, where one player's say is enough, they are
+// simply never used (see isSharedScoring in server.ts).
+if (!gamesColumns.has('scoring_marks')) {
+  db.exec('ALTER TABLE games ADD COLUMN scoring_marks TEXT');
+}
+if (!gamesColumns.has('scoring_confirmed_by')) {
+  db.exec('ALTER TABLE games ADD COLUMN scoring_confirmed_by TEXT');
+}
 
 // game_tags shipped shared between both players, one row per (game, tag).
 // Tags are now per-user and either public (everyone who can see the game
