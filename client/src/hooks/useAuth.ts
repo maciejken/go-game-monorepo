@@ -4,6 +4,7 @@ import type { AuthUser, ServerFeatures } from '../services/api';
 export interface AuthContextValue {
   user: AuthUser | null;
   features: ServerFeatures;
+  isAdmin: boolean;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   // Resolves with the recovery code the server issued, to be shown once.

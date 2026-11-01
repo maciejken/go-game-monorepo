@@ -65,7 +65,7 @@ function SliderTicks({ count }: { count: number }) {
 }
 
 function Home() {
-  const { user, features, logout } = useAuth();
+  const { user, features, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -578,6 +578,12 @@ function Home() {
         <a href="/privacy">{t('Privacy')}</a>
         {' · '}
         <a href="/support">{t('Support')}</a>
+        {isAdmin && (
+          <>
+            {' · '}
+            <Link to="/reports">Reports</Link>
+          </>
+        )}
       </footer>
     </div>
   );

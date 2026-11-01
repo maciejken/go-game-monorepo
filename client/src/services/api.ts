@@ -568,10 +568,10 @@ export interface ServerFeatures {
 // behaved before there was anything to ask.
 export const DEFAULT_FEATURES: ServerFeatures = { gnugo: true, gnugoDebugPerformance: false };
 
-export function getMe(): Promise<{ user: AuthUser | null; features: ServerFeatures }> {
+export function getMe(): Promise<{ user: AuthUser | null; features: ServerFeatures; isAdmin: boolean }> {
   return fetch(`${API_BASE}/auth/me`)
-    .then((res) => handle<{ user: AuthUser | null; features?: ServerFeatures }>(res))
-    .then((data) => ({ user: data.user, features: data.features ?? DEFAULT_FEATURES }));
+    .then((res) => handle<{ user: AuthUser | null; features?: ServerFeatures; isAdmin?: boolean }>(res))
+    .then((data) => ({ user: data.user, features: data.features ?? DEFAULT_FEATURES, isAdmin: data.isAdmin ?? false }));
 }
 
 // Any logged-in user's public info by id, not just the caller's own —

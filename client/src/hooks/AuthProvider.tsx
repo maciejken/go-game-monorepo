@@ -12,12 +12,14 @@ import { AuthContext } from './useAuth';
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [features, setFeatures] = useState<ServerFeatures>(DEFAULT_FEATURES);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getMe()
-      .then(({ user: me, features: serverFeatures }) => {
+      .then(({ user: me, features: serverFeatures, isAdmin: admin }) => {
         setUser(me);
+        setIsAdmin(admin);
         setFeatures(serverFeatures);
       })
       .catch(() => setUser(null))
@@ -27,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     const loggedInUser = await loginRequest(username, password);
     setUser(loggedInUser);
+    getMe().then((me) => setIsAdmin(me.isAdmin)).catch(() => setIsAdmin(false));
   }, []);
 
   const register = useCallback(async (username: string, password: string) => {
@@ -38,10 +41,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await logoutRequest();
     setUser(null);
+    setIsAdmin(false);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, features, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, features, isAdmin, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

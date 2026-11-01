@@ -1722,8 +1722,12 @@ app.post('/api/auth/logout', (req, res) => {
 // nothing here changes while it runs: a server with GNU Go switched off (or
 // simply not installed) shouldn't be offering games against it.
 app.get('/api/auth/me', async (req, res) => {
+  const user = getSessionUser(req);
   res.json({
-    user: getSessionUser(req),
+    user,
+    // Only so the web client knows to offer the reports link; the reports
+    // routes check the username themselves.
+    isAdmin: !!user && !!adminUsername && user.username === adminUsername,
     features: { gnugo: await isGnuGoAvailable(), gnugoDebugPerformance, undo: undoEnabled },
   });
 });
