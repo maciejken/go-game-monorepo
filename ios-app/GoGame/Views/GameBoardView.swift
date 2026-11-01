@@ -488,10 +488,10 @@ struct GameBoardView: View {
                     // dead: a stone counted as a prisoner is already off
                     // the board for scoring, and leaving it solid in seki
                     // mode hides the territory markers underneath it.
-                    deadPoints: pendingDeadKeys,
+                    deadPoints: deadKeysInForce(game),
                     blackTerritoryPoints: territoryKeys(livePreview(game)?.blackTerritoryPoints ?? []),
                     whiteTerritoryPoints: territoryKeys(livePreview(game)?.whiteTerritoryPoints ?? []),
-                    sekiHighlightPoints: sekiActive(game) ? pendingSekiKeys : [],
+                    sekiHighlightPoints: sekiActive(game) ? sekiKeysInForce(game) : [],
                     pendingMove: game.status == "in_progress" ? pendingMove : nil,
                     pendingMoveColor: game.currentColor,
                     highlightColumn: coordinateEntryEnabled && isInteractive(game)
@@ -604,6 +604,20 @@ struct GameBoardView: View {
                     if let estimate = estimateText(game) {
                         Text(estimate)
                             .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    // Said once either player has agreed, so nobody is left
+                    // wondering whether the other has seen the score.
+                    if iHaveConfirmedScore(game) {
+                        Text("Waiting for the other player to confirm the score.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    } else if opponentHasConfirmedScore(game) {
+                        Text("The other player agrees with the score. Confirm it if you do too.")
+                            .font(.footnote)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                     }
@@ -1144,15 +1158,29 @@ struct GameBoardView: View {
     // this app's iOS 17 deployment target.
     @ViewBuilder
     private func finalizeButton(_ game: GameState) -> some View {
-        let action: () -> Void = { Task { await finalizeScoring() } }
-        let icon = Image(systemName: "checkmark")
+        // Once you have agreed, the tick is the quiet kind and says so: your
+        // part is done, and pressing it again takes it back.
+        let agreed = iHaveConfirmedScore(game)
+        let icon = Image(systemName: agreed ? "checkmark.circle.fill" : "checkmark")
             .font(.system(size: 20, weight: .semibold))
             .frame(width: Igo5.heroCircleDiameter, height: Igo5.heroCircleDiameter)
-        Button(action: action) { icon }
-            .buttonStyle(.igo5PrimaryCircle)
-            // Shown but inert for the guest: it says scoring is happening
-            // and that finishing it is the host's call.
-            .disabled(game.myColor == nil || isBusy || isNearbyGuest)
+        let label: Text = isSharedScoring(game)
+            ? (agreed ? Text("Take back confirmation") : Text("Confirm score"))
+            : Text("Finalize scoring")
+        // Shown but inert for the guest: it says scoring is happening
+        // and that finishing it is the host's call.
+        let inert = game.myColor == nil || isBusy || isNearbyGuest
+        if agreed {
+            Button { Task { await finalizeScoring() } } label: { icon }
+                .buttonStyle(.igo5GhostCircle)
+                .accessibilityLabel(label)
+                .disabled(inert)
+        } else {
+            Button { Task { await finalizeScoring() } } label: { icon }
+                .buttonStyle(.igo5PrimaryCircle)
+                .accessibilityLabel(label)
+                .disabled(inert)
+        }
     }
 
     // Mirrors client/src/pages/Game.tsx's describeResult: the sentence is
@@ -1527,7 +1555,35 @@ struct GameBoardView: View {
     // while actively in Seki mode (not just whenever a seki mark exists),
     // so switching to Dead mode isn't fighting the dim effect for attention.
     private func sekiActive(_ game: GameState) -> Bool {
-        game.status == "scoring" && markMode == .seki && !pendingSekiKeys.isEmpty
+        game.status == "scoring" && markMode == .seki && !sekiKeysInForce(game).isEmpty
+    }
+
+    // Between two players the server keeps the dead and seki marks, so both
+    // see and change the same ones; against the computer, or on one device,
+    // they stay on this device as they always did. scoringMarks is only ever
+    // sent for the first kind of game, and only while it is being scored.
+    private func isSharedScoring(_ game: GameState) -> Bool {
+        game.status == "scoring" && game.scoringMarks != nil && game.myColor != nil && game.myColor != .both
+    }
+
+    private func deadKeysInForce(_ game: GameState) -> Set<String> {
+        guard game.status == "scoring", let marks = game.scoringMarks else { return pendingDeadKeys }
+        return Set(marks.dead.map { "\($0.x),\($0.y)" })
+    }
+
+    private func sekiKeysInForce(_ game: GameState) -> Set<String> {
+        guard game.status == "scoring", let marks = game.scoringMarks else { return pendingSekiKeys }
+        return Set(marks.seki.map { "\($0.x),\($0.y)" })
+    }
+
+    private func iHaveConfirmedScore(_ game: GameState) -> Bool {
+        guard isSharedScoring(game), let me = game.myColor, let color = StoneColor(rawValue: me.rawValue) else { return false }
+        return game.scoringConfirmedBy?.contains(color) ?? false
+    }
+
+    private func opponentHasConfirmedScore(_ game: GameState) -> Bool {
+        guard isSharedScoring(game), let me = game.myColor, let color = StoneColor(rawValue: me.rawValue) else { return false }
+        return game.scoringConfirmedBy?.contains { $0 != color } ?? false
     }
 
     // Always on for a finished game — no toggle, unlike the web client's
@@ -1956,8 +2012,8 @@ struct GameBoardView: View {
     // pipeline (Models/Scoring.swift) the server uses at finalize time.
     private func livePreview(_ game: GameState) -> ScoreResult? {
         guard game.status == "scoring" else { return nil }
-        let deadPointsArray = pendingDeadKeys.compactMap(parsePointKey)
-        let sekiPointsArray = pendingSekiKeys.compactMap(parsePointKey)
+        let deadPointsArray = deadKeysInForce(game).compactMap(parsePointKey)
+        let sekiPointsArray = sekiKeysInForce(game).compactMap(parsePointKey)
         let (effectiveBoard, effectiveCaptures) = applyDeadStones(game.board, game.captures, deadPointsArray)
         return scoreBoard(effectiveBoard, effectiveCaptures, komi: game.komi, declaredSekiPoints: sekiPointsArray)
     }
@@ -2184,6 +2240,19 @@ struct GameBoardView: View {
             keys.formUnion(findSekiPartnerStones(game.board, point).map { "\($0.x),\($0.y)" })
         }
 
+        // Two players marking together: the change goes to the server, and the
+        // board follows the state that comes back — the same one the other
+        // player is sent. The rule is the one below: a tap on a group with
+        // any stone already marked unmarks the whole group.
+        if isSharedScoring(game) {
+            let inForce = markMode == .dead ? deadKeysInForce(game) : sekiKeysInForce(game)
+            let unmark = keys.contains { inForce.contains($0) }
+            let points = keys.compactMap(parsePointKey)
+            let mode = markMode == .dead ? "dead" : "seki"
+            Task { await sendScoringMarks(mode: mode, points: points, marked: !unmark) }
+            return
+        }
+
         switch markMode {
         case .dead:
             let alreadyMarked = keys.contains { pendingDeadKeys.contains($0) }
@@ -2212,10 +2281,31 @@ struct GameBoardView: View {
         }
     }
 
+    private func sendScoringMarks(mode: String, points: [Point], marked: Bool) async {
+        do {
+            try await APIClient.setScoringMarks(gameId: gameId, mode: mode, points: points, marked: marked)
+            await load(surfacingErrors: false)
+        } catch {
+            guard !APIClient.isCancellation(error) else { return }
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func finalizeScoring() async {
         guard !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
+        // Between two players the tick says "I agree with this score", and
+        // pressing it again takes that back; the game ends when both have.
+        if let game, isSharedScoring(game) {
+            do {
+                _ = try await APIClient.confirmScoring(gameId: gameId, confirmed: !iHaveConfirmedScore(game))
+                await load()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            return
+        }
         let deadPoints = pendingDeadKeys.compactMap(parsePointKey)
         let sekiPoints = pendingSekiKeys.compactMap(parsePointKey)
         do {

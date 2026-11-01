@@ -573,6 +573,22 @@ enum APIClient {
         return try await post("api/games/\(gameId)/finalize-scoring", body: Body(deadPoints: deadPoints, sekiPoints: sekiPoints))
     }
 
+    // Between two players the marks live on the server, so both see and change
+    // the same ones — mirrors client/src/services/api.ts's setScoringMarks.
+    // A change ("these points are now marked", or "no longer"), not the whole
+    // set, so two players marking different groups at once both get theirs.
+    static func setScoringMarks(gameId: String, mode: String, points: [Point], marked: Bool) async throws {
+        struct Body: Encodable { let mode: String; let points: [Point]; let marked: Bool }
+        try await post("api/games/\(gameId)/scoring-marks", body: Body(mode: mode, points: points, marked: marked))
+    }
+
+    // Says the score is right, or takes that back; the game ends when both
+    // players have.
+    static func confirmScoring(gameId: String, confirmed: Bool) async throws -> ConfirmScoringResponse {
+        struct Body: Encodable { let confirmed: Bool }
+        return try await post("api/games/\(gameId)/scoring-confirm", body: Body(confirmed: confirmed))
+    }
+
     // Mirrors client/src/services/api.ts's reopenScoring — immediate for a
     // local/AI game, request-then-confirm negotiation between two players.
     static func reopenScoring(gameId: String) async throws -> ReopenScoringResponse {

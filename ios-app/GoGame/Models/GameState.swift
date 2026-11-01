@@ -49,6 +49,10 @@ struct GameState: Codable {
     // used by the reopen-scoring button's label/behavior (immediate for a
     // local or AI game, request-then-confirm between two real players).
     let pendingReopenBy: StoneColor?
+    // var with a default so the places that build a GameState without them
+    // (the game held on this device) keep compiling and leave them empty.
+    var scoringMarks: ScoringMarks? = nil
+    var scoringConfirmedBy: [StoneColor]? = nil
     let isAiOpponent: Bool
     // GNU Go ran out of time on this position and the server has stopped
     // waiting for it. Optional so the app still decodes against a server
@@ -133,6 +137,21 @@ struct ResignResponse: Codable {
 }
 
 // Mirrors client/src/services/api.ts's FinalizeScoringResponse.
+// Two players scoring together share these, and which of them have said the
+// score is right (client/src/services/api.ts's scoringMarks and
+// scoringConfirmedBy). nil in every other game — against the computer or on
+// one device the marks stay on the device — and from a server that predates
+// them, so a game decodes either way.
+struct ScoringMarks: Codable, Equatable {
+    var dead: [Point]
+    var seki: [Point]
+}
+
+struct ConfirmScoringResponse: Codable {
+    let status: String
+    let result: String?
+}
+
 struct FinalizeScoringResponse: Codable {
     let status: String
     let result: String?
