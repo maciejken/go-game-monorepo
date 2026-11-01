@@ -473,6 +473,54 @@ function notifyOpponentOfResign(game: Participants & { id: string; title: string
   pushToUser(opponentId, `${resignedName} resigned${game.title ? ` in ${game.title}` : ''}.`, { gameId: game.id });
 }
 
+// A pass is a turn like any other for the player waiting on it, so it is
+// announced the same way a move is — including when it is GNU Go's. The
+// second of two passes ends play instead, and says so: the other player is
+// now being asked to mark dead stones, not to move.
+function notifyOpponentOfPass(
+  game: Participants & { id: string; title: string | null },
+  passerColor: Color,
+  status: string,
+): void {
+  const opponentId = passerColor === 'black' ? game.white_user_id : game.black_user_id;
+  const passerId = passerColor === 'black' ? game.black_user_id : game.white_user_id;
+  const aiId = getAiUserId();
+  if (!opponentId || opponentId === passerId || opponentId === aiId) {
+    return;
+  }
+
+  const passerName = passerId === aiId ? 'GNU Go' : getUsername(passerId) ?? 'Your opponent';
+  const where = game.title ? ` in ${game.title}` : '';
+  pushToUser(
+    opponentId,
+    status === 'scoring'
+      ? `${passerName} passed${where} — scoring has started.`
+      : `${passerName} passed${where} — it's your turn.`,
+    { gameId: game.id },
+  );
+}
+
+// Asking to reopen scoring is a request the other player has to answer, and
+// nothing else tells them there is one — a finished game is not somewhere
+// anyone is looking.
+function notifyOpponentOfReopenRequest(
+  game: Participants & { id: string; title: string | null },
+  requesterColor: Color,
+): void {
+  const opponentId = requesterColor === 'black' ? game.white_user_id : game.black_user_id;
+  const requesterId = requesterColor === 'black' ? game.black_user_id : game.white_user_id;
+  if (!opponentId || opponentId === requesterId || opponentId === getAiUserId()) {
+    return;
+  }
+
+  const requesterName = getUsername(requesterId) ?? 'Your opponent';
+  pushToUser(
+    opponentId,
+    `${requesterName} asked to reopen scoring${game.title ? ` in ${game.title}` : ''}.`,
+    { gameId: game.id },
+  );
+}
+
 // A new remote game has no prior move for notifyOpponentOfMove to hang an
 // "it's your turn" push off of — without this, the invited side never
 // learns about it until they happen to open the app themselves.
@@ -1265,6 +1313,7 @@ function applyPassToGame(game: GameRow, color: Color): { status: string; nextCol
 
   broadcastGameUpdate(game.id);
   broadcastGamesListUpdate();
+  notifyOpponentOfPass(game, color, status);
 
   return { status, nextColor: getCurrentColor(turnMoveNumber(moveNumber + 1, game.handicap)) };
 }
@@ -3749,6 +3798,7 @@ app.post('/api/games/:id/reopen-scoring', (req, res) => {
     if (!game.pending_reopen_by) {
       db.prepare('UPDATE games SET pending_reopen_by = ? WHERE id = ?').run(myColor, game.id);
       broadcastGameUpdate(game.id);
+      notifyOpponentOfReopenRequest(game, myColor);
       res.json({ action: 'requested', pendingReopenBy: myColor });
       return;
     }
