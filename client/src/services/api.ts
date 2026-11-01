@@ -91,6 +91,12 @@ export interface GameStateResponse extends GameResponse, ClockFields {
   pendingUndoBy: Color | null;
   endReason: EndReason;
   pendingReopenBy: Color | null;
+  // While two players score together, the dead and seki marks they both see
+  // and which of them have said the score is right. null in every other
+  // game — against the computer or on one device the marks stay with the
+  // client — and absent from a server that predates them.
+  scoringMarks?: { dead: Point[]; seki: Point[] } | null;
+  scoringConfirmedBy?: Color[] | null;
   isAiOpponent: boolean;
   gnugoLevel: number | null;
   aiCurrentLevel: number | null;
@@ -174,6 +180,38 @@ export interface FinalizeScoringResponse {
   status: string;
   result: string | null;
   captures: Captures;
+}
+
+export interface ConfirmScoringResponse {
+  status: string;
+  result?: string | null;
+  captures?: Captures;
+  scoringConfirmedBy?: Color[];
+}
+
+// Marks (or unmarks) these points as dead or as seki for both players. A
+// change, not the whole set: two players marking different groups at once
+// then both get what they marked.
+export function setScoringMarks(
+  id: string,
+  mode: 'dead' | 'seki',
+  points: Point[],
+  marked: boolean,
+): Promise<{ scoringMarks: { dead: Point[]; seki: Point[] } }> {
+  return fetch(`${API_BASE}/games/${id}/scoring-marks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode, points, marked }),
+  }).then((res) => handle<{ scoringMarks: { dead: Point[]; seki: Point[] } }>(res));
+}
+
+// Says the score is right, or takes that back. The game ends when both have.
+export function confirmScoring(id: string, confirmed: boolean): Promise<ConfirmScoringResponse> {
+  return fetch(`${API_BASE}/games/${id}/scoring-confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmed }),
+  }).then((res) => handle<ConfirmScoringResponse>(res));
 }
 
 // Same request/confirm negotiation shape as UndoResponse, for reopening a

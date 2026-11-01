@@ -272,6 +272,8 @@ function GameView({ gameId }: GameViewProps) {
     pendingUndoBy,
     endReason,
     pendingReopenBy,
+    scoringMarks,
+    scoringConfirmedBy,
     isAiOpponent,
     aiStalled,
     gnugoLevel,
@@ -298,6 +300,8 @@ function GameView({ gameId }: GameViewProps) {
     endGame,
     undo,
     finalizeScoring,
+    markScoring,
+    confirmScoring,
     reopenScoring,
     clearError,
   } = useGame(gameId);
@@ -620,6 +624,17 @@ function GameView({ gameId }: GameViewProps) {
   // Gates marking groups at all, regardless of which mode (dead vs seki).
   // scoring (status === 'scoring') already rules out isReviewing being true.
   const canMarkGroups = scoring && isParticipant;
+  // Between two players the marks are the server's, so both see and change the
+  // same ones and the game ends when both have said the score is right. The
+  // server sends them only then (null otherwise), and a game against the
+  // computer or on one device keeps them in the browser, as it always did.
+  const sharedMarks = scoring && scoringMarks != null;
+  const sharedScoring = sharedMarks && isParticipant && myColor !== 'both';
+  const deadKeys = sharedMarks ? new Set(scoringMarks.dead.map(pointKey)) : pendingDead;
+  const sekiKeys = sharedMarks ? new Set(scoringMarks.seki.map(pointKey)) : pendingSeki;
+  const iHaveConfirmed = sharedScoring && myColor != null && (scoringConfirmedBy ?? []).includes(myColor);
+  const opponentHasConfirmed =
+    sharedScoring && myColor != null && (scoringConfirmedBy ?? []).some((color) => color !== myColor);
   const navDisabled = latestMoveNumber === null || reviewMoveNumber === null;
   // Local games and AI games undo immediately (no negotiation) — same split
   // describeUndoAction uses to pick a label.
@@ -727,8 +742,8 @@ function GameView({ gameId }: GameViewProps) {
   let blackTerritoryKeys = new Set<string>();
   let whiteTerritoryKeys = new Set<string>();
   if (scoring) {
-    const deadPointsArray = Array.from(pendingDead, parsePointKey);
-    const sekiPointsArray = Array.from(pendingSeki, parsePointKey);
+    const deadPointsArray = Array.from(deadKeys, parsePointKey);
+    const sekiPointsArray = Array.from(sekiKeys, parsePointKey);
     const { board: effectiveBoard, captures: adjustedCaptures } = applyDeadStones(liveBoard, captures, deadPointsArray);
     const score = scoreBoard(effectiveBoard, adjustedCaptures, komi, sekiPointsArray);
     const marginLabel = Number.isInteger(score.margin) ? String(score.margin) : score.margin.toFixed(1);
@@ -740,7 +755,7 @@ function GameView({ gameId }: GameViewProps) {
   // the rest of the board instead of ringing the marked group itself —
   // switching to Dead mode hides this so the semi-transparent dead-stone
   // styling isn't competing with it for attention.
-  const sekiActive = markMode === 'seki' && pendingSeki.size > 0;
+  const sekiActive = markMode === 'seki' && sekiKeys.size > 0;
 
   const blackClock = isTimed
     ? computeLiveClock(
@@ -866,6 +881,10 @@ function GameView({ gameId }: GameViewProps) {
     }
     if (markMode === 'dead') {
       const keys = group.map(pointKey);
+      if (sharedScoring) {
+        markShared('dead', keys, deadKeys);
+        return;
+      }
       toggleGroupMembership(keys, pendingDead, setPendingDead, pendingSeki, setPendingSeki);
       return;
     }
@@ -874,7 +893,18 @@ function GameView({ gameId }: GameViewProps) {
     // requiring a second click on the other side is a natural spot to forget.
     const partnerStones = findSekiPartnerStones(liveBoard, { x, y });
     const keys = [...new Set([...group, ...partnerStones].map(pointKey))];
+    if (sharedScoring) {
+      markShared('seki', keys, sekiKeys);
+      return;
+    }
     toggleGroupMembership(keys, pendingSeki, setPendingSeki, pendingDead, setPendingDead);
+  };
+
+  // The same rule as toggleGroupMembership — any member already marked means
+  // the click unmarks the whole group — said to the server instead.
+  const markShared = (mode: 'dead' | 'seki', keys: string[], marked: Set<string>) => {
+    const unmark = keys.some((key) => marked.has(key));
+    markScoring(mode, keys.map(parsePointKey), !unmark).catch(() => {});
   };
 
   const resume = () => {
@@ -884,6 +914,12 @@ function GameView({ gameId }: GameViewProps) {
   };
 
   const finalize = () => {
+    if (sharedScoring) {
+      // Agreeing, not ending: the game ends when the other player has too,
+      // and pressing again takes it back.
+      confirmScoring(!iHaveConfirmed).catch(() => {});
+      return;
+    }
     finalizeScoring(Array.from(pendingDead, parsePointKey), Array.from(pendingSeki, parsePointKey))
       .then(() => {
         setPendingDead(new Set());
@@ -1106,13 +1142,13 @@ function GameView({ gameId }: GameViewProps) {
                       <span
                         className={`go-stone go-stone--${stone}${
                           highlightedPoint?.x === x && highlightedPoint?.y === y ? ' go-stone--last' : ''
-                        }${markMode === 'dead' && pendingDead.has(pointKey({ x, y })) ? ' go-stone--dead' : ''}`}
+                        }${markMode === 'dead' && deadKeys.has(pointKey({ x, y })) ? ' go-stone--dead' : ''}`}
                       />
                     )}
                     {!stone && pendingMove?.x === x && pendingMove?.y === y && (
                       <span className={`go-stone go-stone--${currentColor} go-stone--pending`} />
                     )}
-                    {(!stone || pendingDead.has(pointKey({ x, y }))) &&
+                    {(!stone || deadKeys.has(pointKey({ x, y }))) &&
                       scoring &&
                       (blackTerritoryKeys.has(pointKey({ x, y })) || whiteTerritoryKeys.has(pointKey({ x, y }))) && (
                         <span
@@ -1132,7 +1168,7 @@ function GameView({ gameId }: GameViewProps) {
             // stones are re-drawn crisp here, in an unblurred sibling layer
             // stacked on top at the same board coordinates.
             <div className="go-board-seki-highlight">
-              {Array.from(pendingSeki, parsePointKey).map(({ x, y }) => (
+              {Array.from(sekiKeys, parsePointKey).map(({ x, y }) => (
                 <span
                   key={`${x}-${y}`}
                   className={`go-stone go-stone--${displayedBoard[y][x]}`}
@@ -1174,6 +1210,13 @@ function GameView({ gameId }: GameViewProps) {
                   'Marking seki groups — click a stone to toggle its group. Stays on the board; scores nothing for either side.',
                 )}
             {provisionalResult && <> {provisionalResult}</>}
+          </p>
+        )}
+        {sharedScoring && (iHaveConfirmed || opponentHasConfirmed) && (
+          <p>
+            {iHaveConfirmed
+              ? t('Waiting for the other player to confirm the score.')
+              : t('The other player agrees with the score. Confirm it if you do too.')}
           </p>
         )}
         {!isReviewing && isParticipant && pendingUndoBy && myColor !== 'both' && (
@@ -1327,7 +1370,15 @@ function GameView({ gameId }: GameViewProps) {
                     </button>
                   );
                 })()}
-                <button type="button" className="icon-action-button" aria-label={t('Finalize scoring')} onClick={finalize}>
+                <button
+                  type="button"
+                  className="icon-action-button"
+                  aria-label={
+                    sharedScoring ? (iHaveConfirmed ? t('Take back confirmation') : t('Confirm score')) : t('Finalize scoring')
+                  }
+                  aria-pressed={sharedScoring ? iHaveConfirmed : undefined}
+                  onClick={finalize}
+                >
                   <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                     <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                   </svg>

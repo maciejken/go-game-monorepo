@@ -774,6 +774,14 @@ button.danger {
   flex-shrink: 0;
 }
 
+/* The tick, once you have said the score is right: it stays pressed until the
+   other player agrees or you take it back. */
+.icon-action-button[aria-pressed='true'] {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
 /* Which click-a-group action is currently active during scoring: mark it
    dead (removed, credited as a prisoner) or mark it seki (stays on the
    board, scores nothing for either side). Styled as a switch: a white thumb

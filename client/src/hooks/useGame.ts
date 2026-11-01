@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Board, Color, Point } from 'shared';
 import {
   ApiError,
+  confirmScoring as confirmScoringRequest,
   endGame as endGameRequest,
   finalizeScoring as finalizeScoringRequest,
   getGame,
@@ -9,6 +10,7 @@ import {
   passTurn,
   reopenScoring as reopenScoringRequest,
   resignGame,
+  setScoringMarks as setScoringMarksRequest,
   undoMove,
   type Captures,
   type EndReason,
@@ -40,6 +42,8 @@ export function useGame(gameId: string) {
   const [pendingUndoBy, setPendingUndoBy] = useState<Color | null>(null);
   const [endReason, setEndReason] = useState<EndReason>(null);
   const [pendingReopenBy, setPendingReopenBy] = useState<Color | null>(null);
+  const [scoringMarks, setScoringMarks] = useState<{ dead: Point[]; seki: Point[] } | null>(null);
+  const [scoringConfirmedBy, setScoringConfirmedBy] = useState<Color[] | null>(null);
   const [isAiOpponent, setIsAiOpponent] = useState(false);
   const [gnugoLevel, setGnugoLevel] = useState<number | null>(null);
   const [aiCurrentLevel, setAiCurrentLevel] = useState<number | null>(null);
@@ -84,6 +88,8 @@ export function useGame(gameId: string) {
         setPendingUndoBy(game.pendingUndoBy);
         setEndReason(game.endReason);
         setPendingReopenBy(game.pendingReopenBy);
+        setScoringMarks(game.scoringMarks ?? null);
+        setScoringConfirmedBy(game.scoringConfirmedBy ?? null);
         setIsAiOpponent(game.isAiOpponent);
         setGnugoLevel(game.gnugoLevel);
         setAiCurrentLevel(game.aiCurrentLevel);
@@ -231,6 +237,35 @@ export function useGame(gameId: string) {
     [gameId, refresh],
   );
 
+  // Between two players the marks live on the server, so marking is a request
+  // and the board follows the refreshed state — the same one the other player
+  // is sent by the live socket.
+  const markScoring = useCallback(
+    (mode: 'dead' | 'seki', points: Point[], marked: boolean) => {
+      setError(null);
+      return setScoringMarksRequest(gameId, mode, points, marked)
+        .then(() => refresh())
+        .catch((err: Error) => {
+          setError(err.message);
+          throw err;
+        });
+    },
+    [gameId, refresh],
+  );
+
+  const confirmScoring = useCallback(
+    (confirmed: boolean) => {
+      setError(null);
+      return confirmScoringRequest(gameId, confirmed)
+        .then(() => refresh())
+        .catch((err: Error) => {
+          setError(err.message);
+          throw err;
+        });
+    },
+    [gameId, refresh],
+  );
+
   const clearError = useCallback(() => setError(null), []);
 
   return {
@@ -261,6 +296,10 @@ export function useGame(gameId: string) {
     pendingUndoBy,
     endReason,
     pendingReopenBy,
+    scoringMarks,
+    scoringConfirmedBy,
+    markScoring,
+    confirmScoring,
     isAiOpponent,
     gnugoLevel,
     aiCurrentLevel,
