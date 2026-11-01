@@ -79,6 +79,9 @@ function Home() {
   const [color, setColor] = useState<Color | 'random'>('black');
   const [gnugoLevel, setGnugoLevel] = useState(GNUGO_LEVEL_DEFAULT);
   const [usernameSuggestions, setUsernameSuggestions] = useState<UsernameSearchResult[]>([]);
+  // The name last chosen from the suggestions, so filling it in is not mistaken
+  // for typing it — see the search effect below.
+  const pickedUsername = useRef<string | null>(null);
   // A create-game failure specific to the opponent field (not found, opted
   // out of invitations, self-invite) — shown under that input rather than
   // the form's generic error, and cleared as soon as the username changes
@@ -247,6 +250,16 @@ function Home() {
       return;
     }
     const query = opponentUsername.trim();
+    // The field now holds a name that was just picked from the list: that
+    // change is not a question, and searching for it would put the list back
+    // under the field that has just been answered. Any edit afterwards is a
+    // question again.
+    if (pickedUsername.current !== null) {
+      if (pickedUsername.current === query) {
+        return;
+      }
+      pickedUsername.current = null;
+    }
     const timeoutId = setTimeout(() => {
       searchUsernames(query)
         .then(setUsernameSuggestions)
@@ -262,6 +275,7 @@ function Home() {
   const handleSuggestionSelect = (suggestion: UsernameSearchResult) => {
     setUsernameSuggestions([]);
     setOpponentError(null);
+    pickedUsername.current = suggestion.username;
     if (suggestion.isAi) {
       setOpponentUsername('');
       handleModeChange('gnugo');

@@ -36,6 +36,10 @@ struct NewGameView: View {
     @State private var opponentLookupTask: Task<Void, Never>?
     @State private var usernameSearchTask: Task<Void, Never>?
     @State private var usernameSuggestions: [APIClient.UsernameSearchResult] = []
+    // The name last chosen from the suggestions. Filling it in changes the
+    // field like typing does, and searching for it would put the list back
+    // under a field that has just been answered — see the onChange below.
+    @State private var pickedUsername: String?
     // Saves this form as the shake-to-play preset when the game is
     // created — "these settings, again, by shaking".
     @State private var shakeToPlay = false
@@ -148,6 +152,12 @@ struct NewGameView: View {
                                 // since this one drives visible list
                                 // feedback while typing, not a background
                                 // prefill.
+                                // A name that was just picked is not a question,
+                                // so it is not searched for; the next edit is.
+                                if let picked = pickedUsername {
+                                    if picked == trimmed { return }
+                                    pickedUsername = nil
+                                }
                                 usernameSearchTask = Task {
                                     try? await Task.sleep(nanoseconds: 300_000_000)
                                     guard !Task.isCancelled else { return }
@@ -402,6 +412,7 @@ struct NewGameView: View {
             opponentUsername = ""
             mode = "local"
         } else {
+            pickedUsername = suggestion.username
             opponentUsername = suggestion.username
         }
     }
