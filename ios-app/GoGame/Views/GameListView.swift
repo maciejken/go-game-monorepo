@@ -220,6 +220,15 @@ struct GameListView: View {
             // easy to miss — and an empty favourites list under "Your
             // Games" reads as "you have no games".
             .navigationTitle(isHome ? Text("Your Games") : Text("Favourites"))
+            // The board hides the tab bar for itself (GameBoardView), and
+            // the bar is meant to come back when it is popped. On a phone it
+            // sometimes did not — after leaving the app with a board open
+            // and returning — leaving the list without it until another
+            // board was opened and closed. So the list states it too, from
+            // the same selection that drives the push: when no board is
+            // selected, the bar is visible, said again at the moment of the
+            // pop instead of relying on the board's modifier to be undone.
+            .toolbar(selectedGameId == nil ? .visible : .hidden, for: .tabBar)
             .toolbar {
                 // Stars live on the server, so there is nothing to
                 // filter by without an account.
