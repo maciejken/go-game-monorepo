@@ -787,6 +787,87 @@
         "blackTerritory": 27,
         "whiteTerritory": 36
       }
+    },
+    {
+      "name": "two territories touching across one dame point are not a seki",
+      "size": 9,
+      "board": [
+        ".WW.W....",
+        "BW..WW...",
+        "BWW..WW.W",
+        "BWBWWWWWW",
+        "BBBBWBWBW",
+        ".BWWBBWBB",
+        "..BWB.B.B",
+        ".BBWB.BB.",
+        "...W.B..."
+      ],
+      "captures": {
+        "black": 3,
+        "white": 6
+      },
+      "komi": 6.5,
+      "dead": [
+        {
+          "x": 2,
+          "y": 5
+        },
+        {
+          "x": 3,
+          "y": 5
+        },
+        {
+          "x": 3,
+          "y": 6
+        },
+        {
+          "x": 3,
+          "y": 7
+        },
+        {
+          "x": 3,
+          "y": 8
+        }
+      ],
+      "seki": [],
+      "expect": {
+        "black": 28,
+        "white": 25.5,
+        "winner": "black",
+        "margin": 2.5,
+        "blackTerritory": 20,
+        "whiteTerritory": 13
+      }
+    },
+    {
+      "name": "a genuine seki with one-point eyes scores neither eye",
+      "size": 9,
+      "board": [
+        ".B.WW....",
+        "BB.W.W...",
+        "BBBWWW...",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        "........."
+      ],
+      "captures": {
+        "black": 0,
+        "white": 0
+      },
+      "komi": 6.5,
+      "dead": [],
+      "seki": [],
+      "expect": {
+        "black": 0,
+        "white": 6.5,
+        "winner": "white",
+        "margin": 6.5,
+        "blackTerritory": 0,
+        "whiteTerritory": 0
+      }
     }
   ],
   "handicap": [

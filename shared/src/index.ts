@@ -374,6 +374,18 @@ function findRegions(board: Board, groupId: number[][]): Region[] {
 // danger there, unlike a genuine 1-2 point shared vital liberty.
 const MAX_SEKI_SHARED_REGION_SIZE = 2;
 
+// The same reasoning, applied to a group's own territory. A group that
+// owns a real area — three points or more — is not "short of eyes" in the
+// sense seki needs: it is a settled territory, and one dame point it shares
+// with an enemy group changes nothing about that. Without this bound, any
+// two groups that each held one large territory and touched across a single
+// neutral point were declared seki, and both territories were thrown away —
+// 13 points of black's and 5 of white's in the game that exposed it, which
+// turned a win by 2.5 for Black into a loss by 5.5. The eyes of a genuine
+// seki are one or two points. Anything bigger that really is seki can still
+// be declared by hand (see findDeclaredSekiRegions).
+const MAX_SEKI_EYE_SIZE = 2;
+
 // Which single-color regions count as territory outright, and which are
 // actually part of a seki and so score nothing for either side — including
 // each side's own "eye" points, not just the point(s) they share.
@@ -393,6 +405,7 @@ const MAX_SEKI_SHARED_REGION_SIZE = 2;
 function findSekiNeutralRegions(regions: Region[]): Set<number> {
   const privateRegionsByGroup = new Map<number, number[]>();
   const eyeCountByGroup = new Map<number, number>();
+  const hasLargeTerritory = new Set<number>();
 
   regions.forEach((region, index) => {
     if (region.colors.size !== 1) {
@@ -400,6 +413,9 @@ function findSekiNeutralRegions(regions: Region[]): Set<number> {
     }
     for (const id of region.groupIds) {
       eyeCountByGroup.set(id, (eyeCountByGroup.get(id) ?? 0) + 1);
+      if (region.size > MAX_SEKI_EYE_SIZE) {
+        hasLargeTerritory.add(id);
+      }
       const list = privateRegionsByGroup.get(id);
       if (list) {
         list.push(index);
@@ -414,7 +430,9 @@ function findSekiNeutralRegions(regions: Region[]): Set<number> {
     if (region.colors.size !== 2 || region.size > MAX_SEKI_SHARED_REGION_SIZE) {
       continue;
     }
-    const isMutualSeki = [...region.groupIds].every((id) => (eyeCountByGroup.get(id) ?? 0) < 2);
+    const isMutualSeki = [...region.groupIds].every(
+      (id) => (eyeCountByGroup.get(id) ?? 0) < 2 && !hasLargeTerritory.has(id),
+    );
     if (!isMutualSeki) {
       continue;
     }

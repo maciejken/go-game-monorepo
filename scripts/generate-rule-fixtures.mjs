@@ -126,10 +126,21 @@ const moveSequences = [
 
 // Scoring is the half the app already ports, so these cases pin the port
 // that exists as well as the one being written.
-function scoringCase(name, size, rows, { captures = { black: 0, white: 0 }, komi = 6.5, dead = [], seki = [] } = {}) {
+function scoringCase(
+  name,
+  size,
+  rows,
+  { captures = { black: 0, white: 0 }, komi = 6.5, dead = [], seki = [], mustBe = null } = {},
+) {
   const board = parse(rows);
   const { board: effective, captures: adjusted } = applyDeadStones(board, captures, dead);
   const result = scoreBoard(effective, adjusted, komi, seki);
+  // Fixtures are written from the engine, so a case whose answer was worked
+  // out by hand says so here: if the engine ever disagrees, generating the
+  // file fails instead of quietly recording the wrong answer.
+  if (mustBe && (result.winner !== mustBe.winner || result.margin !== mustBe.margin)) {
+    throw new Error(`${name}: expected ${mustBe.winner} by ${mustBe.margin}, engine says ${result.winner} by ${result.margin}`);
+  }
   return {
     name,
     size,
@@ -194,6 +205,41 @@ const scoring = [
     '...BW....',
     '...BW....',
   ], { captures: { black: 7, white: 2 } }),
+  // A real game (igo5review vs igo5). Each side owns one territory — black's
+  // on the left, white's pocket at the top — and the two groups touch across
+  // the single neutral point in the top-left corner. The seki detector read
+  // that as seki and scored neither territory: White by 5.5, when by hand
+  // (13 + 7 points of territory, 3 + 5 prisoners, against 5 + 8, 6 prisoners
+  // and 6.5 komi) it is Black by 2.5.
+  scoringCase('two territories touching across one dame point are not a seki', 9, [
+    '.WW.W....',
+    'BW..WW...',
+    'BWW..WW.W',
+    'BWBWWWWWW',
+    'BBBBWBWBW',
+    '.BWWBBWBB',
+    '..BWB.B.B',
+    '.BBWB.BB.',
+    '...W.B...',
+  ], {
+    captures: { black: 3, white: 6 },
+    dead: [{ x: 2, y: 5 }, { x: 3, y: 5 }, { x: 3, y: 6 }, { x: 3, y: 7 }, { x: 3, y: 8 }],
+    mustBe: { winner: 'black', margin: 2.5 },
+  }),
+  // The seki the detector is for: each group has a one-point eye of its own
+  // and they share a two-point liberty. Neither eye scores, which is what
+  // Japanese rules say, and what a large territory must not be mistaken for.
+  scoringCase('a genuine seki with one-point eyes scores neither eye', 9, [
+    '.B.WW....',
+    'BB.W.W...',
+    'BBBWWW...',
+    '.........',
+    '.........',
+    '.........',
+    '.........',
+    '.........',
+    '.........',
+  ], { mustBe: { winner: 'white', margin: 6.5 } }),
 ];
 
 const handicap = [];

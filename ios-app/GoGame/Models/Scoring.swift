@@ -110,14 +110,22 @@ private func findRegions(_ board: Board, _ groupId: [[Int]]) -> [Region] {
 // ordinary dame between two unrelated groups shouldn't be misread as seki).
 private let maxSekiSharedRegionSize = 2
 
+// The same bound applied to a group's own territory — see
+// shared/src/index.ts's MAX_SEKI_EYE_SIZE: a group that owns three points or
+// more is not short of eyes in the sense seki needs, so one shared dame
+// point must not cost either side its territory.
+private let maxSekiEyeSize = 2
+
 private func findSekiNeutralRegions(_ regions: [Region]) -> Set<Int> {
     var privateRegionsByGroup: [Int: [Int]] = [:]
     var eyeCountByGroup: [Int: Int] = [:]
+    var hasLargeTerritory: Set<Int> = []
 
     for (index, region) in regions.enumerated() {
         guard region.colors.count == 1 else { continue }
         for id in region.groupIds {
             eyeCountByGroup[id, default: 0] += 1
+            if region.size > maxSekiEyeSize { hasLargeTerritory.insert(id) }
             privateRegionsByGroup[id, default: []].append(index)
         }
     }
@@ -125,7 +133,7 @@ private func findSekiNeutralRegions(_ regions: [Region]) -> Set<Int> {
     var neutral: Set<Int> = []
     for region in regions {
         guard region.colors.count == 2, region.size <= maxSekiSharedRegionSize else { continue }
-        guard region.groupIds.allSatisfy({ (eyeCountByGroup[$0] ?? 0) < 2 }) else { continue }
+        guard region.groupIds.allSatisfy({ (eyeCountByGroup[$0] ?? 0) < 2 && !hasLargeTerritory.contains($0) }) else { continue }
         for id in region.groupIds {
             for privateIndex in privateRegionsByGroup[id] ?? [] {
                 neutral.insert(privateIndex)
