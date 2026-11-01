@@ -614,7 +614,7 @@ const MAX_TITLE_LENGTH = 100;
 // and tabs are the exception: they collapse into a single space along with
 // any other run of whitespace, since a pasted tag is far likelier than a
 // deliberately multi-line one.)
-const MAX_TAG_LENGTH = 24;
+const MAX_TAG_LENGTH = 16;
 const MAX_TAGS_PER_GAME = 12;
 const TAG_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u;
 

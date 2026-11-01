@@ -1664,7 +1664,7 @@ function TitleTagsEditor({
             onChange={(e) => setDraft(e.target.value)}
             placeholder={t('Add a tag')}
             aria-label={t('Add a tag')}
-            maxLength={24}
+            maxLength={16}
             autoFocus
           />
           <div className="tag-form-actions">

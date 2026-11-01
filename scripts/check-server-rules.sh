@@ -39,6 +39,7 @@ node scripts/check-server-import.mjs "http://localhost:$PORT"
 node scripts/check-server-account.mjs "http://localhost:$PORT"
 node scripts/check-server-blocks.mjs "http://localhost:$PORT"
 node scripts/check-server-stars.mjs "http://localhost:$PORT"
+node scripts/check-server-tags.mjs "http://localhost:$PORT"
 node scripts/check-server-progress.mjs "http://localhost:$PORT"
 node scripts/check-server-reports.mjs "http://localhost:$PORT" "$ADMIN_USERNAME"
 # Starts two servers of its own: the flag is read at startup.

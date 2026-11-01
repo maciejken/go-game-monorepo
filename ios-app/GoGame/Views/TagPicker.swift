@@ -28,6 +28,10 @@ struct TagPicker: View {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    // What the server accepts — MAX_TAG_LENGTH in server/src/server.ts, and the
+    // web client's maxLength on the same field.
+    private static let maxTagLength = 16
+
     private var offered: [TagSuggestion] {
         let taken = Set(selected.map { $0.lowercased() })
         return suggestions.filter { !taken.contains($0.tag.lowercased()) }
@@ -64,12 +68,21 @@ struct TagPicker: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: isAddingTag ? "xmark" : "plus")
-                        Text("New tag")
+                        Text("New tag").lineLimit(1)
                     }
+                    // A chip is one line, however little room the row gives
+                    // it: it keeps its own width and the row scrolls instead.
+                    .fixedSize()
                     .font(.subheadline)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                    // The secondary button's look (see the design system):
+                    // no fill, a border and a label in the same colour. A
+                    // capsule like the tags beside it, and the border is
+                    // drawn inside the shape so the chip is no taller than
+                    // they are.
+                    .foregroundStyle(Igo5.outline)
+                    .overlay(Capsule().strokeBorder(Igo5.outline, lineWidth: Igo5.borderWidth))
                 }
                 .buttonStyle(.plain)
                 .disabled(isBusy)
@@ -133,6 +146,13 @@ struct TagPicker: View {
                 .submitLabel(.done)
                 .focused($fieldFocused)
                 .onSubmit { Task { _ = await add(trimmedDraft, isPublic: false) } }
+                // Stops at the length the server accepts, rather than letting
+                // the player type past it and find out when Add is refused.
+                .onChange(of: draft) { _, typed in
+                    if typed.count > Self.maxTagLength {
+                        draft = String(typed.prefix(Self.maxTagLength))
+                    }
+                }
 
             // No Cancel here: the chip that opened this closes it again,
             // and a third button crowds the row enough to wrap Share onto
