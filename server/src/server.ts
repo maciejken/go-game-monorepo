@@ -2022,7 +2022,12 @@ app.get('/api/blocks', (req, res) => {
 // without the "declined your invitation" push that rejecting one sends.
 // Games already under way are left alone: this stops new invitations, it
 // doesn't erase what was played.
-function applyBlock(blockerId: string, targetId: string): void {
+//
+// `keepGameId` is the one invitation to leave alone: a report made from an
+// invitation names it, and the person is still looking at it — it goes when
+// they reject it (the Go back step), not when the report is sent, or the
+// screen they are on loses its game under them.
+function applyBlock(blockerId: string, targetId: string, keepGameId?: string): void {
   db.prepare('INSERT OR IGNORE INTO blocked_users (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)').run(
     blockerId,
     targetId,
@@ -2035,11 +2040,12 @@ function applyBlock(blockerId: string, targetId: string): void {
          AND ((black_user_id = ? AND white_user_id = ?) OR (black_user_id = ? AND white_user_id = ?))`,
     )
     .all(blockerId, targetId, targetId, blockerId) as { id: string }[];
-  for (const row of pending) {
+  const doomed = pending.filter((row) => row.id !== keepGameId);
+  for (const row of doomed) {
     deleteGameRecord(row.id);
     broadcastGameUpdate(row.id);
   }
-  if (pending.length > 0) {
+  if (doomed.length > 0) {
     broadcastGamesListUpdate();
   }
 }
@@ -2129,7 +2135,7 @@ app.post('/api/reports', reportRateLimiter, (req, res) => {
   // Taken in the same request as the report, so the two can't half
   // happen: the person who asks for both gets both or neither.
   if (req.body?.block === true) {
-    applyBlock(user.id, target.id);
+    applyBlock(user.id, target.id, game?.id);
   }
 
   res.json({ reported: true });

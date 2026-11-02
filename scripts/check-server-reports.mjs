@@ -82,7 +82,9 @@ expect(
 );
 
 // And it blocks the way the blocks endpoint does — a pending invitation
-// between the two goes with it, rather than only new ones being stopped.
+// between the two goes with it, rather than only new ones being stopped —
+// except the one the report was made from, which the reporter is still
+// looking at: it goes when they reject it, not when the report is sent.
 const third = session();
 const thirdName = `rc${suffix}`;
 await third('POST', '/api/auth/register', { username: thirdName, password });
@@ -99,15 +101,28 @@ expect(typeof invited.body?.id === 'string', `couldn't create an invitation (${J
 // the creator's alone and could not have been what the reporter objected to.
 await third('POST', `/api/games/${invited.body?.id}/tags`, { tag: 'rudetag', isPublic: true });
 // Reported from the invitation, where the offending text is seen: the
-// report names the game, and the block deletes it in the same request.
+// report names the game, and the block must leave it standing.
 await reporter('POST', '/api/reports', {
   username: thirdName,
   reason: 'game_text',
   gameId: invited.body?.id,
   block: true,
 });
+const keptGame = await reporter('GET', `/api/games/${invited.body?.id}`);
+expect(keptGame.status === 200, `the reported invitation was deleted by the report: got ${keptGame.status}`);
+const otherInvite = await third('POST', '/api/games', {
+  size: 9,
+  mode: 'remote',
+  color: 'black',
+  timeControl: 'unlimited',
+  opponentUsername: reporterName,
+});
+// The block is in force, so a second invitation cannot even be sent.
+expect(otherInvite.status === 400, `inviting a blocker: got ${otherInvite.status}`);
+const rejected = await reporter('POST', `/api/games/${invited.body?.id}/respond-invite`, { accept: false });
+expect(rejected.status < 300, `rejecting the reported invitation: got ${rejected.status}`);
 const goneGame = await reporter('GET', `/api/games/${invited.body?.id}`);
-expect(goneGame.status === 404, `the pending invitation survived the block: got ${goneGame.status}`);
+expect(goneGame.status === 404, `the rejected invitation survived: got ${goneGame.status}`);
 
 // --- What is refused ---------------------------------------------------
 
@@ -179,7 +194,7 @@ if (adminName) {
   expect(queue.status === 200, `the admin couldn't read the queue: got ${queue.status}`);
   const mine = Array.isArray(queue.body) ? queue.body.filter((row) => row.reporter === reporterName) : [];
   expect(mine.length === 3, `the queue holds ${mine.length} of this run's reports, expected 3`);
-  // What was reported outlives the game it was on: the block above deleted
+  // What was reported outlives the game it was on: rejecting it deleted
   // that game, and the report still says what the title and tags were.
   const aboutGame = mine.find((row) => row.reason === 'game_text');
   expect(aboutGame?.game_title === 'Rude title', `the title was lost with the game: ${JSON.stringify(aboutGame?.game_title)}`);
