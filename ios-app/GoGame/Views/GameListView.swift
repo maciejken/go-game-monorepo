@@ -238,6 +238,15 @@ struct GameListView: View {
             }
             .navigationDestination(item: $selectedGameId) { gameId in
                 GameBoardView(gameId: gameId)
+                    // A board opened from a push notification and left with
+                    // the header's back button (not the edge swipe) was
+                    // popped without the stack clearing its selection. The
+                    // list then still counted a board as open: row taps were
+                    // refused, and the tab bar stayed hidden. The board
+                    // saying so itself does not depend on the stack.
+                    .onDisappear {
+                        if selectedGameId == gameId { selectedGameId = nil }
+                    }
             }
             // onDismiss defers navigating until the sheet's dismiss animation
             // has actually finished — setting selectedGameId in the same
